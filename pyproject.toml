@@ -1,0 +1,17 @@
+[project]
+name = "lw-coder"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docopt-ng>=0.9.0",
+    "pytest>=8.4.2",
+    "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+lw_coder = "lw_coder.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
