@@ -7,16 +7,20 @@ from typing import Sequence
 
 from docopt import docopt
 
+from .logging_config import configure_logging, get_logger
 from .plan_validator import PlanValidationError, load_plan_metadata
 
 _USAGE = """\
 Usage:
-  lw_coder code <plan_path>
+  lw_coder code <plan_path> [--debug]
   lw_coder (-h | --help)
 
 Options:
   -h --help     Show this screen.
+  --debug       Enable debug-level logging.
 """
+
+logger = get_logger(__name__)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -24,14 +28,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parsed = docopt(_USAGE, argv=argv)
     plan_path = parsed["<plan_path>"]
+    debug = parsed["--debug"]
+
+    # Configure logging before any other operations
+    configure_logging(debug=debug)
 
     try:
         metadata = load_plan_metadata(plan_path)
     except PlanValidationError as exc:
-        print(f"Plan validation failed: {exc}", file=sys.stderr)
+        logger.error("Plan validation failed: %s", exc)
         return 1
 
-    print(f"Plan validation succeeded for {metadata.plan_path}")
+    logger.info("Plan validation succeeded for %s", metadata.plan_path)
     return 0
 
 
