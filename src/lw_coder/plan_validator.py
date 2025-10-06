@@ -11,8 +11,11 @@ from typing import Any, Iterable
 import yaml
 
 _FRONT_MATTER_DELIM = "---"
-_REQUIRED_KEYS = {"git_sha", "evaluation_notes"}
+_REQUIRED_KEYS = {"git_sha", "evaluation_notes", "plan_id", "branch_name", "status"}
+_OPTIONAL_KEYS = {"linear_issue_id", "created_by", "created_at", "notes"}
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+_PLAN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,100}$")
+_VALID_STATUSES = {"draft", "ready", "coding", "review", "done", "abandoned"}
 
 
 class PlanValidationError(Exception):
@@ -28,6 +31,13 @@ class PlanMetadata:
     evaluation_notes: list[str]
     plan_path: Path
     repo_root: Path
+    plan_id: str
+    branch_name: str
+    status: str
+    linear_issue_id: str | None = None
+    created_by: str | None = None
+    created_at: str | None = None
+    notes: str | None = None
 
 
 def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
@@ -53,9 +63,22 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
     front_matter, body_text = _extract_front_matter(content)
     _enforce_exact_keys(front_matter, _REQUIRED_KEYS)
 
+    # Validate required fields
     git_sha_value = _validate_git_sha(front_matter.get("git_sha"))
     evaluation_notes_value = _validate_evaluation_notes(front_matter.get("evaluation_notes"))
+    plan_id_value = _validate_plan_id(front_matter.get("plan_id"), path)
+    branch_name_value = _validate_branch_name(front_matter.get("branch_name"))
+    status_value = _validate_status(front_matter.get("status"))
     plan_text_value = _validate_plan_body(body_text)
+
+    # Validate optional fields if present
+    created_at_value = None
+    if "created_at" in front_matter:
+        created_at_value = _validate_created_at(front_matter["created_at"])
+
+    linear_issue_id_value = front_matter.get("linear_issue_id")
+    created_by_value = front_matter.get("created_by")
+    notes_value = front_matter.get("notes")
 
     repo_root = _find_repo_root(path)
     _ensure_path_within_repo(path, repo_root)
@@ -67,6 +90,13 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
         evaluation_notes=evaluation_notes_value,
         plan_path=path,
         repo_root=repo_root,
+        plan_id=plan_id_value,
+        branch_name=branch_name_value,
+        status=status_value,
+        linear_issue_id=linear_issue_id_value,
+        created_by=created_by_value,
+        created_at=created_at_value,
+        notes=notes_value,
     )
 
 
@@ -100,8 +130,9 @@ def _extract_front_matter(markdown: str) -> tuple[dict[str, Any], str]:
 
 def _enforce_exact_keys(data: dict[str, Any], required_keys: Iterable[str]) -> None:
     keys = set(data.keys())
+    allowed_keys = set(required_keys) | _OPTIONAL_KEYS
     missing = sorted(set(required_keys) - keys)
-    extra = sorted(keys - set(required_keys))
+    extra = sorted(keys - allowed_keys)
 
     if missing:
         raise PlanValidationError(
@@ -149,6 +180,84 @@ def _validate_evaluation_notes(value: Any) -> list[str]:
         cleaned_notes.append(stripped)
 
     return cleaned_notes
+
+
+def _validate_plan_id(value: Any, plan_path: Path) -> str:
+    if not isinstance(value, str):
+        raise PlanValidationError("Field 'plan_id' must be a string.")
+
+    stripped = value.strip()
+    if not _PLAN_ID_PATTERN.fullmatch(stripped):
+        raise PlanValidationError(
+            "Field 'plan_id' must match pattern ^[a-zA-Z0-9._-]{3,100}$ (3-100 chars, alphanumeric/._- only)."
+        )
+
+    # Check uniqueness within plan directory
+    tasks_dir = plan_path.parent
+    for other_plan in tasks_dir.glob("*.md"):
+        if other_plan.resolve() == plan_path.resolve():
+            continue
+        try:
+            content = other_plan.read_text(encoding="utf-8")
+            front_matter, _ = _extract_front_matter(content)
+            other_id = front_matter.get("plan_id")
+            if other_id == stripped:
+                raise PlanValidationError(
+                    f"Field 'plan_id' value '{stripped}' is not unique. Found duplicate in {other_plan.name}."
+                )
+        except PlanValidationError as e:
+            # If the PlanValidationError is about duplicate plan_id, re-raise it
+            if "not unique" in str(e):
+                raise
+            # Otherwise skip files with other validation errors
+            continue
+        except (yaml.YAMLError, KeyError, OSError):
+            # Skip files that can't be read or parsed
+            continue
+
+    return stripped
+
+
+def _validate_branch_name(value: Any) -> str:
+    if not isinstance(value, str):
+        raise PlanValidationError("Field 'branch_name' must be a string.")
+
+    stripped = value.strip()
+    if not stripped:
+        raise PlanValidationError("Field 'branch_name' must not be empty.")
+
+    return stripped
+
+
+def _validate_status(value: Any) -> str:
+    if not isinstance(value, str):
+        raise PlanValidationError("Field 'status' must be a string.")
+
+    normalized = value.strip().lower()
+    if normalized not in _VALID_STATUSES:
+        valid_list = ", ".join(sorted(_VALID_STATUSES))
+        raise PlanValidationError(
+            f"Field 'status' must be one of: {valid_list} (case-insensitive)."
+        )
+
+    return normalized
+
+
+def _validate_created_at(value: Any) -> str:
+    if not isinstance(value, str):
+        raise PlanValidationError("Field 'created_at' must be a string in ISO 8601 datetime format.")
+
+    from datetime import datetime
+
+    stripped = value.strip()
+    try:
+        datetime.fromisoformat(stripped)
+    except ValueError as exc:
+        raise PlanValidationError(
+            f"Field 'created_at' must be a valid ISO 8601 datetime format: {exc}"
+        ) from exc
+
+    return stripped
 
 
 def _find_repo_root(path: Path) -> Path:

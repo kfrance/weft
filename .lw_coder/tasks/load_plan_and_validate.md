@@ -1,5 +1,8 @@
 ---
+plan_id: plan-load-plan-and-validate
+branch_name: lw/plan/load-plan-and-validate
 git_sha: 17634532492117ac0dd0446f03bc137a4e3ff3f2
+status: done
 evaluation_notes:
   - Were any files that aren't being used generated?
   - Does the integration test create real repos, commits, and plans before invoking the CLI?

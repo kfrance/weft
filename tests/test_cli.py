@@ -41,6 +41,9 @@ def test_cli_success(git_repo):
         {
             "git_sha": repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
+            "plan_id": "plan-cli-success",
+            "branch_name": "feature/cli-test",
+            "status": "draft",
         },
         body="# Refactor API\n\nEnsure docstrings are accurate."
     )
@@ -60,6 +63,9 @@ def test_cli_failure_invalid_sha(git_repo):
         {
             "git_sha": "f" * 40,
             "evaluation_notes": ["All tests pass"],
+            "plan_id": "plan-cli-invalid",
+            "branch_name": "feature/invalid-sha",
+            "status": "draft",
         },
     )
 
