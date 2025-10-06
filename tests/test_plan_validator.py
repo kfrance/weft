@@ -3,27 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
 
 from lw_coder.plan_validator import PlanMetadata, PlanValidationError, load_plan_metadata
-
-
-def _write_plan(path: Path, data: dict, body: str = "# Plan Body") -> None:
-    yaml_block = yaml.safe_dump(data, sort_keys=False).strip()
-    content = "---\n" + yaml_block + "\n---\n\n" + body + "\n"
-    path.write_text(content, encoding="utf-8")
+from tests.conftest import write_plan
 
 
 def test_validate_plan_success(git_repo):
     repo = git_repo
     plan_path = repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": repo.latest_commit(),
             "evaluation_notes": ["All tests pass", "Docs updated"],
             "plan_id": "plan-refactor-api",
-            "branch_name": "feature/refactor-api",
             "status": "draft",
         },
         body="# Refactor API\n\nEnsure error handling is improved."
@@ -38,7 +31,6 @@ def test_validate_plan_success(git_repo):
     assert metadata.plan_path == plan_path.resolve()
     assert metadata.repo_root == repo.path.resolve()
     assert metadata.plan_id == "plan-refactor-api"
-    assert metadata.branch_name == "feature/refactor-api"
     assert metadata.status == "draft"
     assert metadata.linear_issue_id is None
     assert metadata.created_by is None
@@ -56,12 +48,11 @@ def test_missing_front_matter(git_repo):
 
 def test_missing_required_key(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "plan_id": "plan-test",
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -72,13 +63,12 @@ def test_missing_required_key(git_repo):
 
 def test_extra_key_disallowed(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-extra",
-            "branch_name": "test-branch",
             "status": "draft",
             "extra": "noop",
         },
@@ -90,13 +80,12 @@ def test_extra_key_disallowed(git_repo):
 
 def test_invalid_git_sha_pattern(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": "123",
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-sha",
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -109,13 +98,12 @@ def test_git_sha_not_commit(git_repo):
     repo = git_repo
     tree_sha = repo.run("rev-parse", "HEAD^{tree}").stdout.strip()
     plan_path = repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": tree_sha,
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-tree",
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -126,13 +114,12 @@ def test_git_sha_not_commit(git_repo):
 
 def test_evaluation_notes_must_be_list(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": "All tests pass",
             "plan_id": "plan-test-notes",
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -143,13 +130,12 @@ def test_evaluation_notes_must_be_list(git_repo):
 
 def test_empty_evaluation_note(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass", "  "],
             "plan_id": "plan-test-empty",
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -160,13 +146,12 @@ def test_empty_evaluation_note(git_repo):
 
 def test_plan_outside_git_repo(tmp_path):
     plan_path = tmp_path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": "f" * 40,
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-outside",
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -177,13 +162,12 @@ def test_plan_outside_git_repo(tmp_path):
 
 def test_nonexistent_git_sha(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": "f" * 40,
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-nonexistent",
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -194,13 +178,12 @@ def test_nonexistent_git_sha(git_repo):
 
 def test_missing_plan_body(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-body",
-            "branch_name": "test-branch",
             "status": "draft",
         },
         body=" \n \n\t",
@@ -215,13 +198,12 @@ def test_missing_plan_body(git_repo):
 
 def test_plan_id_invalid_pattern(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "ab",  # Too short
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -232,13 +214,12 @@ def test_plan_id_invalid_pattern(git_repo):
 
 def test_plan_id_invalid_characters(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan@invalid",  # Invalid character @
-            "branch_name": "test-branch",
             "status": "draft",
         },
     )
@@ -250,26 +231,24 @@ def test_plan_id_invalid_characters(git_repo):
 def test_plan_id_duplicate(git_repo):
     # Create first plan
     plan_path_1 = git_repo.path / "plan1.md"
-    _write_plan(
+    write_plan(
         plan_path_1,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "duplicate-id",
-            "branch_name": "test-branch-1",
             "status": "draft",
         },
     )
 
     # Create second plan with duplicate plan_id
     plan_path_2 = git_repo.path / "plan2.md"
-    _write_plan(
+    write_plan(
         plan_path_2,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "duplicate-id",
-            "branch_name": "test-branch-2",
             "status": "draft",
         },
     )
@@ -278,32 +257,14 @@ def test_plan_id_duplicate(git_repo):
         load_plan_metadata(plan_path_2)
 
 
-def test_branch_name_empty(git_repo):
-    plan_path = git_repo.path / "plan.md"
-    _write_plan(
-        plan_path,
-        {
-            "git_sha": git_repo.latest_commit(),
-            "evaluation_notes": ["All tests pass"],
-            "plan_id": "plan-test-branch",
-            "branch_name": "   ",  # Empty after strip
-            "status": "draft",
-        },
-    )
-
-    with pytest.raises(PlanValidationError, match="must not be empty"):
-        load_plan_metadata(plan_path)
-
-
 def test_status_invalid(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-status",
-            "branch_name": "test-branch",
             "status": "invalid_status",
         },
     )
@@ -314,13 +275,12 @@ def test_status_invalid(git_repo):
 
 def test_status_case_insensitive(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-case",
-            "branch_name": "test-branch",
             "status": "DRAFT",  # Uppercase
         },
     )
@@ -331,13 +291,12 @@ def test_status_case_insensitive(git_repo):
 
 def test_optional_fields_present(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-optional",
-            "branch_name": "test-branch",
             "status": "draft",
             "linear_issue_id": "LW-123",
             "created_by": "test-user",
@@ -355,13 +314,12 @@ def test_optional_fields_present(git_repo):
 
 def test_created_at_invalid_format(git_repo):
     plan_path = git_repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-test-datetime",
-            "branch_name": "test-branch",
             "status": "draft",
             "created_at": "not-a-datetime",
         },

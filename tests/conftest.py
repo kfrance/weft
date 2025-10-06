@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 @dataclass
@@ -39,3 +40,16 @@ def git_repo(tmp_path: Path) -> GitRepo:
     subprocess.run(["git", "commit", "-m", "initial"], cwd=repo_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     return GitRepo(path=repo_path)
+
+
+def write_plan(path: Path, data: dict, body: str = "# Plan Body") -> None:
+    """Helper function to write a plan file with YAML front matter.
+
+    Args:
+        path: Path where the plan file will be written.
+        data: Dictionary containing the YAML front matter data.
+        body: Markdown body content for the plan. Defaults to "# Plan Body".
+    """
+    yaml_block = yaml.safe_dump(data, sort_keys=False).strip()
+    content = f"---\n{yaml_block}\n---\n\n{body}\n"
+    path.write_text(content, encoding="utf-8")

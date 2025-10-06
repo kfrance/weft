@@ -9,9 +9,11 @@ from docopt import docopt
 
 from .logging_config import configure_logging, get_logger
 from .plan_validator import PlanValidationError, load_plan_metadata
+from .worktree_utils import WorktreeError, ensure_worktree
 
 _USAGE = """\
 Usage:
+  lw_coder plan <plan_path> [--debug]
   lw_coder code <plan_path> [--debug]
   lw_coder (-h | --help)
 
@@ -29,6 +31,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parsed = docopt(_USAGE, argv=argv)
     plan_path = parsed["<plan_path>"]
     debug = parsed["--debug"]
+    is_plan_command = parsed["plan"]
+    is_code_command = parsed["code"]
 
     # Configure logging before any other operations
     configure_logging(debug=debug)
@@ -40,6 +44,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     logger.info("Plan validation succeeded for %s", metadata.plan_path)
+
+    # Both plan and code commands prepare the worktree
+    if is_plan_command or is_code_command:
+        try:
+            worktree_path = ensure_worktree(metadata)
+            logger.info("Worktree prepared at: %s", worktree_path)
+        except WorktreeError as exc:
+            logger.error("Worktree preparation failed: %s", exc)
+            return 1
+
     return 0
 
 

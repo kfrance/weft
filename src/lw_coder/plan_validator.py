@@ -10,8 +10,12 @@ from typing import Any, Iterable
 
 import yaml
 
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
+
 _FRONT_MATTER_DELIM = "---"
-_REQUIRED_KEYS = {"git_sha", "evaluation_notes", "plan_id", "branch_name", "status"}
+_REQUIRED_KEYS = {"git_sha", "evaluation_notes", "plan_id", "status"}
 _OPTIONAL_KEYS = {"linear_issue_id", "created_by", "created_at", "notes"}
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _PLAN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,100}$")
@@ -32,7 +36,6 @@ class PlanMetadata:
     plan_path: Path
     repo_root: Path
     plan_id: str
-    branch_name: str
     status: str
     linear_issue_id: str | None = None
     created_by: str | None = None
@@ -59,6 +62,8 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
     if not path.is_file():
         raise PlanValidationError(f"Plan path must be a file: {path}")
 
+    logger.debug("Loading plan metadata from %s", path)
+
     content = path.read_text(encoding="utf-8")
     front_matter, body_text = _extract_front_matter(content)
     _enforce_exact_keys(front_matter, _REQUIRED_KEYS)
@@ -67,7 +72,6 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
     git_sha_value = _validate_git_sha(front_matter.get("git_sha"))
     evaluation_notes_value = _validate_evaluation_notes(front_matter.get("evaluation_notes"))
     plan_id_value = _validate_plan_id(front_matter.get("plan_id"), path)
-    branch_name_value = _validate_branch_name(front_matter.get("branch_name"))
     status_value = _validate_status(front_matter.get("status"))
     plan_text_value = _validate_plan_body(body_text)
 
@@ -84,6 +88,14 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
     _ensure_path_within_repo(path, repo_root)
     _ensure_commit_exists(repo_root, git_sha_value)
 
+    logger.debug(
+        "Plan validation succeeded for %s (plan_id=%s, git_sha=%s, status=%s)",
+        path.name,
+        plan_id_value,
+        git_sha_value[:8],
+        status_value,
+    )
+
     return PlanMetadata(
         plan_text=plan_text_value,
         git_sha=git_sha_value,
@@ -91,7 +103,6 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
         plan_path=path,
         repo_root=repo_root,
         plan_id=plan_id_value,
-        branch_name=branch_name_value,
         status=status_value,
         linear_issue_id=linear_issue_id_value,
         created_by=created_by_value,
@@ -214,17 +225,6 @@ def _validate_plan_id(value: Any, plan_path: Path) -> str:
         except (yaml.YAMLError, KeyError, OSError):
             # Skip files that can't be read or parsed
             continue
-
-    return stripped
-
-
-def _validate_branch_name(value: Any) -> str:
-    if not isinstance(value, str):
-        raise PlanValidationError("Field 'branch_name' must be a string.")
-
-    stripped = value.strip()
-    if not stripped:
-        raise PlanValidationError("Field 'branch_name' must not be empty.")
 
     return stripped
 

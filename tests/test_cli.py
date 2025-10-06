@@ -13,13 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
-
-
-def _write_plan(path: Path, data: dict, body: str = "# CLI Plan") -> None:
-    yaml_block = yaml.safe_dump(data, sort_keys=False).strip()
-    content = f"---\n{yaml_block}\n---\n\n{body}\n"
-    path.write_text(content, encoding="utf-8")
+from tests.conftest import write_plan
 
 
 def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -45,13 +39,12 @@ def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 def test_cli_success(git_repo):
     repo = git_repo
     plan_path = repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": repo.latest_commit(),
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-cli-success",
-            "branch_name": "feature/cli-test",
             "status": "draft",
         },
         body="# Refactor API\n\nEnsure docstrings are accurate."
@@ -61,19 +54,19 @@ def test_cli_success(git_repo):
 
     assert result.returncode == 0
     assert "Plan validation succeeded" in result.stderr
+    assert "Worktree prepared at" in result.stderr
     assert result.stdout == ""
 
 
 def test_cli_failure_invalid_sha(git_repo):
     repo = git_repo
     plan_path = repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": "f" * 40,
             "evaluation_notes": ["All tests pass"],
             "plan_id": "plan-cli-invalid",
-            "branch_name": "feature/invalid-sha",
             "status": "draft",
         },
     )
@@ -89,13 +82,12 @@ def test_cli_failure_invalid_sha(git_repo):
 def test_cli_debug_flag(git_repo):
     repo = git_repo
     plan_path = repo.path / "plan.md"
-    _write_plan(
+    write_plan(
         plan_path,
         {
             "git_sha": repo.latest_commit(),
             "evaluation_notes": ["Debug flag test"],
             "plan_id": "plan-debug-test",
-            "branch_name": "feature/debug",
             "status": "draft",
         },
         body="# Debug Test Plan\n\nValidate debug logging."
@@ -105,4 +97,76 @@ def test_cli_debug_flag(git_repo):
 
     assert result.returncode == 0
     assert "Plan validation succeeded" in result.stderr
+    assert "Worktree prepared at" in result.stderr
     assert result.stdout == ""
+
+
+def test_cli_plan_command_success(git_repo):
+    repo = git_repo
+    plan_path = repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": repo.latest_commit(),
+            "evaluation_notes": ["Plan command test"],
+            "plan_id": "plan-command-test",
+            "status": "draft",
+        },
+        body="# Plan Command Test\n\nTest the plan subcommand."
+    )
+
+    result = _run_cli("plan", str(plan_path))
+
+    assert result.returncode == 0
+    assert "Plan validation succeeded" in result.stderr
+    assert "Worktree prepared at" in result.stderr
+    assert result.stdout == ""
+
+
+def test_cli_plan_command_reuses_worktree(git_repo):
+    """Test that running plan command twice reuses the same worktree."""
+    repo = git_repo
+    plan_path = repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": repo.latest_commit(),
+            "evaluation_notes": ["Reuse worktree test"],
+            "plan_id": "plan-reuse-test",
+            "status": "draft",
+        },
+        body="# Reuse Worktree Test\n\nTest worktree reuse."
+    )
+
+    # Run first time
+    result1 = _run_cli("plan", str(plan_path))
+    assert result1.returncode == 0
+
+    # Run second time
+    result2 = _run_cli("plan", str(plan_path))
+    assert result2.returncode == 0
+    assert "Worktree prepared at" in result2.stderr
+
+
+def test_cli_code_command_with_worktree(git_repo):
+    """Test that code command creates and reports worktree path."""
+    repo = git_repo
+    plan_path = repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": repo.latest_commit(),
+            "evaluation_notes": ["Code with worktree test"],
+            "plan_id": "code-worktree-test",
+            "status": "draft",
+        },
+        body="# Code Command Test\n\nTest code command with worktree."
+    )
+
+    result = _run_cli("code", str(plan_path))
+
+    assert result.returncode == 0
+    assert "Plan validation succeeded" in result.stderr
+    assert "Worktree prepared at" in result.stderr
+    worktree_path = repo.path / ".lw_coder" / "worktrees" / "code-worktree-test"
+    assert worktree_path.exists()
