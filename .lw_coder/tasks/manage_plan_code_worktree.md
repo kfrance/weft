@@ -1,7 +1,7 @@
 ---
 plan_id: manage-plan-code-worktree
 git_sha: 99d10a8292abdf45743ca1e67fff3542d973ae50
-status: draft
+status: done
 evaluation_notes:
   - Do both CLI commands create or reuse the shared worktree exactly once and report its path?
   - Are error scenarios covered by tests, including branch mismatch, missing worktree registration, and duplicate usage elsewhere?
