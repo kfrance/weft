@@ -21,4 +21,6 @@ Your task:
          Then [expected outcome]
      ```
 
+When you outline options or make suggestions, label them (e.g., Option 1, Option 2) so they are easy for me to reference.
+
 When you're ready to write the final plan, let me know and we'll review it together before you save it.
