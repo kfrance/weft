@@ -1,0 +1,17 @@
+# Configuration for lw_coder code command
+# This file controls environment loading, variable forwarding, and Docker settings
+
+[code]
+# Path to .env file (relative to repo root)
+env_file = ".env"
+
+# Environment variables to forward to Docker container
+# Use patterns like "OPENROUTER_*" to match multiple variables
+# Use ["*"] to forward all variables (not recommended, will log warning)
+forward_env = ["OPENROUTER_*"]
+
+# Arguments to pass to docker build
+docker_build_args = []
+
+# Arguments to pass to docker run
+docker_run_args = []
