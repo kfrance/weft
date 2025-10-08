@@ -2,6 +2,8 @@ Here is an initial idea for a plan that needs to be refined and formalized:
 
 {IDEA_TEXT}
 
+Before you proceed, look for supporting docs such as `docs/BEST_PRACTICES.md`, `AGENTS.md`, and `CLAUDE.md` in the project; keep any guidance you find in mind while planning.
+
 Your task:
 1. Examine the codebase in /workspace to understand implementation context
 2. Ask me clarifying questions ONE AT A TIME until you fully understand the requirements
