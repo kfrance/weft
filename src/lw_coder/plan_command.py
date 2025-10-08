@@ -8,6 +8,12 @@ import subprocess
 from pathlib import Path
 
 from .droid_auth import DroidAuthError, check_droid_auth
+from .droid_session import (
+    DroidSessionConfig,
+    build_docker_command,
+    get_lw_coder_src_dir,
+    patched_worktree_gitdir,
+)
 from .logging_config import get_logger
 from .plan_validator import _extract_front_matter
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
@@ -19,17 +25,6 @@ class PlanCommandError(Exception):
     """Raised when plan command operations fail."""
 
 
-def _get_lw_coder_src_dir() -> Path:
-    """Get the lw_coder source directory (where prompts and droids are located).
-
-    Returns:
-        Path to the lw_coder source directory.
-
-    Raises:
-        PlanCommandError: If the source directory cannot be determined.
-    """
-    # The source directory is where this module is located
-    return Path(__file__).parent
 
 
 def _find_repo_root() -> Path:
@@ -68,7 +63,11 @@ def _load_template(tool: str) -> str:
     Raises:
         PlanCommandError: If the template file cannot be loaded.
     """
-    src_dir = _get_lw_coder_src_dir()
+    try:
+        src_dir = get_lw_coder_src_dir()
+    except RuntimeError as exc:
+        raise PlanCommandError(str(exc)) from exc
+
     template_path = src_dir / "prompts" / tool / "plan.md"
 
     if not template_path.exists():
@@ -122,56 +121,6 @@ def _extract_idea_text(plan_path: Path | None, text_input: str | None) -> str:
         return content.strip()
 
 
-def _build_docker_command(
-    temp_worktree: Path,
-    repo_root: Path,
-    prompt_file: Path,
-) -> list[str]:
-    """Build the Docker command to run droid interactively.
-
-    Args:
-        temp_worktree: Path to the temporary worktree.
-        repo_root: Path to the Git repository root.
-        prompt_file: Path to the file containing the prompt.
-
-    Returns:
-        List of command arguments for subprocess.
-    """
-    lw_coder_src = _get_lw_coder_src_dir()
-    tasks_dir = repo_root / ".lw_coder" / "tasks"
-    droids_dir = lw_coder_src / "droids"
-    auth_file = Path.home() / ".factory" / "auth.json"
-    container_settings_file = lw_coder_src / "container_settings.json"
-    git_dir = repo_root / ".git"
-
-    # Ensure tasks directory exists
-    tasks_dir.mkdir(parents=True, exist_ok=True)
-
-    # Fix worktree's .git file to point to mounted git directory
-    # Read the current gitdir path
-    worktree_git_file = temp_worktree / ".git"
-    original_gitdir = worktree_git_file.read_text().strip()
-    # Extract worktree name (e.g., "temp-20251007_142615_613903-6f72d984")
-    worktree_name = original_gitdir.split("/")[-1]
-    # Write new gitdir pointing to container path
-    worktree_git_file.write_text(f"gitdir: /repo-git/worktrees/{worktree_name}\n")
-
-    cmd = [
-        "docker", "run", "-it", "--rm",
-        "--security-opt=no-new-privileges",
-        "-v", f"{temp_worktree}:/workspace",
-        "-v", f"{git_dir}:/repo-git:ro",
-        "-v", f"{tasks_dir}:/output",
-        "-v", f"{droids_dir}:/home/droiduser/.factory/droids:ro",
-        "-v", f"{auth_file}:/home/droiduser/.factory/auth.json:ro",
-        "-v", f"{container_settings_file}:/home/droiduser/.factory/settings.json:ro",
-        "-v", f"{prompt_file}:/tmp/prompt.txt:ro",
-        "-w", "/workspace",
-        "lw_coder_droid:latest",
-        "bash", "-c", "droid \"$(cat /tmp/prompt.txt)\"",
-    ]
-
-    return cmd
 
 
 def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) -> int:
@@ -219,20 +168,49 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         # Create temporary worktree
         temp_worktree = create_temp_worktree(repo_root)
 
-        # Build Docker command
-        docker_cmd = _build_docker_command(temp_worktree, repo_root, prompt_file)
+        # Get lw_coder source directory
+        try:
+            lw_coder_src = get_lw_coder_src_dir()
+        except RuntimeError as exc:
+            raise PlanCommandError(str(exc)) from exc
+
+        # Prepare paths for Docker configuration
+        tasks_dir = repo_root / ".lw_coder" / "tasks"
+        droids_dir = lw_coder_src / "droids"
+        auth_file = Path.home() / ".factory" / "auth.json"
+        container_settings_file = lw_coder_src / "container_settings.json"
+        git_dir = repo_root / ".git"
 
         logger.info("Starting interactive %s session...", tool)
         logger.info("Plans will be saved to .lw_coder/tasks/<plan_id>.md")
         logger.info("Exit %s (type 'exit' or press Ctrl+C) when finished.", tool)
 
-        # Run Docker interactively
-        try:
-            result = subprocess.run(docker_cmd, check=False)
-            return result.returncode
-        except KeyboardInterrupt:
-            logger.info("Session interrupted by user.")
-            return 0
+        # Patch worktree .git file and run Docker with the patched configuration
+        with patched_worktree_gitdir(temp_worktree, git_dir) as worktree_name:
+            # Build Docker configuration
+            config = DroidSessionConfig(
+                worktree_path=temp_worktree,
+                repo_git_dir=git_dir,
+                tasks_dir=tasks_dir,
+                droids_dir=droids_dir,
+                auth_file=auth_file,
+                settings_file=container_settings_file,
+                prompt_file=prompt_file,
+                image_tag="lw_coder_droid:latest",
+                worktree_name=worktree_name,
+                command='droid "$(cat /tmp/prompt.txt)"',
+            )
+
+            # Build Docker command
+            docker_cmd = build_docker_command(config)
+
+            # Run Docker interactively
+            try:
+                result = subprocess.run(docker_cmd, check=False)
+                return result.returncode
+            except KeyboardInterrupt:
+                logger.info("Session interrupted by user.")
+                return 0
 
     except (DroidAuthError, PlanCommandError, TempWorktreeError) as exc:
         logger.error("%s", exc)

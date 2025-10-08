@@ -7,10 +7,9 @@ from typing import Sequence
 
 from docopt import docopt
 
+from .code_command import run_code_command
 from .logging_config import configure_logging, get_logger
 from .plan_command import run_plan_command
-from .plan_validator import PlanValidationError, load_plan_metadata
-from .worktree_utils import WorktreeError, ensure_worktree
 
 _USAGE = """\
 Usage:
@@ -47,22 +46,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Code command: validate plan and prepare worktree
     plan_path = parsed["<plan_path>"]
-    try:
-        metadata = load_plan_metadata(plan_path)
-    except PlanValidationError as exc:
-        logger.error("Plan validation failed: %s", exc)
-        return 1
-
-    logger.info("Plan validation succeeded for %s", metadata.plan_path)
-
-    try:
-        worktree_path = ensure_worktree(metadata)
-        logger.info("Worktree prepared at: %s", worktree_path)
-    except WorktreeError as exc:
-        logger.error("Worktree preparation failed: %s", exc)
-        return 1
-
-    return 0
+    return run_code_command(plan_path)
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised by manual invocation
