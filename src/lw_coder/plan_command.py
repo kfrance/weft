@@ -11,11 +11,13 @@ from .droid_auth import DroidAuthError, check_droid_auth
 from .droid_session import (
     DroidSessionConfig,
     build_docker_command,
+    create_container_group_file,
+    create_container_passwd_file,
     get_lw_coder_src_dir,
     patched_worktree_gitdir,
 )
 from .logging_config import get_logger
-from .plan_validator import _extract_front_matter
+from .plan_validator import PlanValidationError, _extract_front_matter
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
 
 logger = get_logger(__name__)
@@ -116,7 +118,7 @@ def _extract_idea_text(plan_path: Path | None, text_input: str | None) -> str:
     try:
         _, body = _extract_front_matter(content)
         return body.strip()
-    except Exception:
+    except (PlanValidationError, ValueError, KeyError, TypeError):
         # If no front matter or parsing fails, use the whole content
         return content.strip()
 
@@ -139,6 +141,8 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
     temp_worktree = None
     repo_root = None
     prompt_file = None
+    passwd_file = None
+    group_file = None
 
     try:
         # Pre-flight check for authentication
@@ -177,9 +181,19 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         # Prepare paths for Docker configuration
         tasks_dir = repo_root / ".lw_coder" / "tasks"
         droids_dir = lw_coder_src / "droids"
-        auth_file = Path.home() / ".factory" / "auth.json"
+        host_factory_dir = Path.home() / ".factory"
+        auth_file = host_factory_dir / "auth.json"
         container_settings_file = lw_coder_src / "container_settings.json"
         git_dir = repo_root / ".git"
+
+        # Get current user's UID and GID for container
+        container_uid = os.getuid()
+        container_gid = os.getgid()
+        container_home = "/home/droiduser"
+
+        # Create passwd and group files for the container user
+        passwd_file = create_container_passwd_file(container_uid, container_gid)
+        group_file = create_container_group_file(container_gid)
 
         logger.info("Starting interactive %s session...", tool)
         logger.info("Plans will be saved to .lw_coder/tasks/<plan_id>.md")
@@ -199,6 +213,12 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
                 image_tag="lw_coder_droid:latest",
                 worktree_name=worktree_name,
                 command='droid "$(cat /tmp/prompt.txt)"',
+                container_uid=container_uid,
+                container_gid=container_gid,
+                container_home=container_home,
+                host_factory_dir=host_factory_dir,
+                passwd_file=passwd_file,
+                group_file=group_file,
             )
 
             # Build Docker command
@@ -223,6 +243,20 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
                 prompt_file.unlink()
             except OSError as exc:
                 logger.warning("Failed to clean up prompt file: %s", exc)
+
+        # Clean up passwd file
+        if passwd_file and passwd_file.exists():
+            try:
+                passwd_file.unlink()
+            except OSError as exc:
+                logger.warning("Failed to clean up passwd file: %s", exc)
+
+        # Clean up group file
+        if group_file and group_file.exists():
+            try:
+                group_file.unlink()
+            except OSError as exc:
+                logger.warning("Failed to clean up group file: %s", exc)
 
         # Clean up temporary worktree
         if temp_worktree and repo_root:

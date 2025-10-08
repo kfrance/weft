@@ -150,14 +150,18 @@ def test_build_docker_command_with_realistic_config(tmp_path: Path) -> None:
     repo_git_dir = tmp_path / "repo" / ".git"
     repo_git_dir.mkdir(parents=True)
     tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    host_factory_dir = tmp_path / ".factory"
     droids_dir = tmp_path / "droids"
     droids_dir.mkdir(parents=True)
-    auth_file = tmp_path / "auth.json"
-    auth_file.touch()
+    auth_file = tmp_path / ".factory" / "auth.json"
     settings_file = tmp_path / "settings.json"
     settings_file.touch()
     prompt_file = tmp_path / "prompt.txt"
     prompt_file.write_text("Test prompt")
+    passwd_file = tmp_path / "passwd"
+    passwd_file.touch()
+    group_file = tmp_path / "group"
+    group_file.touch()
 
     # Create fake .git file in worktree
     git_file = worktree / ".git"
@@ -175,6 +179,12 @@ def test_build_docker_command_with_realistic_config(tmp_path: Path) -> None:
         image_tag="lw_coder_droid:latest",
         worktree_name="test-worktree",
         command='droid "$(cat /tmp/prompt.txt)"',
+        container_uid=1000,
+        container_gid=1000,
+        container_home="/home/droiduser",
+        host_factory_dir=host_factory_dir,
+        passwd_file=passwd_file,
+        group_file=group_file,
     )
 
     # Execute: Use REAL build_docker_command (no mocking)
@@ -189,10 +199,18 @@ def test_build_docker_command_with_realistic_config(tmp_path: Path) -> None:
     assert f"{worktree}:/workspace" in cmd_str
     assert f"{repo_git_dir}:/repo-git:ro" in cmd_str
     assert f"{tasks_dir}:/output" in cmd_str
+    assert f"{host_factory_dir}:/home/droiduser/.factory" in cmd_str
     assert f"{droids_dir}:/home/droiduser/.factory/droids:ro" in cmd_str
-    assert f"{auth_file}:/home/droiduser/.factory/auth.json:ro" in cmd_str
     assert f"{settings_file}:/home/droiduser/.factory/settings.json:ro" in cmd_str
     assert f"{prompt_file}:/tmp/prompt.txt:ro" in cmd_str
+    assert f"{passwd_file}:/etc/passwd:ro" in cmd_str
+    assert f"{group_file}:/etc/group:ro" in cmd_str
+
+    # Verify user and home settings
+    assert "--user" in docker_cmd
+    assert "1000:1000" in docker_cmd
+    assert "-e" in docker_cmd
+    assert "HOME=/home/droiduser" in docker_cmd
 
     # Verify working directory and image
     assert "-w" in docker_cmd
@@ -207,3 +225,7 @@ def test_build_docker_command_with_realistic_config(tmp_path: Path) -> None:
     # Verify tasks directory was created by build_docker_command
     assert tasks_dir.exists()
     assert tasks_dir.is_dir()
+
+    # Verify factory directory was created by build_docker_command
+    assert host_factory_dir.exists()
+    assert host_factory_dir.is_dir()

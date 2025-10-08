@@ -8,6 +8,7 @@ This module provides:
 
 from __future__ import annotations
 
+import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,61 @@ def get_lw_coder_src_dir() -> Path:
     return src_dir
 
 
+def create_container_passwd_file(uid: int, gid: int, username: str = "droiduser") -> Path:
+    """Create a minimal /etc/passwd file for the container user.
+
+    Args:
+        uid: User ID for the container user.
+        gid: Group ID for the container user.
+        username: Username for the container user (default: "droiduser").
+
+    Returns:
+        Path to the created passwd file.
+    """
+    # Create a minimal passwd file with the host user's UID
+    # Format: username:x:uid:gid:gecos:home:shell
+    passwd_content = f"{username}:x:{uid}:{gid}:Container User:/home/{username}:/bin/bash\n"
+
+    # Create temporary file that won't be auto-deleted
+    fd, passwd_path = tempfile.mkstemp(prefix="container_passwd_", suffix=".txt", text=True)
+    try:
+        with open(fd, 'w') as f:
+            f.write(passwd_content)
+    except Exception:
+        # Clean up on error
+        Path(passwd_path).unlink(missing_ok=True)
+        raise
+
+    return Path(passwd_path)
+
+
+def create_container_group_file(gid: int, groupname: str = "droiduser") -> Path:
+    """Create a minimal /etc/group file for the container group.
+
+    Args:
+        gid: Group ID for the container group.
+        groupname: Group name for the container group (default: "droiduser").
+
+    Returns:
+        Path to the created group file.
+    """
+    # Create a minimal group file with the host user's GID
+    # Format: groupname:x:gid:
+    group_content = f"{groupname}:x:{gid}:\n"
+
+    # Create temporary file that won't be auto-deleted
+    fd, group_path = tempfile.mkstemp(prefix="container_group_", suffix=".txt", text=True)
+    try:
+        with open(fd, 'w') as f:
+            f.write(group_content)
+    except Exception:
+        # Clean up on error
+        Path(group_path).unlink(missing_ok=True)
+        raise
+
+    return Path(group_path)
+
+
 @dataclass
 class DroidSessionConfig:
     """Configuration for a droid session in Docker.
@@ -48,6 +104,12 @@ class DroidSessionConfig:
         image_tag: Docker image tag to use.
         worktree_name: Name of the worktree (extracted from .git file).
         command: Command string to run inside the container.
+        container_uid: UID to run the container as.
+        container_gid: GID to run the container as.
+        container_home: HOME directory path inside the container.
+        host_factory_dir: Path to the host's .factory directory.
+        passwd_file: Path to the temporary passwd file for the container.
+        group_file: Path to the temporary group file for the container.
     """
 
     worktree_path: Path
@@ -60,6 +122,12 @@ class DroidSessionConfig:
     image_tag: str
     worktree_name: str
     command: str
+    container_uid: int
+    container_gid: int
+    container_home: str
+    host_factory_dir: Path
+    passwd_file: Path
+    group_file: Path
 
 
 @contextmanager
@@ -113,27 +181,50 @@ def build_docker_command(config: DroidSessionConfig) -> list[str]:
     """Build the Docker command to run droid with the given configuration.
 
     This function constructs the full docker run command with all required
-    mounts and settings. It also ensures the tasks directory exists.
+    mounts and settings. It also ensures the tasks directory and host factory
+    directory exist, and validates that required source files/directories exist.
 
     Args:
         config: Configuration object with all paths and settings.
 
     Returns:
         List of command arguments for subprocess.run.
+
+    Raises:
+        RuntimeError: If required source files or directories don't exist.
     """
     # Ensure tasks directory exists
     config.tasks_dir.mkdir(parents=True, exist_ok=True)
 
+    # Ensure host factory directory exists
+    config.host_factory_dir.mkdir(parents=True, exist_ok=True)
+
+    # Validate that required source files/directories exist for Docker mounts
+    if not config.droids_dir.exists():
+        raise RuntimeError(f"Droids directory not found: {config.droids_dir}")
+    if not config.settings_file.exists():
+        raise RuntimeError(f"Settings file not found: {config.settings_file}")
+    if not config.prompt_file.exists():
+        raise RuntimeError(f"Prompt file not found: {config.prompt_file}")
+    if not config.passwd_file.exists():
+        raise RuntimeError(f"Passwd file not found: {config.passwd_file}")
+    if not config.group_file.exists():
+        raise RuntimeError(f"Group file not found: {config.group_file}")
+
     cmd = [
         "docker", "run", "-it", "--rm",
         "--security-opt=no-new-privileges",
+        "--user", f"{config.container_uid}:{config.container_gid}",
+        "-e", f"HOME={config.container_home}",
         "-v", f"{config.worktree_path}:/workspace",
         "-v", f"{config.repo_git_dir}:/repo-git:ro",
         "-v", f"{config.tasks_dir}:/output",
-        "-v", f"{config.droids_dir}:/home/droiduser/.factory/droids:ro",
-        "-v", f"{config.auth_file}:/home/droiduser/.factory/auth.json:ro",
-        "-v", f"{config.settings_file}:/home/droiduser/.factory/settings.json:ro",
+        "-v", f"{config.host_factory_dir}:{config.container_home}/.factory",
+        "-v", f"{config.droids_dir}:{config.container_home}/.factory/droids:ro",
+        "-v", f"{config.settings_file}:{config.container_home}/.factory/settings.json:ro",
         "-v", f"{config.prompt_file}:/tmp/prompt.txt:ro",
+        "-v", f"{config.passwd_file}:/etc/passwd:ro",
+        "-v", f"{config.group_file}:/etc/group:ro",
         "-w", "/workspace",
         config.image_tag,
         "bash", "-c", config.command,
