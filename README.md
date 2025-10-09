@@ -9,6 +9,24 @@ This project hosts a self-optimizing multi-agent coding assistant that orchestra
 
 ## Setup and Authentication
 
+### Configuration
+
+lw_coder loads credentials from `~/.lw_coder/.env` in your home directory:
+
+1. Create the configuration directory:
+   ```bash
+   mkdir -p ~/.lw_coder
+   ```
+
+2. Create the environment file with your API credentials:
+   ```bash
+   cat > ~/.lw_coder/.env << EOF
+   OPENROUTER_API_KEY=your-api-key-here
+   EOF
+   ```
+
+See [docs/code-config.md](docs/code-config.md) for detailed configuration options.
+
 ### Droid CLI Authentication
 
 The `lw_coder plan` command uses Factory AI's Droid CLI tool for interactive plan development. Before using this command, you must authenticate with Droid:

@@ -11,9 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import dspy
-from dotenv import load_dotenv
 
-from ..config_loader import load_code_config
+from ..home_env import load_home_env
 from ..logging_config import get_logger
 from ..plan_validator import PlanMetadata
 from .code_prompt_signature import CodePromptSignature
@@ -94,11 +93,10 @@ def generate_code_prompts(
     """Generate coding prompts from plan metadata and write to run directory.
 
     This function:
-    1. Loads configuration from .lw_coder/config.toml
-    2. Loads environment variables from configured .env file
-    3. Initializes DSPy with disk caching
-    4. Generates three prompts (main, review, alignment) using DSPy or templates
-    5. Writes prompts to expected locations in run_dir
+    1. Loads environment variables from ~/.lw_coder/.env
+    2. Initializes DSPy with disk caching
+    3. Generates three prompts (main, review, alignment) using DSPy
+    4. Writes prompts to expected locations in run_dir
 
     Args:
         plan_metadata: Validated plan metadata containing all plan information
@@ -108,18 +106,12 @@ def generate_code_prompts(
         PromptArtifacts containing paths to the three generated prompt files
 
     Raises:
-        ConfigLoaderError: If configuration is invalid or missing
+        HomeEnvError: If ~/.lw_coder/.env is missing or unreadable
         OSError: If file operations fail
     """
-    repo_root = plan_metadata.repo_root
-
-    # Load configuration
-    logger.debug("Loading configuration from %s", repo_root)
-    config = load_code_config(repo_root)
-
-    # Load environment variables from configured .env file
-    logger.debug("Loading environment from %s", config.env_file)
-    load_dotenv(config.env_file, override=False)
+    # Load environment variables from home-level .env
+    logger.debug("Loading environment from ~/.lw_coder/.env")
+    load_home_env()
 
     # Initialize DSPy caching
     cache_dir = _initialize_dspy_cache()

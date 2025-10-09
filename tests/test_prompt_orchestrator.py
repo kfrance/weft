@@ -8,7 +8,7 @@ from pathlib import Path
 import dspy
 import pytest
 
-from lw_coder.config_loader import ConfigLoaderError
+from lw_coder.home_env import HomeEnvError
 from lw_coder.dspy.prompt_orchestrator import (
     PromptArtifacts,
     _initialize_dspy_cache,
@@ -43,7 +43,7 @@ def test_initialize_dspy_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     # Mock HOME to use tmp_path
     home_dir = tmp_path / "home"
     home_dir.mkdir()
-    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
 
     cache_dir = _initialize_dspy_cache()
 
@@ -78,16 +78,20 @@ def test_write_prompt_file_creates_parent_dirs(tmp_path: Path) -> None:
     assert prompt_path.parent.exists()
 
 
-def test_generate_code_prompts_success(git_repo: GitRepo, tmp_path: Path) -> None:
+def test_generate_code_prompts_success(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test successful prompt generation using real DSPy with OpenRouter."""
-    # Setup: Create config and .env
-    config_dir = git_repo.path / ".lw_coder"
-    config_dir.mkdir()
-    config_file = config_dir / "config.toml"
-    config_file.write_text("[code]\nenv_file = '.env'\n")
-
-    env_file = git_repo.path / ".env"
+    # Setup: Mock home directory with .env
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    lw_coder_dir = home_dir / ".lw_coder"
+    lw_coder_dir.mkdir()
+    env_file = lw_coder_dir / ".env"
     env_file.write_text("OPENROUTER_API_KEY=test\n")
+
+    # Mock Path.home() to return our test home directory
+    monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
 
     # Create a plan file
     tasks_dir = git_repo.path / "tasks"
@@ -144,8 +148,15 @@ def test_generate_code_prompts_success(git_repo: GitRepo, tmp_path: Path) -> Non
     assert len(alignment_content) > 50, "Alignment prompt should be substantial"
 
 
-def test_generate_code_prompts_missing_config(git_repo: GitRepo, tmp_path: Path) -> None:
-    """Test that missing config raises ConfigLoaderError."""
+def test_generate_code_prompts_missing_config(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that missing home .env raises HomeEnvError."""
+    # Mock home directory without .env
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
+
     plan_file = git_repo.path / "plan.md"
     git_sha = git_repo.latest_commit()
 
@@ -172,23 +183,25 @@ def test_generate_code_prompts_missing_config(git_repo: GitRepo, tmp_path: Path)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
 
-    # Should raise because config doesn't exist (before DSPy is even called)
-    with pytest.raises(ConfigLoaderError, match="Configuration file not found"):
+    # Should raise because ~/.lw_coder/.env doesn't exist
+    with pytest.raises(HomeEnvError, match="Environment file not found"):
         generate_code_prompts(plan_metadata, run_dir)
 
 
 def test_generate_code_prompts_loads_env_variables(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that environment variables are loaded from .env file."""
-    # Setup config
-    config_dir = git_repo.path / ".lw_coder"
-    config_dir.mkdir()
-    config_file = config_dir / "config.toml"
-    config_file.write_text("[code]\nenv_file = '.env'\n")
-
-    env_file = git_repo.path / ".env"
+    """Test that environment variables are loaded from ~/.lw_coder/.env."""
+    # Setup: Mock home directory with .env
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    lw_coder_dir = home_dir / ".lw_coder"
+    lw_coder_dir.mkdir()
+    env_file = lw_coder_dir / ".env"
     env_file.write_text("TEST_ENV_VAR=test_value\n")
+
+    # Mock Path.home() to return our test home directory
+    monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
 
     plan_file = git_repo.path / "plan.md"
     git_sha = git_repo.latest_commit()
@@ -227,17 +240,19 @@ def test_generate_code_prompts_loads_env_variables(
 
 
 def test_generate_code_prompts_with_multiple_plans(
-    git_repo: GitRepo, tmp_path: Path
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that DSPy caching works across multiple prompt generations."""
-    # Setup config
-    config_dir = git_repo.path / ".lw_coder"
-    config_dir.mkdir()
-    config_file = config_dir / "config.toml"
-    config_file.write_text("[code]\nenv_file = '.env'\n")
-
-    env_file = git_repo.path / ".env"
+    # Setup: Mock home directory with .env
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    lw_coder_dir = home_dir / ".lw_coder"
+    lw_coder_dir.mkdir()
+    env_file = lw_coder_dir / ".env"
     env_file.write_text("TEST=1\n")
+
+    # Mock Path.home() to return our test home directory
+    monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
 
     tasks_dir = git_repo.path / "tasks"
     tasks_dir.mkdir()

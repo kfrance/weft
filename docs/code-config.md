@@ -1,89 +1,38 @@
 # Configuration Guide
 
-This document describes the configuration options for lw_coder.
+This document describes the configuration for lw_coder.
 
-## Configuration File Location
+## Configuration Location
 
-Configuration is stored in `.lw_coder/config.toml` at the root of your repository.
+lw_coder loads secrets and credentials from `~/.lw_coder/.env` in your home directory.
 
-## `[code]` Table
+**This is the only configuration location.** There is no repository-level configuration file.
 
-The `[code]` table configures the `lw_coder code` command, which orchestrates AI coding agents to implement plans.
+## Setup
 
-### Fields
+1. Create the `.lw_coder` directory in your home directory:
+   ```bash
+   mkdir -p ~/.lw_coder
+   ```
 
-#### `env_file` (string, default: `".env"`)
+2. Create the `.env` file:
+   ```bash
+   touch ~/.lw_coder/.env
+   ```
 
-Path to the environment file containing credentials and configuration variables, relative to the repository root.
+3. Add your API keys to `~/.lw_coder/.env`:
+   ```bash
+   # Required for DSPy to use OpenRouter
+   OPENROUTER_API_KEY=your-api-key-here
 
-The specified file must exist or configuration loading will fail.
+   # Optional: Specify default model
+   OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
 
-**Example:**
-```toml
-[code]
-env_file = ".env"  # Load from .env in repo root
-```
+   # Optional: Your app name for OpenRouter analytics
+   OPENROUTER_APP_NAME=lw_coder
+   ```
 
-```toml
-[code]
-env_file = "config/production.env"  # Load from subdirectory
-```
-
-#### `forward_env` (list of strings, default: `["OPENROUTER_*"]`)
-
-List of environment variable patterns to forward from the `.env` file to the Docker container where coding agents run.
-
-Patterns support wildcards:
-- `"OPENROUTER_*"` matches all variables starting with `OPENROUTER_`
-- `"*"` matches all environment variables (not recommended, logs a warning)
-
-**Example:**
-```toml
-[code]
-forward_env = ["OPENROUTER_*"]  # Forward only OpenRouter credentials
-```
-
-```toml
-[code]
-forward_env = ["OPENROUTER_*", "ANTHROPIC_API_KEY", "DEBUG"]  # Forward multiple patterns
-```
-
-**Warning:** Using `forward_env = ["*"]` will forward ALL environment variables, which may expose sensitive information. This configuration will log a warning.
-
-#### `docker_build_args` (list of strings, default: `[]`)
-
-Arguments to pass to `docker build` when building the container image for coding agents.
-
-**Example:**
-```toml
-[code]
-docker_build_args = ["--build-arg", "PYTHON_VERSION=3.11"]
-```
-
-#### `docker_run_args` (list of strings, default: `[]`)
-
-Arguments to pass to `docker run` when starting the container for coding agents.
-
-**Example:**
-```toml
-[code]
-docker_run_args = ["--memory", "4g", "--cpus", "2"]
-```
-
-### Complete Example
-
-```toml
-# .lw_coder/config.toml
-
-[code]
-# Environment configuration
-env_file = ".env"
-forward_env = ["OPENROUTER_*"]
-
-# Docker configuration
-docker_build_args = []
-docker_run_args = ["--memory", "4g"]
-```
+4. Run `lw_coder code <plan_path>` to generate prompts and execute coding tasks
 
 ## Environment Variables for DSPy
 
@@ -93,7 +42,7 @@ lw_coder uses DSPy for prompt generation and optimization. DSPy requires access 
 
 The recommended LLM provider is OpenRouter, which provides access to multiple models through a single API.
 
-Set these variables in your `.env` file:
+Set these variables in your `~/.lw_coder/.env` file:
 
 ```bash
 # Required for DSPy to use OpenRouter
@@ -125,47 +74,51 @@ The cache directory is created automatically on first use. You can safely delete
 
 Configuration is validated when loading:
 
-- **Missing `[code]` table**: Error raised with instructions to add required section
-- **Unknown keys**: Error lists unrecognized keys and valid options
-- **Missing env file**: Error if specified `.env` file doesn't exist
-- **Invalid types**: Error if fields have wrong types (e.g., string instead of list)
-- **Wildcard warning**: Warning logged if `forward_env = ["*"]` is used
+- **Missing `~/.lw_coder/.env`**: Error raised with instructions to create the file
+- **Unreadable file**: Error if the file exists but cannot be read
+- **Invalid path**: Error if `~/.lw_coder/.env` is a directory instead of a file
 
 ### Error Messages
 
 The configuration loader provides actionable error messages:
 
 ```
-ConfigLoaderError: Configuration file not found: /path/to/.lw_coder/config.toml
-Create .lw_coder/config.toml with a [code] section.
+HomeEnvError: Environment file not found: /home/user/.lw_coder/.env
+Create ~/.lw_coder/.env with required secrets (e.g., OPENROUTER_API_KEY).
 ```
 
 ```
-ConfigLoaderError: Missing required [code] table in /path/to/.lw_coder/config.toml
-Add a [code] section with env_file and optional forward_env, docker_build_args, docker_run_args.
+HomeEnvError: Environment path is not a file: /home/user/.lw_coder/.env
+~/.lw_coder/.env must be a regular file.
 ```
 
 ```
-ConfigLoaderError: Unknown keys in [code] section: unknown_field
-Valid keys are: docker_build_args, docker_run_args, env_file, forward_env
+HomeEnvError: Cannot read environment file: /home/user/.lw_coder/.env
+Error: [Errno 13] Permission denied
 ```
 
-## Quick Start
+## Security Considerations
 
-1. Create `.lw_coder/config.toml` in your repository:
-   ```toml
-   [code]
-   env_file = ".env"
-   forward_env = ["OPENROUTER_*"]
-   docker_build_args = []
-   docker_run_args = []
-   ```
+- The `~/.lw_coder/.env` file contains sensitive API keys and should not be committed to version control
+- Environment variables are loaded into the process environment when lw_coder runs
+- The DSPy cache at `~/.lw_coder/dspy_cache/` stores LLM responses in plaintext
+- Standard filesystem permissions protect these files on single-user systems
+- On shared systems, consider setting restrictive permissions: `chmod 600 ~/.lw_coder/.env`
 
-2. Create `.env` in your repository root:
-   ```bash
-   OPENROUTER_API_KEY=your-key-here
-   ```
+## Troubleshooting
 
-3. Run `lw_coder code <plan_path>` to generate prompts and execute coding tasks
+**Error: Environment file not found**
+- Ensure `~/.lw_coder/.env` exists
+- Check that you're running lw_coder as the correct user
+- Verify the path with `ls -la ~/.lw_coder/`
 
-The first run will call the OpenRouter API and cache responses. Subsequent runs with the same plan will use the cache.
+**Environment variables not loading**
+- Verify the `.env` file syntax (KEY=value format, one per line)
+- Check for typos in variable names
+- Ensure no extra spaces around the `=` sign
+- Test by running `cat ~/.lw_coder/.env`
+
+**Permission denied errors**
+- Check file permissions: `ls -l ~/.lw_coder/.env`
+- Ensure the file is readable: `chmod 644 ~/.lw_coder/.env`
+- Verify directory permissions: `chmod 755 ~/.lw_coder`

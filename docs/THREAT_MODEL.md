@@ -9,9 +9,9 @@ This document describes the threat model, trust boundaries, and security design 
 ## Trust Boundaries & Assumptions
 
 ### Trusted Entities
-1. **Repository Owner** - Has full control over `.lw_coder/config.toml`, plan files, and codebase
+1. **Repository Owner** - Has full control over plan files and codebase
 2. **Local Environment** - The developer's machine and user account are trusted
-3. **Local Filesystem** - Files within the repository are under user control
+3. **Local Filesystem** - Files within the repository and home directory are under user control
 4. **Dependencies** - We trust dependencies from PyPI (DSPy, python-dotenv, etc.)
 
 ### Threat Model Scope
@@ -33,26 +33,21 @@ This document describes the threat model, trust boundaries, and security design 
 
 ### Configuration Security
 
-**Decision: No Docker argument validation**
-- **Rationale:** Users control their own `.lw_coder/config.toml` and docker arguments
-- **Risk Accepted:** Users could configure dangerous flags like `--privileged` or `--volume=/:/host`
-- **Justification:** This is equivalent to users writing their own shell scripts - we trust them not to harm themselves
-- **Mitigation:** Documentation clearly explains docker argument implications
-
-**Decision: Allow wildcard environment variable forwarding**
-- **Rationale:** Developers may legitimately need to forward many environment variables
-- **Risk Accepted:** `forward_env = ["*"]` exposes all environment variables to Docker
-- **Justification:** Users control their own environment and can see exactly what's being forwarded
-- **Mitigation:** Log warning when `*` is used; document recommended patterns like `OPENROUTER_*`
+**Decision: Home-level configuration only**
+- **Rationale:** Secrets should be stored once in the user's home directory, not per-repository
+- **Risk Accepted:** All repositories using lw_coder share the same credentials
+- **Justification:** This matches standard CLI tool patterns (e.g., `~/.aws/credentials`, `~/.gitconfig`)
+- **Implementation:** Load from `~/.lw_coder/.env` with existence and readability validation
+- **Benefit:** Prevents accidental credential commits to repositories
 
 ### Path Security
 
-**Decision: Path traversal protection with resolved paths**
-- **Rationale:** Prevent accidental loading of unintended files
-- **Risk Accepted:** Symlink bypass possible if user creates malicious symlinks in their own repo
-- **Justification:** Users who can create symlinks already have full repository control
-- **Implementation:** Use `Path.resolve()` and `relative_to()` checks for env_file validation
-- **Note:** This protects against mistakes, not malicious repository owners
+**Decision: Fixed home directory path**
+- **Rationale:** Using a single, predictable location simplifies configuration and reduces misconfiguration risk
+- **Risk Accepted:** Users cannot customize the configuration location
+- **Justification:** Standard home directory locations are well-understood and secure
+- **Implementation:** Use `Path.home() / ".lw_coder" / ".env"` with validation
+- **Note:** No path traversal concerns since path is fixed
 
 ### Cache Security
 
@@ -121,15 +116,14 @@ These aren't security issues but are documented for completeness:
 │                                                     │
 │  ┌──────────────────────────────────────────────┐  │
 │  │ TRUSTED: Repository (user controlled)        │  │
-│  │  - .lw_coder/config.toml                     │  │
-│  │  - .lw_coder/tasks/*.md                      │  │
-│  │  - .env file                                 │  │
+│  │  - .lw_coder/tasks/*.md (plan files)         │  │
+│  │  - Source code                               │  │
 │  └──────────────────────────────────────────────┘  │
 │                                                     │
 │  ┌──────────────────────────────────────────────┐  │
 │  │ TRUSTED: User's home directory               │  │
+│  │  - ~/.lw_coder/.env (secrets)                │  │
 │  │  - ~/.lw_coder/dspy_cache                    │  │
-│  │  - ~/.lw_coder/logs                          │  │
 │  └──────────────────────────────────────────────┘  │
 │                                                     │
 │  UNTRUSTED EXTERNAL:                               │
@@ -142,14 +136,13 @@ These aren't security issues but are documented for completeness:
 
 If lw_coder evolves into a different use case (multi-tenant service, production deployment, CI/CD integration), the following should be reconsidered:
 
-1. **Docker argument allowlisting** - Prevent privilege escalation
-2. **Cache encryption** - Protect sensitive data at rest
-3. **Environment variable isolation** - Use `dotenv_values()` or context managers
-4. **Symlink validation** - Check `is_symlink()` before path resolution
-5. **XDG compliance** - Respect `XDG_CACHE_HOME` for cache location
-6. **Error sanitization** - Redact sensitive paths in production logs
-7. **Rate limiting** - Prevent API abuse
-8. **Audit logging** - Track security-relevant operations
+1. **Cache encryption** - Protect sensitive data at rest
+2. **Environment variable isolation** - Use `dotenv_values()` or context managers
+3. **XDG compliance** - Respect `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` for configuration and cache locations
+4. **Error sanitization** - Redact sensitive paths in production logs
+5. **Rate limiting** - Prevent API abuse
+6. **Audit logging** - Track security-relevant operations
+7. **Per-repository credentials** - Support different API keys for different projects
 
 ## References
 
