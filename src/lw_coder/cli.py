@@ -8,7 +8,7 @@ from typing import Sequence
 from docopt import docopt
 
 from .code_command import run_code_command
-from .logging_config import configure_logging, get_logger
+from .logging_config import configure_logging
 from .plan_command import run_plan_command
 
 _USAGE = """\
@@ -23,8 +23,6 @@ Options:
   --tool <tool_name>     Coding tool to use [default: droid].
   --debug                Enable debug-level logging.
 """
-
-logger = get_logger(__name__)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

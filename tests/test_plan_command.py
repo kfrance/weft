@@ -154,6 +154,8 @@ def test_build_docker_command_with_realistic_config(tmp_path: Path) -> None:
     droids_dir = tmp_path / "droids"
     droids_dir.mkdir(parents=True)
     auth_file = tmp_path / ".factory" / "auth.json"
+    auth_file.parent.mkdir(parents=True, exist_ok=True)
+    auth_file.touch()
     settings_file = tmp_path / "settings.json"
     settings_file.touch()
     prompt_file = tmp_path / "prompt.txt"

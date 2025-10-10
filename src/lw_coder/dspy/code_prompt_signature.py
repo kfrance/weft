@@ -14,7 +14,7 @@ class CodePromptSignature(dspy.Signature):
     You will receive the complete plan text and must generate three complete, detailed prompts:
 
     1. MAIN PROMPT: Instructions for the primary coding agent that includes:
-       - The complete plan text
+       - IMPORTANT: Directly embed the COMPLETE plan text that was provided as input (do NOT use placeholders like {plan_text} - copy the actual plan text verbatim into the prompt)
        - Required workflow: read plan, implement, run code-review-auditor and plan-alignment-checker subagents IN PARALLEL, address feedback, run tests, summarize
        - Important guidelines: follow plan exactly, no test cheating, document assumptions, consult both subagents, run subagents in parallel when possible
        - Success criteria: all requirements implemented, tests passing, no critical subagent issues, evaluation criteria addressed

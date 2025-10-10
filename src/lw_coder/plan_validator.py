@@ -15,8 +15,8 @@ from .logging_config import get_logger
 logger = get_logger(__name__)
 
 _FRONT_MATTER_DELIM = "---"
-_REQUIRED_KEYS = {"git_sha", "evaluation_notes", "plan_id", "status"}
-_OPTIONAL_KEYS = {"linear_issue_id", "created_by", "created_at", "notes"}
+_REQUIRED_KEYS = {"git_sha", "plan_id", "status"}
+_OPTIONAL_KEYS = {"evaluation_notes", "linear_issue_id", "created_by", "created_at", "notes"}
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _PLAN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,100}$")
 _VALID_STATUSES = {"draft", "ready", "coding", "review", "done", "abandoned"}
@@ -176,10 +176,16 @@ def _validate_git_sha(value: Any) -> str:
 
 
 def _validate_evaluation_notes(value: Any) -> list[str]:
+    # evaluation_notes is optional, so None or empty list is acceptable
+    if value is None:
+        return []
+
     if not isinstance(value, list):
         raise PlanValidationError("Field 'evaluation_notes' must be a list of strings.")
+
+    # Empty list is now allowed
     if not value:
-        raise PlanValidationError("Field 'evaluation_notes' must not be empty.")
+        return []
 
     cleaned_notes: list[str] = []
     for note in value:

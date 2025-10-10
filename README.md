@@ -7,6 +7,23 @@ This project hosts a self-optimizing multi-agent coding assistant that orchestra
 - Integrates with CLI-based coding platforms and runs each experiment in isolated Docker worktrees
 - Feeds GEPA with task/eval logs to iteratively improve prompt scaffolding, delegation order, and runtime efficiency
 
+## Installation
+
+To install `lw_coder` as a system-wide command that works from any directory:
+
+```bash
+cd /home/kfrance/lw_coder
+uv tool install --force .
+```
+
+The `--force` flag ensures the tool is reinstalled with all current dependencies. After installation, you can run `lw_coder` from anywhere.
+
+For an editable install (where code changes are immediately reflected without reinstalling):
+
+```bash
+uv tool install --force --editable .
+```
+
 ## Setup and Authentication
 
 ### Configuration

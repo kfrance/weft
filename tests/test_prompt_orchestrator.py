@@ -13,6 +13,7 @@ from lw_coder.dspy.prompt_orchestrator import (
     PromptArtifacts,
     _initialize_dspy_cache,
     _write_prompt_file,
+    _write_droid_file,
     generate_code_prompts,
 )
 from lw_coder.plan_validator import PlanMetadata
@@ -22,15 +23,19 @@ from conftest import GitRepo, write_plan
 
 @pytest.fixture(autouse=True)
 def configure_dspy_for_tests():
-    """Configure DSPy with OpenRouter for all tests in this module."""
+    """Configure DSPy with OpenRouter and disk caching for all tests in this module."""
     # Check if API key is available
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         pytest.skip("OPENROUTER_API_KEY not set - skipping tests that require LLM")
 
-    # Configure DSPy with OpenRouter's grok-3-mini
+    # Use the production cache directory so caching actually works across test runs
+    cache_dir = Path.home() / ".lw_coder" / "dspy_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Configure DSPy with OpenRouter's grok-3-mini and disk caching
     lm = dspy.LM("openrouter/x-ai/grok-3-mini", api_key=api_key)
-    dspy.configure(lm=lm)
+    dspy.configure(lm=lm, cache={"type": "disk", "path": str(cache_dir)})
 
     yield
 
@@ -76,6 +81,24 @@ def test_write_prompt_file_creates_parent_dirs(tmp_path: Path) -> None:
 
     assert prompt_path.exists()
     assert prompt_path.parent.exists()
+
+
+def test_write_droid_file(tmp_path: Path) -> None:
+    """Test that droid files are written with proper YAML frontmatter."""
+    droid_path = tmp_path / "droids" / "test-droid.md"
+    content = "This is the droid prompt content"
+
+    _write_droid_file(droid_path, "test-droid", content)
+
+    assert droid_path.exists()
+    written_content = droid_path.read_text(encoding="utf-8")
+
+    # Should have YAML frontmatter
+    assert written_content.startswith("---\n")
+    assert "name: test-droid" in written_content
+    assert "model: inherit" in written_content
+    assert "tools: all" in written_content
+    assert "This is the droid prompt content" in written_content
 
 
 def test_generate_code_prompts_success(
@@ -146,6 +169,17 @@ def test_generate_code_prompts_success(
     assert len(main_content) > 50, "Main prompt should be substantial"
     assert len(review_content) > 50, "Review prompt should be substantial"
     assert len(alignment_content) > 50, "Alignment prompt should be substantial"
+
+    # Verify droid files have YAML frontmatter
+    assert review_content.startswith("---\n"), "Review droid should have YAML frontmatter"
+    assert "name: code-review-auditor" in review_content
+    assert "model: inherit" in review_content
+    assert "tools: all" in review_content
+
+    assert alignment_content.startswith("---\n"), "Alignment droid should have YAML frontmatter"
+    assert "name: plan-alignment-checker" in alignment_content
+    assert "model: inherit" in alignment_content
+    assert "tools: all" in alignment_content
 
 
 def test_generate_code_prompts_missing_config(

@@ -54,13 +54,31 @@ def _setup_dspy(cache_dir: Path) -> None:
 
     Args:
         cache_dir: Path to the cache directory for DSPy responses
+
+    Raises:
+        ValueError: If OPENROUTER_API_KEY is not set in environment
+
+    Note:
+        If DSPy is already configured (e.g., in tests), this function skips
+        reconfiguration to preserve the existing setup.
     """
-    # Enable disk caching for DSPy
-    # Note: DSPy caching is configured via environment or settings
-    # For now we just ensure the directory exists; actual cache config
-    # happens when DSPy modules are used
-    dspy.configure(cache={"type": "disk", "path": str(cache_dir)})
-    logger.debug("DSPy configured with disk cache at %s", cache_dir)
+    # Check if DSPy is already configured (has an LM set)
+    if dspy.settings.lm is not None:
+        logger.debug("DSPy already configured, skipping setup")
+        return
+
+    # Get OpenRouter API key from environment
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "OPENROUTER_API_KEY environment variable must be set. "
+            "Add it to your .env file or export it in your shell."
+        )
+
+    # Configure DSPy with OpenRouter LLM and disk caching
+    lm = dspy.LM("openrouter/x-ai/grok-3-mini", api_key=api_key, max_tokens=64000)
+    dspy.configure(lm=lm, cache={"type": "disk", "path": str(cache_dir)})
+    logger.debug("DSPy configured with OpenRouter LLM (max_tokens=64000) and disk cache at %s", cache_dir)
 
 
 def _write_prompt_file(path: Path, content: str) -> None:
@@ -84,6 +102,36 @@ def _write_prompt_file(path: Path, content: str) -> None:
 
     path.write_text(trimmed_content, encoding="utf-8")
     logger.debug("Wrote prompt file: %s (%d bytes)", path, len(trimmed_content))
+
+
+def _write_droid_file(path: Path, name: str, content: str) -> None:
+    """Write droid configuration file with YAML frontmatter.
+
+    Args:
+        path: Path to write the droid configuration file
+        name: Name of the droid (lowercase with hyphens)
+        content: Prompt content for the droid
+
+    Creates a droid configuration file with YAML frontmatter containing
+    the droid metadata (name, model, tools) followed by the prompt content.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Trim prompt content
+    trimmed_content = content.strip()
+
+    # Build droid configuration with YAML frontmatter
+    droid_config = f"""---
+name: {name}
+model: inherit
+tools: all
+---
+
+{trimmed_content}
+"""
+
+    path.write_text(droid_config, encoding="utf-8")
+    logger.debug("Wrote droid config file: %s (%d bytes)", path, len(droid_config))
 
 
 def generate_code_prompts(
@@ -178,8 +226,8 @@ def generate_code_prompts(
 
     # Write prompt files
     _write_prompt_file(main_prompt_path, main_prompt)
-    _write_prompt_file(review_prompt_path, review_prompt)
-    _write_prompt_file(alignment_prompt_path, alignment_prompt)
+    _write_droid_file(review_prompt_path, "code-review-auditor", review_prompt)
+    _write_droid_file(alignment_prompt_path, "plan-alignment-checker", alignment_prompt)
 
     logger.info("Prompt artifacts written to %s", run_dir)
     logger.info("  Main prompt: %s", main_prompt_path)

@@ -52,8 +52,7 @@ def test_missing_required_key(git_repo):
         plan_path,
         {
             "git_sha": git_repo.latest_commit(),
-            "plan_id": "plan-test",
-            "status": "draft",
+            # Missing required fields: plan_id and status
         },
     )
 
@@ -142,6 +141,41 @@ def test_empty_evaluation_note(git_repo):
 
     with pytest.raises(PlanValidationError, match="must not be empty"):
         load_plan_metadata(plan_path)
+
+
+def test_evaluation_notes_optional_missing(git_repo):
+    """Test that evaluation_notes field can be completely omitted."""
+    plan_path = git_repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": "plan-test-no-notes",
+            "status": "draft",
+        },
+        body="# Task\n\nImplement feature X"
+    )
+
+    metadata = load_plan_metadata(plan_path)
+    assert metadata.evaluation_notes == []
+
+
+def test_evaluation_notes_optional_empty_list(git_repo):
+    """Test that evaluation_notes can be an empty list."""
+    plan_path = git_repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": git_repo.latest_commit(),
+            "evaluation_notes": [],
+            "plan_id": "plan-test-empty-list",
+            "status": "draft",
+        },
+        body="# Task\n\nImplement feature Y"
+    )
+
+    metadata = load_plan_metadata(plan_path)
+    assert metadata.evaluation_notes == []
 
 
 def test_plan_outside_git_repo(tmp_path):

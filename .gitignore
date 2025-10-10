@@ -37,3 +37,7 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+
+# .lw_coder that aren't tracked
+.lw_coder/worktrees/
