@@ -1,127 +1,140 @@
 # Configuration Guide
 
-This document describes how to configure `lw_coder` for the code command workflow.
+This document describes the configuration for lw_coder.
 
-## Configuration File
+## Configuration Location
 
-The code command reads configuration from `.lw_coder/config.toml` in your repository root.
+lw_coder loads secrets and credentials from `~/.lw_coder/.env` in your home directory.
 
-### `[code]` Section
+**This is the only configuration location.** There is no repository-level configuration file.
 
-The `[code]` table controls environment loading, variable forwarding, and Docker settings for the coding workflow.
+## Setup
 
-#### Configuration Options
+1. Create the `.lw_coder` directory in your home directory:
+   ```bash
+   mkdir -p ~/.lw_coder
+   ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `env_file` | string | `".env"` | Path to environment file (relative to repo root) |
-| `forward_env` | list of strings | `["OPENROUTER_*"]` | Environment variable patterns to forward to container |
-| `docker_build_args` | list of strings | `[]` | Arguments to pass to `docker build` |
-| `docker_run_args` | list of strings | `[]` | Arguments to pass to `docker run` |
+2. Create the `.env` file:
+   ```bash
+   touch ~/.lw_coder/.env
+   ```
 
-#### Example Configuration
+3. Add your API keys to `~/.lw_coder/.env`:
+   ```bash
+   # Required for DSPy to use OpenRouter
+   OPENROUTER_API_KEY=your-api-key-here
 
-```toml
-[code]
-# Path to .env file (relative to repo root)
-env_file = ".env"
+   # Optional: Specify default model
+   OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
 
-# Environment variables to forward to Docker container
-# Supports wildcard patterns using fnmatch syntax
-forward_env = ["OPENROUTER_*", "DEBUG"]
+   # Optional: Your app name for OpenRouter analytics
+   OPENROUTER_APP_NAME=lw_coder
+   ```
 
-# Arguments to pass to docker build
-docker_build_args = []
+4. Run `lw_coder code <plan_path>` to generate prompts and execute coding tasks
 
-# Arguments to pass to docker run
-# WARNING: Avoid dangerous options like --privileged, --cap-add, --security-opt
-docker_run_args = ["--cpus=2", "--memory=4g"]
-```
+## Environment Variables for DSPy
 
-## Environment Variables
+lw_coder uses DSPy for prompt generation and optimization. DSPy requires access to LLM providers via environment variables.
 
 ### OpenRouter Configuration
 
-The code command uses DSPy with OpenRouter for prompt generation. Set these variables in your `.env` file:
+The recommended LLM provider is OpenRouter, which provides access to multiple models through a single API.
+
+Set these variables in your `~/.lw_coder/.env` file:
 
 ```bash
-# OpenRouter API Key (required)
+# Required for DSPy to use OpenRouter
 OPENROUTER_API_KEY=your-api-key-here
 
-# OpenRouter Base URL (optional, uses default if not specified)
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+# Optional: Specify default model
+OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
+
+# Optional: Your app name for OpenRouter analytics
+OPENROUTER_APP_NAME=lw_coder
 ```
 
-### Environment Variable Forwarding
+### DSPy Caching
 
-The `forward_env` option controls which environment variables are passed to the Docker container:
+DSPy automatically caches LLM responses to disk at `~/.lw_coder/dspy_cache/`. This cache:
 
-- **Wildcard patterns**: Use `*` as a wildcard (e.g., `OPENROUTER_*` matches `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`)
-- **Specific variables**: List exact variable names (e.g., `["DEBUG", "LOG_LEVEL"]`)
-- **Forward all** (not recommended): Use `["*"]` to forward all variables, but this will log a security warning
+- Reduces API costs by reusing responses for identical prompts
+- Speeds up development by avoiding redundant API calls
+- Persists across runs
 
-**Security Note**: Be cautious about forwarding sensitive environment variables. Only forward what's necessary for your coding workflow.
+The cache directory is created automatically on first use. You can safely delete it to clear the cache.
+
+**Cache behavior:**
+- Initial runs that generate new prompts will call the LLM API
+- Subsequent runs with the same plan will reuse cached responses
+- Cache is keyed by prompt content, so plan changes trigger new API calls
+
+## Validation
+
+Configuration is validated when loading:
+
+- **Missing `~/.lw_coder/.env`**: Error raised with instructions to create the file
+- **Unreadable file**: Error if the file exists but cannot be read
+- **Invalid path**: Error if `~/.lw_coder/.env` is a directory instead of a file
+
+### Error Messages
+
+The configuration loader provides actionable error messages:
+
+```
+HomeEnvError: Environment file not found: /home/user/.lw_coder/.env
+Create ~/.lw_coder/.env with required secrets (e.g., OPENROUTER_API_KEY).
+```
+
+```
+HomeEnvError: Environment path is not a file: /home/user/.lw_coder/.env
+~/.lw_coder/.env must be a regular file.
+```
+
+```
+HomeEnvError: Cannot read environment file: /home/user/.lw_coder/.env
+Error: [Errno 13] Permission denied
+```
+
+## Security Considerations
+
+- The `~/.lw_coder/.env` file contains sensitive API keys and should not be committed to version control
+- Environment variables are loaded into the process environment when lw_coder runs
+- The DSPy cache at `~/.lw_coder/dspy_cache/` stores LLM responses in plaintext
+- Standard filesystem permissions protect these files on single-user systems
+- On shared systems, consider setting restrictive permissions: `chmod 600 ~/.lw_coder/.env`
+
+## Troubleshooting
+
+**Error: Environment file not found**
+- Ensure `~/.lw_coder/.env` exists
+- Check that you're running lw_coder as the correct user
+- Verify the path with `ls -la ~/.lw_coder/`
+
+**Environment variables not loading**
+- Verify the `.env` file syntax (KEY=value format, one per line)
+- Check for typos in variable names
+- Ensure no extra spaces around the `=` sign
+- Test by running `cat ~/.lw_coder/.env`
+
+**Permission denied errors**
+- Check file permissions: `ls -l ~/.lw_coder/.env`
+- Ensure the file is readable: `chmod 644 ~/.lw_coder/.env`
+- Verify directory permissions: `chmod 755 ~/.lw_coder`
 
 ## Docker Configuration
 
-### Build Arguments
+The `lw_coder code` command uses Docker to run coding agents in isolated environments. Docker configuration is handled automatically with sensible defaults.
 
-Use `docker_build_args` to pass arguments during Docker image building:
+### Environment Variable Forwarding
 
-```toml
-[code]
-docker_build_args = [
-  "--build-arg", "NODE_VERSION=20",
-  "--build-arg", "PYTHON_VERSION=3.12"
-]
-```
+By default, lw_coder forwards environment variables matching the pattern `OPENROUTER_*` to the Docker container. This ensures that API credentials are available to the coding agents.
 
-### Runtime Arguments
+The forwarding behavior is hardcoded in `src/lw_coder/code_command.py` and currently includes:
+- `OPENROUTER_*` pattern (matches all OpenRouter-related variables)
 
-Use `docker_run_args` to pass additional arguments when running the Docker container:
-
-```toml
-[code]
-docker_run_args = [
-  "--cpus=4",
-  "--memory=8g",
-  "--tmpfs=/tmp:size=2g"
-]
-```
-
-**Security Warning**: The following Docker arguments are flagged as potentially dangerous and will trigger warnings:
-- `--privileged`: Grants extended privileges to container
-- `--cap-add`: Adds Linux capabilities
-- `--security-opt`: Modifies security options
-- `--pid=host`, `--network=host`, `--ipc=host`, `--userns=host`: Share host namespaces
-
-Use these options only if absolutely necessary and understand the security implications.
-
-## DSPy Caching
-
-DSPy uses disk caching to speed up repeated prompt generations. Cache data is stored at:
-
-```
-~/.lw_coder/dspy_cache/
-```
-
-### Cache Behavior
-
-- **First run**: DSPy makes API calls to OpenRouter, responses are cached to disk
-- **Subsequent runs**: Cached responses are reused for identical inputs
-- **Cache invalidation**: Changing the plan content or metadata will result in cache misses
-
-### Managing the Cache
-
-To clear the cache:
-
-```bash
-rm -rf ~/.lw_coder/dspy_cache/
-```
-
-**Note**: Clearing the cache will cause DSPy to make fresh API calls on the next run, which may incur OpenRouter usage costs.
-
-## Run Artifacts
+### Run Artifacts
 
 The code command creates run-scoped artifacts under `.lw_coder/runs/<plan_id>/<timestamp>/`:
 
@@ -144,87 +157,3 @@ Run directories are automatically pruned after **30 days**. The pruning logic:
 - Removes empty plan directories after all runs are pruned
 
 **Note**: If you need to preserve run artifacts long-term, copy them outside the `.lw_coder/runs/` directory.
-
-## Troubleshooting
-
-### DSPy LM Not Configured
-
-**Error**: `No LM is loaded. Please configure the LM using dspy.configure(lm=dspy.LM(...))`
-
-**Solution**: Ensure your `.env` file contains `OPENROUTER_API_KEY` and is specified correctly in `config.toml`.
-
-### Missing Configuration File
-
-**Error**: `Configuration file not found: .lw_coder/config.toml`
-
-**Solution**: Create `.lw_coder/config.toml` with at minimum a `[code]` section:
-
-```toml
-[code]
-env_file = ".env"
-```
-
-### Missing Environment File
-
-**Error**: `Environment file not found: /path/to/.env`
-
-**Solution**: Create the `.env` file at the specified location (relative to repo root), or update `env_file` in `config.toml` to point to an existing file.
-
-### Docker Image Not Found
-
-**Error**: `Docker image 'lw_coder_droid:latest' not found`
-
-**Solution**: Build the Docker image first:
-
-```bash
-cd docker/droid
-docker build -t lw_coder_droid:latest .
-```
-
-### OpenRouter API Errors
-
-If you encounter OpenRouter API errors:
-
-1. **Check API key**: Verify `OPENROUTER_API_KEY` in your `.env` file
-2. **Check network**: Ensure you can reach `https://openrouter.ai`
-3. **Check quota**: Verify your OpenRouter account has available credits
-4. **Clear cache**: If cached responses are corrupted, remove `~/.lw_coder/dspy_cache/`
-
-## Best Practices
-
-1. **Version control**: Add `.lw_coder/config.toml` to version control, but keep `.env` in `.gitignore`
-2. **Environment isolation**: Use separate `.env` files for different environments (dev, staging, production)
-3. **Security**: Only forward necessary environment variables using specific patterns rather than `["*"]`
-4. **Docker resources**: Set appropriate CPU and memory limits via `docker_run_args` based on your workload
-5. **Cache management**: Monitor `~/.lw_coder/dspy_cache/` size if running many different plans
-
-## Example: Minimal Setup
-
-Here's a minimal working configuration:
-
-**.lw_coder/config.toml**:
-```toml
-[code]
-env_file = ".env"
-forward_env = ["OPENROUTER_*"]
-```
-
-**.env**:
-```bash
-OPENROUTER_API_KEY=sk-or-your-key-here
-```
-
-With this setup, run:
-
-```bash
-uv run lw_coder code .lw_coder/tasks/my-plan.md
-```
-
-The command will:
-1. Validate the plan
-2. Load configuration and environment
-3. Generate prompts using DSPy (with caching)
-4. Create a worktree for the specified Git SHA
-5. Prepare run artifacts
-
-For complete workflow documentation, see the README.
