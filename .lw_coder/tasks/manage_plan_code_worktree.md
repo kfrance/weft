@@ -1,6 +1,6 @@
 ---
 plan_id: manage-plan-code-worktree
-git_sha: 99d10a8292abdf45743ca1e67fff3542d973ae50
+git_sha: a4eca188015cb3c711fd2ec36a73a1778e836b75
 status: done
 evaluation_notes:
   - Do both CLI commands create or reuse the shared worktree exactly once and report its path?

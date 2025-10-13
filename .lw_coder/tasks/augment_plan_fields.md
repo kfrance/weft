@@ -1,7 +1,7 @@
 ---
 plan_id: plan-augment-plan-fields
 branch_name: lw/plan/augment-plan-fields
-git_sha: 6488c0e47c1e773607a2176afda6057c71157a0f
+git_sha: 17634532492117ac0dd0446f03bc137a4e3ff3f2
 status: done
 evaluation_notes:
   - Do the validator tests cover the new required front matter fields?

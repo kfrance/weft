@@ -1,7 +1,7 @@
 ---
 plan_id: plan-switch-to-logging
 branch_name: lw/logging/switch-to-logging
-git_sha: a4eca188015cb3c711fd2ec36a73a1778e836b75
+git_sha: 6488c0e47c1e773607a2176afda6057c71157a0f
 status: done
 evaluation_notes:
   - Does the CLI respect the new --debug flag by adjusting only the logging level?

@@ -1,6 +1,6 @@
 ---
 plan_id: implement-dspy-code-command
-git_sha: de528997b23028fdd0732ae6d17a8c11ad6c6348
+git_sha: 6136da44a8cb52e3e529a5db7d35d06cd372adf0
 status: done
 evaluation_notes:
   - Did the DSPy signature generate prompts with placeholder text (e.g., `{plan_text}`) instead of embedding the actual plan content? Was the signature docstring explicit enough to instruct the LLM to directly embed the complete plan text rather than creating a template?

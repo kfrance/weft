@@ -1,6 +1,6 @@
 ---
 plan_id: integrate-droid-cli-tool
-git_sha: de528997b23028fdd0732ae6d17a8c11ad6c6348
+git_sha: 99d10a8292abdf45743ca1e67fff3542d973ae50
 status: done
 evaluation_notes:
   - If a non-root user was created in the Dockerfile, will that user have access to droid and other files it needs to run?

@@ -1,6 +1,6 @@
 ---
 plan_id: dspy-prompt-pipeline
-git_sha: c75d6dd74f6017d8f3c4e9fcc148a6021b72ce58
+git_sha: 8a87804ab65ba01b8eefcf6fa81e1fd9a1c96fc6
 status: done
 evaluation_notes:
   - Were any fallback prompts made or ways to skirt around using DSPy?
