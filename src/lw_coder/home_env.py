@@ -1,7 +1,8 @@
 """Home-level environment loader for lw_coder secrets.
 
 Loads secrets exclusively from ~/.lw_coder/.env, providing
-basic existence and readability validation.
+basic existence and readability validation. Also handles OS detection
+and emits warnings for unsupported platforms.
 """
 
 from __future__ import annotations
@@ -13,6 +14,9 @@ from dotenv import load_dotenv
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Import OS detection functions from host_runner
+from .host_runner import check_os_support
 
 
 class HomeEnvError(Exception):
@@ -30,6 +34,9 @@ def load_home_env() -> Path:
     Raises:
         HomeEnvError: If ~/.lw_coder/.env is missing or unreadable
     """
+    # Check OS support and emit warnings if needed
+    check_os_support()
+
     env_path = Path.home() / ".lw_coder" / ".env"
 
     if not env_path.exists():

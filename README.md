@@ -1,10 +1,13 @@
 # AI Coding Platform
 
-This project hosts a self-optimizing multi-agent coding assistant that orchestrates coding runs through containerized executors. Prompts are evolved with DSPy and the GEPA optimizer to coordinate specialized subagents—coders, reviewers, testers—for higher quality and faster delivery without reinventing the toolchain.
+This project hosts a self-optimizing multi-agent coding assistant that orchestrates coding runs on your Linux development environment. Prompts are evolved with DSPy and the GEPA optimizer to coordinate specialized subagents—coders, reviewers, testers—for higher quality and faster delivery without reinventing the toolchain.
+
+**Supported Platforms**: Linux (Ubuntu 20.04+, Debian 11+, Fedora, etc.)
+**Not Supported**: macOS, Windows (coming soon with Claude Code CLI integration)
 
 ## Highlights
 - Uses DSPy signatures to define the core coder and supporting review/test agents
-- Integrates with CLI-based coding platforms and runs each experiment in isolated Docker worktrees
+- Runs directly on Linux hosts with Git worktrees for isolated code experiments
 - Feeds GEPA with task/eval logs to iteratively improve prompt scaffolding, delegation order, and runtime efficiency
 
 ## Installation
@@ -59,20 +62,7 @@ The `lw_coder plan` command uses Factory AI's Droid CLI tool for interactive pla
    ls ~/.factory/auth.json
    ```
 
-3. **Build the Docker image**: The plan command runs Droid in a Docker container for isolation:
-   ```bash
-   docker build -t lw_coder_droid:latest docker/droid/
-   ```
-
-The Docker container (based on Debian Slim with glibc support for droid binary) includes comprehensive development tools that Droid uses for code analysis and editing:
-- **Search/Analysis**: `ripgrep`, `fd`, `grep`, `tree`, `findutils`
-- **Text Processing**: `sed`, `gawk`, `jq`, `diffutils`
-- **Build Tools**: `make`, `gcc`, `g++`, `build-essential`
-- **Languages**: `python3`, `pip`, Node.js (from base image)
-- **Editors**: `vim`, `nano`
-- **Version Control**: `git`
-
-Once authenticated, you can use the plan command:
+Once authenticated, you can use the plan command directly (no Docker setup needed):
 ```bash
 # Interactive plan creation from an idea file
 lw_coder plan idea.md

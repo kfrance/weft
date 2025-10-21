@@ -123,20 +123,34 @@ Error: [Errno 13] Permission denied
 - Ensure the file is readable: `chmod 644 ~/.lw_coder/.env`
 - Verify directory permissions: `chmod 755 ~/.lw_coder`
 
-## Docker Configuration
+## Host Execution Configuration
 
-The `lw_coder code` command uses Docker to run coding agents in isolated environments. Docker configuration is handled automatically with sensible defaults.
+The `lw_coder code` command executes coding agents directly on your Linux host using Git worktrees for isolated execution. No Docker setup is required.
+
+### Prerequisites
+
+- **Operating System**: Linux (Ubuntu 20.04+, Debian 11+, Fedora, etc.)
+- **Tools**: Git, Python 3.11+, Droid CLI (installed separately)
+- **Network**: Access to LLM provider APIs (OpenRouter, etc.)
+
+### Platform Support
+
+**Supported**: Linux (Ubuntu 20.04+, Debian 11+, Fedora, CentOS 8+, etc.)
+
+**Not Supported**: macOS, Windows (coming soon with Claude Code CLI integration)
+
+If you're running on an unsupported platform, `lw_coder` will emit a warning on startup but may still function if you have the required tools available.
 
 ### Environment Variable Forwarding
 
-By default, lw_coder forwards environment variables matching the pattern `OPENROUTER_*` to the Docker container. This ensures that API credentials are available to the coding agents.
+By default, lw_coder forwards environment variables matching the pattern `OPENROUTER_*` to the host execution context. This ensures that API credentials are available to the coding agents.
 
 The forwarding behavior is hardcoded in `src/lw_coder/code_command.py` and currently includes:
 - `OPENROUTER_*` pattern (matches all OpenRouter-related variables)
 
-### Run Artifacts
+### Git Worktree Isolation
 
-The code command creates run-scoped artifacts under `.lw_coder/runs/<plan_id>/<timestamp>/`:
+Code execution occurs in isolated Git worktrees created under `.lw_coder/runs/<plan_id>/`:
 
 ```
 .lw_coder/runs/
@@ -144,10 +158,13 @@ The code command creates run-scoped artifacts under `.lw_coder/runs/<plan_id>/<t
     └── 20251009_143000/
         ├── prompts/
         │   └── main.md              # Main coding prompt
-        └── droids/
-            ├── code-review-auditor.md    # Code review subagent prompt
-            └── plan-alignment-checker.md  # Plan alignment subagent prompt
+        ├── droids/
+        │   ├── code-review-auditor.md    # Code review subagent prompt
+        │   └── plan-alignment-checker.md  # Plan alignment subagent prompt
+        └── .git                     # Worktree git directory
 ```
+
+Each worktree is a separate Git repository state, allowing safe experimentation without affecting your main working directory.
 
 ### Retention Policy
 

@@ -41,3 +41,4 @@ Thumbs.db
 
 # .lw_coder that aren't tracked
 .lw_coder/worktrees/
+.lw_coder/runs/

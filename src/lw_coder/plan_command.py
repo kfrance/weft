@@ -1,20 +1,18 @@
-"""Implementation of the plan command for interactive plan development."""
+"""Implementation of the plan command for interactive plan development.
+
+Now runs directly on the host environment instead of in Docker containers.
+"""
 
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
+import tempfile
 from pathlib import Path
 
 from .droid_auth import DroidAuthError, check_droid_auth
-from .droid_session import (
-    DroidSessionConfig,
-    build_docker_command,
-    create_container_group_file,
-    create_container_passwd_file,
-    get_lw_coder_src_dir,
-    patched_worktree_gitdir,
-)
+from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
 from .plan_validator import PlanValidationError, _extract_front_matter
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
@@ -135,13 +133,9 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
     Returns:
         Exit code (0 for success, non-zero for failure).
     """
-    import tempfile
-
     temp_worktree = None
     repo_root = None
     prompt_file = None
-    passwd_file = None
-    group_file = None
 
     try:
         # Pre-flight check for authentication
@@ -165,8 +159,8 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
             f.write(combined_prompt)
             prompt_file = Path(f.name)
 
-        # Make prompt file readable by the container user
-        os.chmod(prompt_file, 0o644)
+        # Set secure file permissions (user read/write only, not world-readable)
+        os.chmod(prompt_file, 0o600)
 
         # Create temporary worktree
         temp_worktree = create_temp_worktree(repo_root)
@@ -177,59 +171,49 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         except RuntimeError as exc:
             raise PlanCommandError(str(exc)) from exc
 
-        # Prepare paths for Docker configuration
+        # Prepare paths for host configuration
         tasks_dir = repo_root / ".lw_coder" / "tasks"
         droids_dir = lw_coder_src / "droids"
         host_factory_dir = Path.home() / ".factory"
         auth_file = host_factory_dir / "auth.json"
-        container_settings_file = lw_coder_src / "container_settings.json"
+        settings_file = lw_coder_src / "container_settings.json"
         git_dir = repo_root / ".git"
 
-        # Get current user's UID and GID for container
-        container_uid = os.getuid()
-        container_gid = os.getgid()
-        container_home = "/home/droiduser"
-
-        # Create passwd and group files for the container user
-        passwd_file = create_container_passwd_file(container_uid, container_gid)
-        group_file = create_container_group_file(container_gid)
-
-        logger.info("Starting interactive %s session...", tool)
+        logger.info("Starting %s session...", tool)
         logger.info("Plans will be saved to .lw_coder/tasks/<plan_id>.md")
-        logger.info("Exit %s (type 'exit' or press Ctrl+C) when finished.", tool)
+        logger.info("Processing plan with %s...", tool)
 
-        # Patch worktree .git file and run Docker with the patched configuration
-        with patched_worktree_gitdir(temp_worktree, git_dir) as worktree_name:
-            # Build Docker configuration
-            config = DroidSessionConfig(
-                worktree_path=temp_worktree,
-                repo_git_dir=git_dir,
-                tasks_dir=tasks_dir,
-                droids_dir=droids_dir,
-                auth_file=auth_file,
-                settings_file=container_settings_file,
-                prompt_file=prompt_file,
-                image_tag="lw_coder_droid:latest",
-                worktree_name=worktree_name,
-                command='droid "$(cat /tmp/prompt.txt)"',
-                container_uid=container_uid,
-                container_gid=container_gid,
-                container_home=container_home,
-                host_factory_dir=host_factory_dir,
-                passwd_file=passwd_file,
-                group_file=group_file,
+        # Run droid session on host (interactive mode)
+        # Prepare droid command with properly escaped paths to prevent shell injection
+        prompt_path_escaped = shlex.quote(str(prompt_file))
+        droid_command = f'droid "$(cat {prompt_path_escaped})"'
+
+        runner_config = host_runner_config(
+            worktree_path=temp_worktree,
+            repo_git_dir=git_dir,
+            tasks_dir=tasks_dir,
+            droids_dir=droids_dir,
+            auth_file=auth_file,
+            settings_file=settings_file,
+            command=droid_command,
+            host_factory_dir=host_factory_dir,
+        )
+
+        # Build host command
+        host_cmd, host_env = build_host_command(runner_config)
+
+        # Run droid interactively on the host
+        try:
+            result = subprocess.run(
+                host_cmd,
+                check=False,
+                env=host_env,
+                cwd=temp_worktree,
             )
-
-            # Build Docker command
-            docker_cmd = build_docker_command(config)
-
-            # Run Docker interactively
-            try:
-                result = subprocess.run(docker_cmd, check=False)
-                return result.returncode
-            except KeyboardInterrupt:
-                logger.info("Session interrupted by user.")
-                return 0
+            return result.returncode
+        except KeyboardInterrupt:
+            logger.info("Session interrupted by user.")
+            return 0
 
     except (DroidAuthError, PlanCommandError, TempWorktreeError) as exc:
         logger.error("%s", exc)
@@ -242,20 +226,6 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
                 prompt_file.unlink()
             except OSError as exc:
                 logger.warning("Failed to clean up prompt file: %s", exc)
-
-        # Clean up passwd file
-        if passwd_file and passwd_file.exists():
-            try:
-                passwd_file.unlink()
-            except OSError as exc:
-                logger.warning("Failed to clean up passwd file: %s", exc)
-
-        # Clean up group file
-        if group_file and group_file.exists():
-            try:
-                group_file.unlink()
-            except OSError as exc:
-                logger.warning("Failed to clean up group file: %s", exc)
 
         # Clean up temporary worktree
         if temp_worktree and repo_root:

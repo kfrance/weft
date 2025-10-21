@@ -148,4 +148,4 @@ If lw_coder evolves into a different use case (multi-tenant service, production 
 
 - Code-bug-analyzer findings: See internal analysis reports
 - DSPy security considerations: https://dspy.ai/
-- Docker security best practices: https://docs.docker.com/engine/security/
+- Host execution security: Standard Unix file permissions and environment isolation

@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .droid_session import get_lw_coder_src_dir
+from .host_runner import get_lw_coder_src_dir
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
