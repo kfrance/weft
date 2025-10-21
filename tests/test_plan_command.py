@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,6 +21,13 @@ import lw_coder.plan_command
 def test_load_template_success() -> None:
     """Test loading a valid template."""
     template = _load_template("droid")
+    assert "{IDEA_TEXT}" in template
+    assert "Your task:" in template
+
+
+def test_load_template_claude_code() -> None:
+    """Test loading Claude Code CLI template."""
+    template = _load_template("claude-code")
     assert "{IDEA_TEXT}" in template
     assert "Your task:" in template
 
@@ -147,3 +154,35 @@ def test_ensure_placeholder_git_sha(tmp_path: Path) -> None:
     front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == PLACEHOLDER_SHA
     assert front_matter["status"] == "draft"
+
+
+def test_run_plan_command_with_droid_executor() -> None:
+    """Test that run_plan_command can use droid executor."""
+    from lw_coder.plan_command import run_plan_command
+    from lw_coder.executors import ExecutorRegistry
+
+    # Verify droid executor is registered
+    executor = ExecutorRegistry.get_executor("droid")
+    assert executor is not None
+
+
+def test_run_plan_command_with_claude_code_executor() -> None:
+    """Test that run_plan_command can use claude-code executor."""
+    from lw_coder.plan_command import run_plan_command
+    from lw_coder.executors import ExecutorRegistry
+
+    # Verify claude-code executor is registered
+    executor = ExecutorRegistry.get_executor("claude-code")
+    assert executor is not None
+
+
+def test_run_plan_command_with_unknown_executor() -> None:
+    """Test that run_plan_command fails with unknown executor."""
+    from lw_coder.plan_command import run_plan_command
+    from unittest.mock import patch
+
+    with patch("lw_coder.plan_command._find_repo_root"):
+        with patch("lw_coder.plan_command._extract_idea_text", return_value="test"):
+            result = run_plan_command(None, "test idea", "unknown-executor")
+            # Should fail due to unknown executor
+            assert result != 0

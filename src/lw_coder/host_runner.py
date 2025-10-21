@@ -102,22 +102,22 @@ class HostRunnerConfig:
         repo_git_dir: Path to the repository's .git directory.
         tasks_dir: Path to the .lw_coder/tasks directory.
         droids_dir: Path to the droids directory.
-        auth_file: Path to the Factory auth.json file.
         settings_file: Path to the settings.json file.
         command: Command string to run on the host.
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
+        auth_file: Optional path to the Factory auth.json file (deprecated, kept for backward compatibility).
     """
 
     worktree_path: Path
     repo_git_dir: Path
     tasks_dir: Path
     droids_dir: Path
-    auth_file: Path
     settings_file: Path
     command: str
     host_factory_dir: Path
     env_vars: dict[str, str] | None = None
+    auth_file: Path | None = None
 
 
 def host_runner_config(
@@ -125,11 +125,11 @@ def host_runner_config(
     repo_git_dir: Path,
     tasks_dir: Path,
     droids_dir: Path,
-    auth_file: Path,
     settings_file: Path,
     command: str,
     host_factory_dir: Path,
     env_vars: dict[str, str] | None = None,
+    auth_file: Path | None = None,
 ) -> HostRunnerConfig:
     """Factory function that creates a HostRunnerConfig.
 
@@ -138,11 +138,11 @@ def host_runner_config(
         repo_git_dir: Path to the repository's .git directory.
         tasks_dir: Path to the .lw_coder/tasks directory.
         droids_dir: Path to the droids directory.
-        auth_file: Path to the Factory auth.json file.
         settings_file: Path to the settings.json file.
         command: Command string to run on the host.
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
+        auth_file: Optional path to the Factory auth.json file (deprecated, kept for backward compatibility).
 
     Returns:
         HostRunnerConfig with all fields populated.
@@ -157,16 +157,16 @@ def host_runner_config(
         repo_git_dir=repo_git_dir,
         tasks_dir=tasks_dir,
         droids_dir=droids_dir,
-        auth_file=auth_file,
         settings_file=settings_file,
         command=command,
         host_factory_dir=host_factory_dir,
         env_vars=env_vars,
+        auth_file=auth_file,
     )
 
 
 def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, str]]:
-    """Build the host command and environment variables to run droid.
+    """Build the host command and environment variables to run the executor.
 
     Args:
         config: Configuration object with all paths and settings.
@@ -185,23 +185,14 @@ def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, s
 
     # Validate that required files/directories exist
     _validate_path_exists(config.droids_dir, "Droids directory")
-    if not config.auth_file.exists():
-        raise RuntimeError(
-            f"Auth file not found: {config.auth_file}\n"
-            f"Factory authentication is required to run droid commands."
-        )
     _validate_path_exists(config.settings_file, "Settings file")
 
     # Build environment for the command
     env = os.environ.copy()
 
-    # Add custom environment variables if provided
+    # Add executor-specific environment variables if provided
     if config.env_vars:
         env.update(config.env_vars)
-
-    # Set up Factory environment for droid CLI
-    # The droid CLI looks for auth.json and settings.json in ~/.factory
-    env["FACTORY_HOME"] = str(config.host_factory_dir)
 
     # Build the command - just run it with bash -c on the host
     cmd = ["bash", "-c", config.command]

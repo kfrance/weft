@@ -6,12 +6,11 @@ Now runs directly on the host environment instead of in Docker containers.
 from __future__ import annotations
 
 import os
-import shlex
 import subprocess
 import tempfile
 from pathlib import Path
 
-from .droid_auth import DroidAuthError, check_droid_auth
+from .executors import ExecutorError, ExecutorRegistry
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
@@ -129,7 +128,7 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
     Args:
         plan_path: Optional path to a markdown file with plan idea.
         text_input: Optional direct text input for the plan idea.
-        tool: Name of the coding tool to use (default: "droid").
+        tool: Name of the coding tool to use (default: "claude-code").
 
     Returns:
         Exit code (0 for success, non-zero for failure).
@@ -139,8 +138,17 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
     prompt_file = None
 
     try:
-        # Pre-flight check for authentication
-        check_droid_auth()
+        # Get the executor for the specified tool
+        try:
+            executor = ExecutorRegistry.get_executor(tool)
+        except ExecutorError as exc:
+            raise PlanCommandError(str(exc)) from exc
+
+        # Pre-flight check for executor-specific authentication
+        try:
+            executor.check_auth()
+        except ExecutorError as exc:
+            raise PlanCommandError(str(exc)) from exc
 
         # Find repository root
         repo_root = _find_repo_root()
@@ -176,7 +184,6 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         tasks_dir = repo_root / ".lw_coder" / "tasks"
         droids_dir = lw_coder_src / "droids"
         host_factory_dir = Path.home() / ".factory"
-        auth_file = host_factory_dir / "auth.json"
         settings_file = lw_coder_src / "container_settings.json"
         git_dir = repo_root / ".git"
 
@@ -184,26 +191,27 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         logger.info("Plans will be saved to .lw_coder/tasks/<plan_id>.md")
         logger.info("Processing plan with %s...", tool)
 
-        # Run droid session on host (interactive mode)
-        # Prepare droid command with properly escaped paths to prevent shell injection
-        prompt_path_escaped = shlex.quote(str(prompt_file))
-        droid_command = f'droid "$(cat {prompt_path_escaped})"'
+        # Build command using the executor
+        command = executor.build_command(prompt_file)
+
+        # Get executor-specific environment variables
+        executor_env_vars = executor.get_env_vars(host_factory_dir)
 
         runner_config = host_runner_config(
             worktree_path=temp_worktree,
             repo_git_dir=git_dir,
             tasks_dir=tasks_dir,
             droids_dir=droids_dir,
-            auth_file=auth_file,
             settings_file=settings_file,
-            command=droid_command,
+            command=command,
             host_factory_dir=host_factory_dir,
+            env_vars=executor_env_vars,
         )
 
         # Build host command
         host_cmd, host_env = build_host_command(runner_config)
 
-        # Run droid interactively on the host
+        # Run executor interactively on the host
         try:
             result = subprocess.run(
                 host_cmd,
@@ -222,15 +230,15 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
             logger.info("Session interrupted by user.")
             return 0
 
-    except (DroidAuthError, PlanCommandError, TempWorktreeError) as exc:
+    except (ExecutorError, PlanCommandError, TempWorktreeError) as exc:
         logger.error("%s", exc)
         return 1
 
     finally:
         # Clean up prompt file
-        if prompt_file and prompt_file.exists():
+        if prompt_file:
             try:
-                prompt_file.unlink()
+                prompt_file.unlink(missing_ok=True)
             except OSError as exc:
                 logger.warning("Failed to clean up prompt file: %s", exc)
 

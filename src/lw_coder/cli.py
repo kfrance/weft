@@ -20,7 +20,7 @@ Usage:
 Options:
   -h --help              Show this screen.
   --text <description>   Inline plan idea text.
-  --tool <tool_name>     Coding tool to use [default: droid].
+  --tool <tool_name>     Coding tool to use [default: claude-code].
   --debug                Enable debug-level logging.
 """
 
@@ -36,7 +36,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_logging(debug=debug)
 
     if is_plan_command:
-        # Plan command: interactive plan development with droid
+        # Plan command: interactive plan development with Claude Code CLI or Droid
         plan_path = parsed["<plan_path>"]
         text_input = parsed["--text"]
         tool = parsed["--tool"]

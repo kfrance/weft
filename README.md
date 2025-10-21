@@ -47,9 +47,32 @@ lw_coder loads credentials from `~/.lw_coder/.env` in your home directory:
 
 See [docs/code-config.md](docs/code-config.md) for detailed configuration options.
 
-### Droid CLI Authentication
+### Plan Command Setup
 
-The `lw_coder plan` command uses Factory AI's Droid CLI tool for interactive plan development. Before using this command, you must authenticate with Droid:
+The `lw_coder plan` command supports multiple AI coding assistants for interactive plan development. By default, it uses **Claude Code CLI**, but you can also use Factory AI's Droid CLI.
+
+#### Using Claude Code CLI (Default)
+
+Claude Code CLI is the default executor and handles authentication automatically. No setup required.
+
+```bash
+# Interactive plan creation from an idea file
+lw_coder plan idea.md
+
+# Or provide the idea directly
+lw_coder plan --text "Create a feature to export user metrics"
+```
+
+#### Using Droid CLI (Optional)
+
+To use Droid instead of Claude Code CLI, add the `--tool droid` option:
+
+```bash
+lw_coder plan idea.md --tool droid
+lw_coder plan --text "Create a feature" --tool droid
+```
+
+Before using Droid, you must authenticate once:
 
 1. **One-time authentication**: Run `droid` once to login via your browser:
    ```bash
@@ -62,14 +85,7 @@ The `lw_coder plan` command uses Factory AI's Droid CLI tool for interactive pla
    ls ~/.factory/auth.json
    ```
 
-Once authenticated, you can use the plan command directly (no Docker setup needed):
-```bash
-# Interactive plan creation from an idea file
-lw_coder plan idea.md
-
-# Or provide the idea directly
-lw_coder plan --text "Create a feature to export user metrics"
-```
+After authenticating, you can use Droid with `--tool droid` as shown above.
 
 ## Logging
 
