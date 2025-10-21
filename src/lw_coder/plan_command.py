@@ -14,7 +14,8 @@ from pathlib import Path
 from .droid_auth import DroidAuthError, check_droid_auth
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
-from .plan_validator import PlanValidationError, _extract_front_matter
+from .plan_lifecycle import PlanLifecycleError, update_plan_fields
+from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, _extract_front_matter
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
 
 logger = get_logger(__name__)
@@ -210,6 +211,12 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
                 env=host_env,
                 cwd=temp_worktree,
             )
+
+            try:
+                _ensure_placeholder_git_sha(tasks_dir)
+            except PlanLifecycleError as exc:
+                logger.warning("Failed to normalize plan git_sha placeholder: %s", exc)
+
             return result.returncode
         except KeyboardInterrupt:
             logger.info("Session interrupted by user.")
@@ -233,3 +240,29 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
                 remove_temp_worktree(repo_root, temp_worktree)
             except TempWorktreeError as exc:
                 logger.warning("Failed to clean up temporary worktree: %s", exc)
+
+
+def _ensure_placeholder_git_sha(tasks_dir: Path) -> None:
+    """Ensure draft plans use the placeholder git SHA."""
+
+    for plan_file in tasks_dir.glob("*.md"):
+        try:
+            content = plan_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        try:
+            front_matter, _ = _extract_front_matter(content)
+        except PlanValidationError:
+            continue
+
+        git_sha = front_matter.get("git_sha")
+        status = front_matter.get("status", "").strip().lower() if isinstance(front_matter.get("status"), str) else ""
+
+        if status != "draft" or not isinstance(git_sha, str):
+            continue
+
+        if git_sha == PLACEHOLDER_SHA:
+            continue
+
+        update_plan_fields(plan_file, {"git_sha": PLACEHOLDER_SHA})

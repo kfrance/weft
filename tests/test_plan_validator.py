@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from lw_coder.plan_validator import PlanMetadata, PlanValidationError, load_plan_metadata
+PLACEHOLDER_SHA = "0" * 40
+
 from tests.conftest import write_plan
 
 
@@ -36,6 +38,55 @@ def test_validate_plan_success(git_repo):
     assert metadata.created_by is None
     assert metadata.created_at is None
     assert metadata.notes is None
+
+
+def test_validate_git_sha_all_zeros_draft_status(git_repo) -> None:
+    plan_path = git_repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": PLACEHOLDER_SHA,
+            "plan_id": "plan-placeholder-draft",
+            "status": "draft",
+        },
+    )
+
+    metadata = load_plan_metadata(plan_path)
+    assert metadata.git_sha == PLACEHOLDER_SHA
+    assert metadata.status == "draft"
+
+
+@pytest.mark.parametrize("status", ["coding", "done"])
+def test_validate_git_sha_all_zeros_invalid_for_non_draft(git_repo, status: str) -> None:
+    plan_path = git_repo.path / f"plan-{status}.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": PLACEHOLDER_SHA,
+            "plan_id": f"plan-placeholder-{status}",
+            "status": status,
+        },
+    )
+
+    with pytest.raises(PlanValidationError, match="all-zeros placeholder"):
+        load_plan_metadata(plan_path)
+
+
+@pytest.mark.parametrize("status", ["draft", "coding", "done", "review"])
+def test_validate_git_sha_real_sha_any_status(git_repo, status: str) -> None:
+    plan_path = git_repo.path / f"plan-real-{status}.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": f"plan-real-{status}",
+            "status": status,
+        },
+    )
+
+    metadata = load_plan_metadata(plan_path)
+    assert metadata.git_sha == git_repo.latest_commit()
+    assert metadata.status == status
 
 
 def test_missing_front_matter(git_repo):

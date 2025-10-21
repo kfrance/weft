@@ -18,6 +18,7 @@ _FRONT_MATTER_DELIM = "---"
 _REQUIRED_KEYS = {"git_sha", "plan_id", "status"}
 _OPTIONAL_KEYS = {"evaluation_notes", "linear_issue_id", "created_by", "created_at", "notes"}
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+PLACEHOLDER_SHA = "0" * 40
 _PLAN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,100}$")
 _VALID_STATUSES = {"draft", "ready", "coding", "review", "done", "abandoned"}
 
@@ -73,6 +74,11 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
     evaluation_notes_value = _validate_evaluation_notes(front_matter.get("evaluation_notes"))
     plan_id_value = _validate_plan_id(front_matter.get("plan_id"), path)
     status_value = _validate_status(front_matter.get("status"))
+
+    if git_sha_value == PLACEHOLDER_SHA and status_value != "draft":
+        raise PlanValidationError(
+            "Field 'git_sha' may use the all-zeros placeholder only when status is 'draft'."
+        )
     plan_text_value = _validate_plan_body(body_text)
 
     # Validate optional fields if present
@@ -86,7 +92,8 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
 
     repo_root = _find_repo_root(path)
     _ensure_path_within_repo(path, repo_root)
-    _ensure_commit_exists(repo_root, git_sha_value)
+    if git_sha_value != PLACEHOLDER_SHA:
+        _ensure_commit_exists(repo_root, git_sha_value)
 
     logger.debug(
         "Plan validation succeeded for %s (plan_id=%s, git_sha=%s, status=%s)",

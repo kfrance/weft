@@ -17,7 +17,18 @@ from pathlib import Path
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .dspy.prompt_orchestrator import generate_code_prompts
 from .logging_config import get_logger
-from .plan_validator import PlanValidationError, load_plan_metadata
+from .plan_lifecycle import (
+    PlanLifecycleError,
+    get_current_head_sha,
+    update_plan_fields,
+)
+from .plan_validator import (
+    PLACEHOLDER_SHA,
+    PlanValidationError,
+    _extract_front_matter,
+    _find_repo_root,
+    load_plan_metadata,
+)
 from .run_manager import (
     RunManagerError,
     copy_coding_droids,
@@ -72,10 +83,83 @@ def run_code_command(plan_path: Path | str) -> int:
     if isinstance(plan_path, str):
         plan_path = Path(plan_path)
 
+    head_sha: str | None = None
+    front_matter: dict[str, object] | None = None
+
+    try:
+        repo_root = _find_repo_root(plan_path)
+    except PlanValidationError:
+        repo_root = None
+
+    if repo_root is not None:
+        try:
+            head_sha = get_current_head_sha(repo_root)
+        except PlanLifecycleError as exc:
+            logger.error("Failed to resolve repository HEAD: %s", exc)
+            return 1
+
+    if plan_path.exists():
+        try:
+            content = plan_path.read_text(encoding="utf-8")
+            fm, _ = _extract_front_matter(content)
+            if isinstance(fm, dict):
+                front_matter = fm
+        except (OSError, PlanValidationError):
+            front_matter = None
+
+    plan_updated = False
+    original_fields: dict[str, str] = {}
+
+    if front_matter and head_sha:
+        existing_git_sha = front_matter.get("git_sha")
+        normalized_git_sha = (
+            existing_git_sha.strip().lower()
+            if isinstance(existing_git_sha, str)
+            else None
+        )
+
+        if isinstance(existing_git_sha, str):
+            original_fields["git_sha"] = existing_git_sha
+        status_field = front_matter.get("status")
+        if isinstance(status_field, str):
+            original_fields["status"] = status_field
+
+        if (
+            normalized_git_sha
+            and normalized_git_sha != PLACEHOLDER_SHA
+            and normalized_git_sha != head_sha
+        ):
+            logger.error(
+                "Plan git_sha %s does not match repository HEAD %s. "
+                "Please ensure the plan is in sync with the latest commit before running code. "
+                "Check for uncommitted changes or regenerate the plan after rebasing.",
+                normalized_git_sha,
+                head_sha,
+            )
+            return 1
+
+        try:
+            update_plan_fields(plan_path, {"git_sha": head_sha, "status": "coding"})
+            plan_updated = True
+        except PlanLifecycleError as exc:
+            logger.error("Failed to update plan metadata before coding session: %s", exc)
+            return 1
+    elif head_sha and not plan_path.exists():
+        logger.error("Plan file not found: %s", plan_path)
+        return 1
+
     # Load and validate plan metadata
     try:
         metadata = load_plan_metadata(plan_path)
     except PlanValidationError as exc:
+        if plan_updated and original_fields:
+            try:
+                update_plan_fields(plan_path, original_fields)
+            except PlanLifecycleError as rollback_exc:
+                logger.warning(
+                    "Failed to restore plan metadata after validation error: %s",
+                    rollback_exc,
+                )
         logger.error("Plan validation failed: %s", exc)
         return 1
 
@@ -180,6 +264,15 @@ def run_code_command(plan_path: Path | str) -> int:
             env=host_env,
             cwd=worktree_path,
         )
+
+        if result.returncode == 0:
+            try:
+                update_plan_fields(plan_path, {"status": "done"})
+            except PlanLifecycleError as exc:
+                logger.warning(
+                    "Failed to update plan status to 'done' after successful session: %s",
+                    exc,
+                )
 
         if result.returncode != 0:
             logger.warning("Droid session exited with code %d", result.returncode)

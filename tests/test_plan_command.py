@@ -9,9 +9,12 @@ import pytest
 
 from lw_coder.plan_command import (
     PlanCommandError,
+    _ensure_placeholder_git_sha,
     _extract_idea_text,
     _load_template,
 )
+from lw_coder.plan_validator import PLACEHOLDER_SHA, _extract_front_matter
+from tests.conftest import write_plan
 import lw_coder.plan_command
 
 
@@ -123,3 +126,24 @@ def test_load_template_runtime_error_becomes_plan_command_error(monkeypatch) -> 
 
     with pytest.raises(PlanCommandError, match="Source directory not found"):
         _load_template("droid")
+
+
+def test_ensure_placeholder_git_sha(tmp_path: Path) -> None:
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+    plan_path = tasks_dir / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "plan_id": "plan-placeholder",
+            "git_sha": "abcdef" * 6 + "ab",
+            "status": "draft",
+            "evaluation_notes": [],
+        },
+    )
+
+    _ensure_placeholder_git_sha(tasks_dir)
+
+    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    assert front_matter["git_sha"] == PLACEHOLDER_SHA
+    assert front_matter["status"] == "draft"
