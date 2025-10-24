@@ -11,7 +11,7 @@ import pytest
 
 import lw_coder.code_command as code_command
 from lw_coder.code_command import _filter_env_vars, run_code_command
-from lw_coder.dspy.prompt_orchestrator import PromptArtifacts
+from lw_coder.executors import ExecutorRegistry
 from lw_coder.plan_validator import PLACEHOLDER_SHA, PlanMetadata, PlanValidationError, _extract_front_matter
 from lw_coder.worktree_utils import WorktreeError
 
@@ -40,6 +40,15 @@ evaluation_notes: []
     class GitRepo:
         """Simple GitRepo mock."""
         pass
+
+
+def mock_executor_factory():
+    """Create a mock executor for testing."""
+    return SimpleNamespace(
+        check_auth=lambda: None,
+        build_command=lambda p: f'claude "$(cat {p})"',
+        get_env_vars=lambda factory_dir: None
+    )
 
 
 def test_run_code_command_validation_failure(monkeypatch, caplog, tmp_path: Path) -> None:
@@ -79,12 +88,11 @@ def test_run_code_command_worktree_failure(monkeypatch, caplog, tmp_path: Path) 
         status="draft",
     )
 
-    from lw_coder.dspy.prompt_orchestrator import PromptArtifacts
-    mock_artifacts = PromptArtifacts(
-        main_prompt_path=run_dir / "prompts" / "main.md",
-        review_prompt_path=run_dir / "droids" / "code-review-auditor.md",
-        alignment_prompt_path=run_dir / "droids" / "plan-alignment-checker.md",
-    )
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     def mock_ensure_worktree(metadata):
         raise WorktreeError("Failed to create worktree")
@@ -92,7 +100,7 @@ def test_run_code_command_worktree_failure(monkeypatch, caplog, tmp_path: Path) 
     monkeypatch.setattr(code_command, "load_plan_metadata", lambda path: mock_metadata)
     monkeypatch.setattr(code_command, "create_run_directory", lambda repo_root, plan_id: run_dir)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda run_dir: run_dir / "droids")
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda metadata, run_dir: mock_artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda repo_root, active_run_dir: 0)
     monkeypatch.setattr(code_command, "ensure_worktree", mock_ensure_worktree)
 
@@ -151,22 +159,14 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
 
     head_sha = git_repo.latest_commit()
     run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_000000"
-    prompts_dir = run_dir / "prompts"
-    prompts_dir.mkdir(parents=True)
-    main_prompt = prompts_dir / "main.md"
-    main_prompt.write_text("prompt", encoding="utf-8")
-
     droids_dir = run_dir / "droids"
     droids_dir.mkdir(parents=True)
-    review_prompt = droids_dir / "code-review-auditor.md"
-    alignment_prompt = droids_dir / "plan-alignment-checker.md"
-    review_prompt.write_text("review", encoding="utf-8")
-    alignment_prompt.write_text("alignment", encoding="utf-8")
-    artifacts = PromptArtifacts(
-        main_prompt_path=main_prompt,
-        review_prompt_path=review_prompt,
-        alignment_prompt_path=alignment_prompt,
-    )
+
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     def fake_create_run_directory(repo_root: Path, received_plan_id: str) -> Path:
         assert repo_root == git_repo.path
@@ -176,8 +176,9 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
 
     monkeypatch.setattr(code_command, "create_run_directory", fake_create_run_directory)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda _metadata, _run_dir: artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
 
     ensure_called = {}
 
@@ -198,7 +199,9 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
     (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
 
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
     monkeypatch.setattr(
         code_command,
@@ -241,15 +244,15 @@ def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Pa
     alignment_prompt = droids_dir / "plan-alignment-checker.md"
     review_prompt.write_text("review", encoding="utf-8")
     alignment_prompt.write_text("alignment", encoding="utf-8")
-    artifacts = PromptArtifacts(
-        main_prompt_path=main_prompt,
-        review_prompt_path=review_prompt,
-        alignment_prompt_path=alignment_prompt,
-    )
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda _metadata, _run_dir: artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
 
     def fake_ensure_worktree(metadata: PlanMetadata) -> Path:
@@ -267,6 +270,9 @@ def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Pa
     (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
     monkeypatch.setattr(
         code_command,
@@ -308,11 +314,15 @@ def test_code_command_status_stays_coding_on_failure(
     alignment_prompt = droids_dir / "plan-alignment-checker.md"
     review_prompt.write_text("review", encoding="utf-8")
     alignment_prompt.write_text("alignment", encoding="utf-8")
-    artifacts = PromptArtifacts(main_prompt, review_prompt, alignment_prompt)
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda *_args: artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
 
     monkeypatch.setattr(
@@ -326,12 +336,19 @@ def test_code_command_status_stays_coding_on_failure(
     (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
     monkeypatch.setattr(
         code_command,
         "subprocess",
         SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=1)),
     )
+
+    # Create the worktree directory for the test
+    worktree_path = git_repo.path / "worktree-failure"
+    worktree_path.mkdir(parents=True, exist_ok=True)
 
     exit_code = run_code_command(plan_path)
     assert exit_code == 1
@@ -435,11 +452,15 @@ def test_code_command_warning_on_final_update_failure(
     alignment_prompt = droids_dir / "plan-alignment-checker.md"
     review_prompt.write_text("review", encoding="utf-8")
     alignment_prompt.write_text("alignment", encoding="utf-8")
-    artifacts = PromptArtifacts(main_prompt, review_prompt, alignment_prompt)
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda *_args: artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         code_command,
@@ -452,12 +473,19 @@ def test_code_command_warning_on_final_update_failure(
     (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
     monkeypatch.setattr(
         code_command,
         "subprocess",
         SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
     )
+
+    # Create the worktree directory for the test
+    worktree_path = git_repo.path / "worktree-final"
+    worktree_path.mkdir(parents=True, exist_ok=True)
 
     caplog.set_level(logging.WARNING)
     exit_code = run_code_command(plan_path)
@@ -493,11 +521,15 @@ def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path)
     alignment_prompt = droids_dir / "plan-alignment-checker.md"
     review_prompt.write_text("review", encoding="utf-8")
     alignment_prompt.write_text("alignment", encoding="utf-8")
-    artifacts = PromptArtifacts(main_prompt, review_prompt, alignment_prompt)
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda *_args: artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         code_command,
@@ -510,12 +542,19 @@ def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path)
     (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
 
     def interrupting_run(*_args, **_kwargs):
         raise KeyboardInterrupt
 
     monkeypatch.setattr(code_command, "subprocess", SimpleNamespace(run=interrupting_run))
+
+    # Create the worktree directory for the test
+    worktree_path = git_repo.path / "worktree-interrupt"
+    worktree_path.mkdir(parents=True, exist_ok=True)
 
     exit_code = run_code_command(plan_path)
     assert exit_code == 130
@@ -584,18 +623,24 @@ def test_code_command_worktree_uses_updated_sha(monkeypatch, git_repo, tmp_path:
     alignment_prompt = droids_dir / "plan-alignment-checker.md"
     review_prompt.write_text("review", encoding="utf-8")
     alignment_prompt.write_text("alignment", encoding="utf-8")
-    artifacts = PromptArtifacts(main_prompt, review_prompt, alignment_prompt)
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda *_args: artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
 
     captured_metadata = {}
 
     def fake_ensure_worktree(metadata: PlanMetadata) -> Path:
         captured_metadata["git_sha"] = metadata.git_sha
-        return git_repo.path / "worktree-updated"
+        worktree_path = git_repo.path / "worktree-updated"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        return worktree_path
 
     monkeypatch.setattr(code_command, "ensure_worktree", fake_ensure_worktree)
 
@@ -604,6 +649,9 @@ def test_code_command_worktree_uses_updated_sha(monkeypatch, git_repo, tmp_path:
     (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
     monkeypatch.setattr(
         code_command,
@@ -643,11 +691,15 @@ def test_code_command_real_sha_matches_head_no_error(
     alignment_prompt = droids_dir / "plan-alignment-checker.md"
     review_prompt.write_text("review", encoding="utf-8")
     alignment_prompt.write_text("alignment", encoding="utf-8")
-    artifacts = PromptArtifacts(main_prompt, review_prompt, alignment_prompt)
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
 
     monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
     monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
-    monkeypatch.setattr(code_command, "generate_code_prompts", lambda *_args: artifacts)
+    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         code_command,
@@ -660,6 +712,9 @@ def test_code_command_real_sha_matches_head_no_error(
     (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
     monkeypatch.setattr(
         code_command,
@@ -667,9 +722,154 @@ def test_code_command_real_sha_matches_head_no_error(
         SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
     )
 
+    # Create the worktree directory for the test
+    worktree_path = git_repo.path / "worktree-match"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
     exit_code = run_code_command(plan_path)
     assert exit_code == 0
 
     front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == head_sha
     assert front_matter["status"] == "done"
+
+def test_code_command_plan_md_cleanup(monkeypatch, git_repo, tmp_path: Path) -> None:
+    plan_id = "plan-cleanup"
+    plan_path = git_repo.path / f"{plan_id}.md"
+    head_sha = git_repo.latest_commit()
+    write_plan(
+        plan_path,
+        {
+            "git_sha": head_sha,
+            "plan_id": plan_id,
+            "status": "coding",
+        },
+    )
+
+    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_070000"
+    prompts_dir = run_dir / "prompts"
+    prompts_dir.mkdir(parents=True)
+    main_prompt = prompts_dir / "main.md"
+    main_prompt.write_text("prompt", encoding="utf-8")
+    droids_dir = run_dir / "droids"
+    droids_dir.mkdir(parents=True)
+    review_prompt = droids_dir / "code-review-auditor.md"
+    alignment_prompt = droids_dir / "plan-alignment-checker.md"
+    review_prompt.write_text("review", encoding="utf-8")
+    alignment_prompt.write_text("alignment", encoding="utf-8")
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
+
+    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
+    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
+    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+
+    worktree_path = git_repo.path / "worktree-cleanup"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        code_command,
+        "ensure_worktree",
+        lambda _metadata: worktree_path,
+    )
+
+    settings_dir = tmp_path / "src-cleanup"
+    (settings_dir / "droids").mkdir(parents=True)
+    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
+    monkeypatch.setattr(
+        code_command,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
+    )
+
+    # Verify plan.md doesn't exist before execution
+    plan_md_path = worktree_path / "plan.md"
+    assert not plan_md_path.exists()
+
+    exit_code = run_code_command(plan_path)
+    assert exit_code == 0
+
+    # Verify plan.md was cleaned up after execution
+    assert not plan_md_path.exists()
+
+
+def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path) -> None:
+    plan_id = "plan-agents-cleanup"
+    plan_path = git_repo.path / f"{plan_id}.md"
+    head_sha = git_repo.latest_commit()
+    write_plan(
+        plan_path,
+        {
+            "git_sha": head_sha,
+            "plan_id": plan_id,
+            "status": "coding",
+        },
+    )
+
+    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_080000"
+    prompts_dir = run_dir / "prompts"
+    prompts_dir.mkdir(parents=True)
+    main_prompt = prompts_dir / "main.md"
+    main_prompt.write_text("prompt", encoding="utf-8")
+    droids_dir = run_dir / "droids"
+    droids_dir.mkdir(parents=True)
+    review_prompt = droids_dir / "code-review-auditor.md"
+    alignment_prompt = droids_dir / "plan-alignment-checker.md"
+    review_prompt.write_text("review", encoding="utf-8")
+    alignment_prompt.write_text("alignment", encoding="utf-8")
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
+
+    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
+    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
+    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+
+    worktree_path = git_repo.path / "worktree-agents-cleanup"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        code_command,
+        "ensure_worktree",
+        lambda _metadata: worktree_path,
+    )
+
+    settings_dir = tmp_path / "src-agents-cleanup"
+    (settings_dir / "droids").mkdir(parents=True)
+    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
+    monkeypatch.setattr(
+        code_command,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
+    )
+
+    # Verify .claude/agents directory doesn't exist before execution
+    agents_dir = worktree_path / ".claude" / "agents"
+    assert not agents_dir.exists()
+
+    exit_code = run_code_command(plan_path)
+    assert exit_code == 0
+
+    # Verify .claude/agents directory was cleaned up after execution
+    assert not agents_dir.exists()
+    # Also verify .claude directory is gone since we created it
+    assert not (worktree_path / ".claude").exists()
