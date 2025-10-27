@@ -9,9 +9,11 @@ import pytest
 
 from lw_coder.plan_command import (
     PlanCommandError,
+    _copy_droids_for_plan,
     _ensure_placeholder_git_sha,
     _extract_idea_text,
     _load_template,
+    _write_maintainability_agent,
 )
 from lw_coder.plan_file_copier import (
     PlanFileCopyError,
@@ -445,3 +447,171 @@ def test_copy_plan_files_destination_is_file(tmp_path: Path) -> None:
 
     with pytest.raises(PlanFileCopyError, match="not a directory"):
         copy_plan_files(source_dir, dest_file, existing_files)
+
+
+# Tests for agent/droid setup functions
+
+
+def test_copy_droids_for_plan_success(tmp_path: Path, monkeypatch) -> None:
+    """Test _copy_droids_for_plan creates correct directory structure and copies file."""
+    # Create a fake source droid file
+    fake_src_dir = tmp_path / "fake_src"
+    droids_dir = fake_src_dir / "droids"
+    droids_dir.mkdir(parents=True)
+    source_droid = droids_dir / "maintainability-reviewer.md"
+    source_droid.write_text("---\nname: maintainability-reviewer\n---\nTest content")
+
+    # Mock get_lw_coder_src_dir to return our fake directory
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    # Create worktree path
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Call the function
+    _copy_droids_for_plan(worktree_path)
+
+    # Verify directory structure was created
+    dest_droids_dir = worktree_path / ".factory" / "droids"
+    assert dest_droids_dir.exists()
+    assert dest_droids_dir.is_dir()
+
+    # Verify file was copied
+    dest_droid = dest_droids_dir / "maintainability-reviewer.md"
+    assert dest_droid.exists()
+    assert dest_droid.read_text() == "---\nname: maintainability-reviewer\n---\nTest content"
+
+
+def test_copy_droids_for_plan_missing_source(tmp_path: Path, monkeypatch) -> None:
+    """Test _copy_droids_for_plan raises error when source droid doesn't exist."""
+    # Create a fake source directory WITHOUT the droid file
+    fake_src_dir = tmp_path / "fake_src"
+    droids_dir = fake_src_dir / "droids"
+    droids_dir.mkdir(parents=True)
+
+    # Mock get_lw_coder_src_dir
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Should raise error about missing source file
+    with pytest.raises(PlanCommandError, match="Maintainability reviewer droid not found"):
+        _copy_droids_for_plan(worktree_path)
+
+
+def test_copy_droids_for_plan_permission_error(tmp_path: Path, monkeypatch) -> None:
+    """Test _copy_droids_for_plan handles permission errors gracefully."""
+    # Create a fake source droid file
+    fake_src_dir = tmp_path / "fake_src"
+    droids_dir = fake_src_dir / "droids"
+    droids_dir.mkdir(parents=True)
+    source_droid = droids_dir / "maintainability-reviewer.md"
+    source_droid.write_text("Test content")
+
+    # Mock get_lw_coder_src_dir
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Mock shutil.copy2 to raise permission error
+    import shutil
+    original_copy2 = shutil.copy2
+
+    def mock_copy2(src, dst):
+        raise OSError("Permission denied")
+
+    monkeypatch.setattr("shutil.copy2", mock_copy2)
+
+    # Should raise error about failed copy
+    with pytest.raises(PlanCommandError, match="Failed to copy droid"):
+        _copy_droids_for_plan(worktree_path)
+
+
+def test_write_maintainability_agent_success(tmp_path: Path, monkeypatch) -> None:
+    """Test _write_maintainability_agent creates correct directory structure and writes file."""
+    # Create a fake source agent file
+    fake_src_dir = tmp_path / "fake_src"
+    droids_dir = fake_src_dir / "droids"
+    droids_dir.mkdir(parents=True)
+    source_agent = droids_dir / "maintainability-reviewer.md"
+    source_agent.write_text("---\nname: maintainability-reviewer\n---\nAgent content")
+
+    # Mock get_lw_coder_src_dir
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    # Create worktree path
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Call the function
+    _write_maintainability_agent(worktree_path)
+
+    # Verify directory structure was created
+    dest_agents_dir = worktree_path / ".claude" / "agents"
+    assert dest_agents_dir.exists()
+    assert dest_agents_dir.is_dir()
+
+    # Verify file was written
+    dest_agent = dest_agents_dir / "maintainability-reviewer.md"
+    assert dest_agent.exists()
+    assert dest_agent.read_text() == "---\nname: maintainability-reviewer\n---\nAgent content"
+
+
+def test_write_maintainability_agent_missing_source(tmp_path: Path, monkeypatch) -> None:
+    """Test _write_maintainability_agent raises error when source agent doesn't exist."""
+    # Create a fake source directory WITHOUT the agent file
+    fake_src_dir = tmp_path / "fake_src"
+    droids_dir = fake_src_dir / "droids"
+    droids_dir.mkdir(parents=True)
+
+    # Mock get_lw_coder_src_dir
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Should raise error about missing source file
+    with pytest.raises(PlanCommandError, match="Maintainability reviewer agent not found"):
+        _write_maintainability_agent(worktree_path)
+
+
+def test_write_maintainability_agent_permission_error(tmp_path: Path, monkeypatch) -> None:
+    """Test _write_maintainability_agent handles permission errors gracefully."""
+    # Create a fake source agent file
+    fake_src_dir = tmp_path / "fake_src"
+    droids_dir = fake_src_dir / "droids"
+    droids_dir.mkdir(parents=True)
+    source_agent = droids_dir / "maintainability-reviewer.md"
+    source_agent.write_text("Agent content")
+
+    # Mock get_lw_coder_src_dir
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Mock shutil.copy2 to raise permission error
+    import shutil
+
+    def mock_copy2(src, dst):
+        raise OSError("Permission denied")
+
+    monkeypatch.setattr("shutil.copy2", mock_copy2)
+
+    # Should raise error about failed write
+    with pytest.raises(PlanCommandError, match="Failed to write agent"):
+        _write_maintainability_agent(worktree_path)

@@ -86,15 +86,16 @@ class DroidExecutor(Executor):
     def get_env_vars(self, host_factory_dir: Path) -> dict[str, str] | None:
         """Get Droid-specific environment variables.
 
-        Droid CLI requires FACTORY_HOME to be set to locate auth.json and settings.json.
+        Droid CLI discovers droids from ~/.factory/droids/ (personal) and
+        <repo>/.factory/droids/ (project) per its documentation.
 
         Args:
-            host_factory_dir: Path to the host's .factory directory.
+            host_factory_dir: Path to the host's .factory directory (unused).
 
         Returns:
-            Dictionary with FACTORY_HOME set for Droid CLI.
+            None, as Droid doesn't require special environment setup.
         """
-        return {"FACTORY_HOME": str(host_factory_dir)}
+        return None
 
 
 class ClaudeCodeExecutor(Executor):

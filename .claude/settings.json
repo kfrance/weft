@@ -1,0 +1,24 @@
+{
+		"sandbox": {
+				"enabled": true,
+				"autoAllowBashIfSandboxed": true,
+				"excludedCommands": ["git", "docker"],
+				"network": {
+						"allowLocalBinding": true
+				}
+		},
+		"permissions": {
+				"allow": [
+						"WebFetch(domain:files.pythonhosted.org)",
+						"WebFetch(domain:pypi.org)",
+						"WebFetch(domain:app.asana.com)"
+				],
+				"deny": [
+						"Read(./.env*)"
+				],
+				"defaultMode": "acceptEdits",
+				"webFetch": {
+						"allow": ["*"]
+				}
+		}
+}

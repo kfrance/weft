@@ -6,6 +6,7 @@ Now runs directly on the host environment instead of in Docker containers.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -121,6 +122,76 @@ def _extract_idea_text(plan_path: Path | None, text_input: str | None) -> str:
         return content.strip()
 
 
+def _copy_droids_for_plan(worktree_path: Path) -> None:
+    """Copy maintainability-reviewer droid to worktree for Droid CLI.
+
+    Copies the droid from src/lw_coder/droids/ to <worktree>/.factory/droids/
+    so it's discoverable as a project droid.
+
+    Args:
+        worktree_path: Path to the temporary worktree.
+
+    Raises:
+        PlanCommandError: If droid copying fails.
+    """
+    try:
+        src_dir = get_lw_coder_src_dir()
+    except RuntimeError as exc:
+        raise PlanCommandError(str(exc)) from exc
+
+    source_droid = src_dir / "droids" / "maintainability-reviewer.md"
+    if not source_droid.exists():
+        raise PlanCommandError(
+            f"Maintainability reviewer droid not found at {source_droid}"
+        )
+
+    dest_droids_dir = worktree_path / ".factory" / "droids"
+    dest_droids_dir.mkdir(parents=True, exist_ok=True)
+
+    dest_droid = dest_droids_dir / "maintainability-reviewer.md"
+    try:
+        shutil.copy2(source_droid, dest_droid)
+        logger.info("Copied maintainability-reviewer droid to %s", dest_droids_dir)
+    except (OSError, IOError) as exc:
+        raise PlanCommandError(
+            f"Failed to copy droid to {dest_droid}: {exc}"
+        ) from exc
+
+
+def _write_maintainability_agent(worktree_path: Path) -> None:
+    """Write maintainability-reviewer agent for Claude Code CLI.
+
+    Writes the agent from src/lw_coder/droids/ to <worktree>/.claude/agents/
+    so it's discoverable by Claude Code CLI.
+
+    Args:
+        worktree_path: Path to the temporary worktree.
+
+    Raises:
+        PlanCommandError: If agent writing fails.
+    """
+    try:
+        src_dir = get_lw_coder_src_dir()
+    except RuntimeError as exc:
+        raise PlanCommandError(str(exc)) from exc
+
+    source_agent = src_dir / "droids" / "maintainability-reviewer.md"
+    if not source_agent.exists():
+        raise PlanCommandError(
+            f"Maintainability reviewer agent not found at {source_agent}"
+        )
+
+    dest_agents_dir = worktree_path / ".claude" / "agents"
+    dest_agents_dir.mkdir(parents=True, exist_ok=True)
+
+    dest_agent = dest_agents_dir / "maintainability-reviewer.md"
+    try:
+        shutil.copy2(source_agent, dest_agent)
+        logger.info("Wrote maintainability-reviewer agent to %s", dest_agents_dir)
+    except (OSError, IOError) as exc:
+        raise PlanCommandError(
+            f"Failed to write agent to {dest_agent}: {exc}"
+        ) from exc
 
 
 def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) -> int:
@@ -196,6 +267,16 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         logger.info("Starting %s session...", tool)
         logger.info("Plans will be saved to .lw_coder/tasks/<plan_id>.md")
         logger.info("Processing plan with %s...", tool)
+
+        # Set up agents/droids based on executor type
+        try:
+            if tool == "droid":
+                _copy_droids_for_plan(temp_worktree)
+            elif tool == "claude-code":
+                _write_maintainability_agent(temp_worktree)
+            logger.info("Sub-agents/droids configured for %s", tool)
+        except PlanCommandError as exc:
+            raise PlanCommandError(f"Failed to set up agents/droids: {exc}") from exc
 
         # Build command using the executor
         command = executor.build_command(prompt_file)

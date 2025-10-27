@@ -7,7 +7,7 @@ Before you proceed, look for supporting docs such as `docs/BEST_PRACTICES.md`, `
 Your task:
 1. Examine the codebase in the project to understand implementation context
 2. Ask me clarifying questions ONE AT A TIME until you fully understand the requirements
-3. If the project mentions using a maintainability-reviewer subagent, consider those concerns
+3. Use the maintainability-reviewer subagent to evaluate long-term maintenance concerns
 4. Ask me additional clarifying questions if needed based on the maintainability review
 5. Generate a complete plan file and save it to .lw_coder/tasks/<plan_id>.md with this structure:
    - YAML front matter with: plan_id (unique, 3-100 chars, alphanumeric/._- only), status (use "draft"), evaluation_notes (leave as empty list: [])

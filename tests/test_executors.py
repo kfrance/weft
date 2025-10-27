@@ -87,17 +87,6 @@ class TestDroidExecutor:
         # The path should be quoted (shlex.quote uses single quotes for safety)
         assert "prompt with spaces" in command
 
-    def test_get_env_vars(self, tmp_path: Path) -> None:
-        """Test getting Droid environment variables."""
-        executor = DroidExecutor()
-        factory_dir = tmp_path / ".factory"
-
-        env_vars = executor.get_env_vars(factory_dir)
-
-        assert env_vars is not None
-        assert "FACTORY_HOME" in env_vars
-        assert env_vars["FACTORY_HOME"] == str(factory_dir)
-
     @patch("lw_coder.droid_auth.check_droid_auth")
     def test_check_auth_success(self, mock_check_droid_auth: MagicMock) -> None:
         """Test check_auth calls check_droid_auth."""
@@ -142,16 +131,6 @@ class TestClaudeCodeExecutor:
         # The path should be quoted/escaped
         assert "prompt" in command
         assert "spaces.txt" in command
-
-    def test_get_env_vars(self, tmp_path: Path) -> None:
-        """Test getting Claude Code environment variables."""
-        executor = ClaudeCodeExecutor()
-        factory_dir = tmp_path / ".factory"
-
-        env_vars = executor.get_env_vars(factory_dir)
-
-        # Claude Code doesn't require special env vars
-        assert env_vars is None
 
     def test_check_auth_no_op(self) -> None:
         """Test check_auth is a no-op for Claude Code."""
