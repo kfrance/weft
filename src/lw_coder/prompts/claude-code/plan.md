@@ -10,7 +10,7 @@ Your task:
 3. If the project mentions using a maintainability-reviewer subagent, consider those concerns
 4. Ask me additional clarifying questions if needed based on the maintainability review
 5. Generate a complete plan file and save it to .lw_coder/tasks/<plan_id>.md with this structure:
-   - YAML front matter with: plan_id (unique, 3-100 chars, alphanumeric/._- only), git_sha (run `git rev-parse HEAD` to get current commit), status (use "draft"), evaluation_notes (leave as empty list: [])
+   - YAML front matter with: plan_id (unique, 3-100 chars, alphanumeric/._- only), status (use "draft"), evaluation_notes (leave as empty list: [])
    - Markdown body with: Objectives, Requirements & Constraints, Work Items, Deliverables, Out of Scope sections
    - Include a Test Cases section with Gherkin-formatted test scenarios for the plan:
      ```gherkin
