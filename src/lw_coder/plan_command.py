@@ -13,6 +13,7 @@ from pathlib import Path
 from .executors import ExecutorError, ExecutorRegistry
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
+from .plan_file_copier import PlanFileCopyError, copy_plan_files, get_existing_files
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, _extract_front_matter
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
@@ -174,6 +175,11 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         # Create temporary worktree
         temp_worktree = create_temp_worktree(repo_root)
 
+        # Capture existing files before execution
+        worktree_tasks_dir = temp_worktree / ".lw_coder" / "tasks"
+        main_tasks_dir = repo_root / ".lw_coder" / "tasks"
+        existing_files = get_existing_files(worktree_tasks_dir)
+
         # Get lw_coder source directory
         try:
             lw_coder_src = get_lw_coder_src_dir()
@@ -219,6 +225,12 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
                 env=host_env,
                 cwd=temp_worktree,
             )
+
+            # Copy newly created plan files from worktree to main repository
+            try:
+                copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
+            except PlanFileCopyError as exc:
+                logger.warning("Failed to copy plan files from worktree: %s", exc)
 
             try:
                 _ensure_placeholder_git_sha(tasks_dir)

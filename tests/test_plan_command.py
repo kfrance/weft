@@ -13,6 +13,13 @@ from lw_coder.plan_command import (
     _extract_idea_text,
     _load_template,
 )
+from lw_coder.plan_file_copier import (
+    PlanFileCopyError,
+    copy_plan_files,
+    find_new_files,
+    generate_unique_filename,
+    get_existing_files,
+)
 from lw_coder.plan_validator import PLACEHOLDER_SHA, _extract_front_matter
 from tests.conftest import write_plan
 import lw_coder.plan_command
@@ -186,3 +193,255 @@ def test_run_plan_command_with_unknown_executor() -> None:
             result = run_plan_command(None, "test idea", "unknown-executor")
             # Should fail due to unknown executor
             assert result != 0
+
+
+# Tests for plan_file_copier module
+
+
+def test_get_existing_files_empty_directory(tmp_path: Path) -> None:
+    """Test get_existing_files returns empty set for empty directory."""
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+
+    existing = get_existing_files(tasks_dir)
+    assert existing == set()
+
+
+def test_get_existing_files_with_files(tmp_path: Path) -> None:
+    """Test get_existing_files returns correct filenames."""
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+
+    # Create some files
+    (tasks_dir / "plan-a.md").write_text("content")
+    (tasks_dir / "plan-b.md").write_text("content")
+    (tasks_dir / "README.txt").write_text("content")
+
+    existing = get_existing_files(tasks_dir)
+    assert existing == {"plan-a.md", "plan-b.md", "README.txt"}
+
+
+def test_get_existing_files_nonexistent_directory(tmp_path: Path) -> None:
+    """Test get_existing_files returns empty set for nonexistent directory."""
+    tasks_dir = tmp_path / "nonexistent"
+
+    existing = get_existing_files(tasks_dir)
+    assert existing == set()
+
+
+def test_find_new_files_identifies_new_files(tmp_path: Path) -> None:
+    """Test find_new_files correctly identifies only new files."""
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+
+    # Create initial files
+    (tasks_dir / "old-plan.md").write_text("old")
+    existing_files = get_existing_files(tasks_dir)
+
+    # Create new files
+    (tasks_dir / "new-plan-1.md").write_text("new 1")
+    (tasks_dir / "new-plan-2.md").write_text("new 2")
+
+    new_files = find_new_files(tasks_dir, existing_files)
+    new_file_names = {f.name for f in new_files}
+
+    assert new_file_names == {"new-plan-1.md", "new-plan-2.md"}
+    assert "old-plan.md" not in new_file_names
+
+
+def test_find_new_files_empty_directory(tmp_path: Path) -> None:
+    """Test find_new_files returns empty list for empty directory."""
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+
+    existing = get_existing_files(tasks_dir)
+    new_files = find_new_files(tasks_dir, existing)
+
+    assert new_files == []
+
+
+def test_generate_unique_filename_no_conflict(tmp_path: Path) -> None:
+    """Test generate_unique_filename returns original name when no conflict."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    filename = generate_unique_filename(target_dir, "my-plan.md")
+    assert filename == "my-plan.md"
+
+
+def test_generate_unique_filename_single_conflict(tmp_path: Path) -> None:
+    """Test generate_unique_filename with one existing file."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    # Create existing file
+    (target_dir / "my-plan.md").write_text("existing")
+
+    filename = generate_unique_filename(target_dir, "my-plan.md")
+    assert filename == "my-plan (1).md"
+
+
+def test_generate_unique_filename_multiple_conflicts(tmp_path: Path) -> None:
+    """Test generate_unique_filename with multiple conflicts."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    # Create existing files
+    (target_dir / "my-plan.md").write_text("existing")
+    (target_dir / "my-plan (1).md").write_text("existing")
+    (target_dir / "my-plan (2).md").write_text("existing")
+
+    filename = generate_unique_filename(target_dir, "my-plan.md")
+    assert filename == "my-plan (3).md"
+
+
+def test_generate_unique_filename_gaps_in_numbering(tmp_path: Path) -> None:
+    """Test generate_unique_filename with gaps in numbering sequence."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    # Create files with gaps (1, 3, 5)
+    (target_dir / "my-plan.md").write_text("existing")
+    (target_dir / "my-plan (1).md").write_text("existing")
+    (target_dir / "my-plan (3).md").write_text("existing")
+    (target_dir / "my-plan (5).md").write_text("existing")
+
+    # Should use next number after highest (6), not fill gaps
+    filename = generate_unique_filename(target_dir, "my-plan.md")
+    assert filename == "my-plan (6).md"
+
+
+def test_generate_unique_filename_no_extension(tmp_path: Path) -> None:
+    """Test generate_unique_filename works with files without extension."""
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+
+    (target_dir / "README").write_text("existing")
+
+    filename = generate_unique_filename(target_dir, "README")
+    assert filename == "README (1)"
+
+
+def test_copy_plan_files_single_file(tmp_path: Path) -> None:
+    """Test copying a single new plan file."""
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "dest"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Track existing files (none)
+    existing_files = get_existing_files(source_dir)
+
+    # Create new file
+    (source_dir / "my-feature.md").write_text("# My Feature")
+
+    # Copy files
+    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+
+    assert mapping == {"my-feature.md": "my-feature.md"}
+    assert (dest_dir / "my-feature.md").exists()
+    assert (dest_dir / "my-feature.md").read_text() == "# My Feature"
+
+
+def test_copy_plan_files_with_conflict(tmp_path: Path) -> None:
+    """Test copying with naming conflict."""
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "dest"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create existing file in destination
+    (dest_dir / "my-feature.md").write_text("old content")
+
+    # Track existing files (none in source)
+    existing_files = get_existing_files(source_dir)
+
+    # Create new file in source with conflicting name
+    (source_dir / "my-feature.md").write_text("new content")
+
+    # Copy files
+    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+
+    assert mapping == {"my-feature.md": "my-feature (1).md"}
+    assert (dest_dir / "my-feature.md").read_text() == "old content"
+    assert (dest_dir / "my-feature (1).md").read_text() == "new content"
+
+
+def test_copy_plan_files_multiple_new_files(tmp_path: Path) -> None:
+    """Test copying multiple new files."""
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "dest"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create one existing file in destination
+    (dest_dir / "feature-a.md").write_text("existing")
+
+    # Track existing files in source (none)
+    existing_files = get_existing_files(source_dir)
+
+    # Create new files in source
+    (source_dir / "feature-a.md").write_text("new a")
+    (source_dir / "feature-b.md").write_text("new b")
+
+    # Copy files
+    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+
+    assert mapping == {
+        "feature-a.md": "feature-a (1).md",
+        "feature-b.md": "feature-b.md"
+    }
+    assert (dest_dir / "feature-a.md").read_text() == "existing"
+    assert (dest_dir / "feature-a (1).md").read_text() == "new a"
+    assert (dest_dir / "feature-b.md").read_text() == "new b"
+
+
+def test_copy_plan_files_only_copies_new_files(tmp_path: Path) -> None:
+    """Test that only newly created files are copied, not pre-existing ones."""
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "dest"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create existing file in source
+    (source_dir / "old-plan.md").write_text("old")
+    existing_files = get_existing_files(source_dir)
+
+    # Modify existing file and create new file
+    (source_dir / "old-plan.md").write_text("modified old")
+    (source_dir / "new-plan.md").write_text("new")
+
+    # Copy files
+    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+
+    # Only new-plan.md should be copied
+    assert mapping == {"new-plan.md": "new-plan.md"}
+    assert not (dest_dir / "old-plan.md").exists()
+    assert (dest_dir / "new-plan.md").exists()
+
+
+def test_copy_plan_files_nonexistent_destination(tmp_path: Path) -> None:
+    """Test that copy_plan_files raises error if destination doesn't exist."""
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "nonexistent"
+    source_dir.mkdir()
+
+    existing_files = get_existing_files(source_dir)
+    (source_dir / "plan.md").write_text("content")
+
+    with pytest.raises(PlanFileCopyError, match="Destination directory does not exist"):
+        copy_plan_files(source_dir, dest_dir, existing_files)
+
+
+def test_copy_plan_files_destination_is_file(tmp_path: Path) -> None:
+    """Test that copy_plan_files raises error if destination is a file."""
+    source_dir = tmp_path / "source"
+    dest_file = tmp_path / "dest_file"
+    source_dir.mkdir()
+    dest_file.write_text("not a directory")
+
+    existing_files = get_existing_files(source_dir)
+    (source_dir / "plan.md").write_text("content")
+
+    with pytest.raises(PlanFileCopyError, match="not a directory"):
+        copy_plan_files(source_dir, dest_file, existing_files)
