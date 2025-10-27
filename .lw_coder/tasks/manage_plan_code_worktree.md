@@ -13,7 +13,7 @@ evaluation_notes:
 ## Objectives
 - Introduce an `lw_coder plan` CLI command (stub or placeholder signature) that prepares the shared Git worktree for a task plan.
 - Extend `lw_coder code` to share the same worktree preparation behavior.
-- Derive the worktree branch name from `plan_id` (`lw/task/<plan_id>`), eliminating the `branch_name` front matter field.
+- Derive the worktree branch name from `plan_id` (just the plan_id itself), eliminating the `branch_name` front matter field.
 - Report the resolved worktree location upon success while preserving existing validation messaging.
 
 ## Requirements & Constraints
@@ -22,7 +22,7 @@ evaluation_notes:
   - Run the validator and stop if it fails.
   - Ensure `.lw_coder/worktrees/<plan_id>` exists; create intermediate directories if needed.
   - Verify the directory is either absent or a registered Git worktree; error with guidance if a non-worktree directory is present.
-  - Ensure a Git worktree exists at that path on branch `lw/task/<plan_id>`, creating the branch from the plan's `git_sha` when necessary.
+  - Ensure a Git worktree exists at that path on branch `<plan_id>`, creating the branch from the plan's `git_sha` when necessary.
   - Refuse to proceed if the branch tip differs from `git_sha`, or if another worktree already uses the branch; surface clear error messages via `print`.
   - On success, keep the “Plan validation succeeded…” message and append the worktree path information.
 - Commands should not alter the worktree’s dirty state, fetch remotes, or change plan `status` values.

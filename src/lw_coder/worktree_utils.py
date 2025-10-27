@@ -22,9 +22,9 @@ def get_branch_name_from_plan_id(plan_id: str) -> str:
         plan_id: The plan identifier.
 
     Returns:
-        Branch name in the format "lw/task/<plan_id>".
+        Branch name matching the plan_id.
     """
-    return f"lw/task/{plan_id}"
+    return plan_id
 
 
 def get_worktree_path(repo_root: Path, plan_id: str) -> Path:

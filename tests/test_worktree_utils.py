@@ -20,8 +20,8 @@ from tests.conftest import write_plan
 
 
 def test_get_branch_name_from_plan_id():
-    assert get_branch_name_from_plan_id("my-plan") == "lw/task/my-plan"
-    assert get_branch_name_from_plan_id("feature-123") == "lw/task/feature-123"
+    assert get_branch_name_from_plan_id("my-plan") == "my-plan"
+    assert get_branch_name_from_plan_id("feature-123") == "feature-123"
 
 
 def test_get_worktree_path():
@@ -63,7 +63,7 @@ def test_ensure_worktree_creates_new(git_repo):
     assert worktree_path == git_repo.path / ".lw_coder" / "worktrees" / "test-create-worktree"
 
     # Verify branch exists and is at correct commit
-    branch_name = "lw/task/test-create-worktree"
+    branch_name = "test-create-worktree"
     branch_tip = get_branch_tip(git_repo.path, branch_name)
     assert branch_tip == git_repo.latest_commit()
 
@@ -119,7 +119,7 @@ def test_ensure_worktree_fails_on_non_worktree_directory(git_repo):
 def test_ensure_worktree_fails_on_branch_mismatch(git_repo):
     # Create a branch with different commit
     plan_id = "test-branch-mismatch"
-    branch_name = f"lw/task/{plan_id}"
+    branch_name = plan_id
 
     # Create a second commit
     (git_repo.path / "file2.txt").write_text("content")
@@ -152,7 +152,7 @@ def test_ensure_worktree_fails_on_branch_mismatch(git_repo):
 
 def test_ensure_worktree_fails_on_branch_checked_out_elsewhere(git_repo):
     plan_id = "test-branch-elsewhere"
-    branch_name = f"lw/task/{plan_id}"
+    branch_name = plan_id
 
     # Create the branch
     git_repo.run("branch", branch_name, git_repo.latest_commit())
@@ -180,7 +180,7 @@ def test_ensure_worktree_fails_on_branch_checked_out_elsewhere(git_repo):
 
 
 def test_get_branch_worktree_finds_existing(git_repo):
-    branch_name = "lw/task/test-find"
+    branch_name = "test-find"
     git_repo.run("branch", branch_name, git_repo.latest_commit())
 
     worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-find"
