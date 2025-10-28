@@ -16,6 +16,21 @@ If found, read them to understand:
 
 Use this context to avoid flagging issues the project has already considered and accepted, and to align your review with project standards.
 
+## Identifying Changed Code
+
+To identify what code has been modified or added, run these git commands:
+
+```bash
+# Get overview of what changed (files only)
+git status --short
+
+# Get full diff of all uncommitted changes (staged + unstaged)
+git diff HEAD
+
+# For untracked files (new files not yet added), need to read them directly
+git ls-files --others --exclude-standard
+```
+
 ## Usage Examples
 
 **Example 1**: Reviewing recent implementation changes
