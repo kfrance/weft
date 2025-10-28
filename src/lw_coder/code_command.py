@@ -303,7 +303,7 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
         logger.warning("Failed to write main prompt to run directory: %s", exc)
 
     # Build executor command with properly escaped paths to prevent shell injection
-    command = executor.build_command(main_prompt_path)
+    command = executor.build_command(main_prompt_path, model)
 
     # Get source directory and settings
     src_dir = get_lw_coder_src_dir()

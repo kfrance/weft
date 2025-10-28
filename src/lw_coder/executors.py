@@ -31,14 +31,21 @@ class Executor(ABC):
         """
 
     @abstractmethod
-    def build_command(self, prompt_path: Path) -> str:
+    def build_command(self, prompt_path: Path, model: str) -> str:
         """Build the command to run with the prompt file.
 
         Args:
             prompt_path: Path to the prompt file.
+            model: Model variant to use (e.g., "sonnet", "opus", "haiku").
+                   Implementations may validate or ignore this parameter based
+                   on their capabilities. ClaudeCodeExecutor validates and uses
+                   it; other executors may ignore it.
 
         Returns:
             Command string to execute (e.g., 'droid "$(cat /path/to/prompt.txt)"')
+
+        Raises:
+            ValueError: If the model parameter is invalid or unsupported by the executor.
         """
 
     @abstractmethod
@@ -71,11 +78,12 @@ class DroidExecutor(Executor):
         except DroidAuthError as exc:
             raise ExecutorError(str(exc)) from exc
 
-    def build_command(self, prompt_path: Path) -> str:
+    def build_command(self, prompt_path: Path, model: str) -> str:
         """Build the droid command.
 
         Args:
             prompt_path: Path to the prompt file.
+            model: Model variant to use (unused for Droid).
 
         Returns:
             Droid command string with properly escaped paths.
@@ -101,6 +109,9 @@ class DroidExecutor(Executor):
 class ClaudeCodeExecutor(Executor):
     """Executor for Claude Code CLI tool."""
 
+    # Valid model values for Claude Code CLI
+    VALID_MODELS = {"sonnet", "opus", "haiku"}
+
     def check_auth(self) -> None:
         """Check if Claude Code authentication is properly configured.
 
@@ -109,17 +120,32 @@ class ClaudeCodeExecutor(Executor):
         """
         logger.debug("Claude Code CLI authentication check (no-op)")
 
-    def build_command(self, prompt_path: Path) -> str:
+    def build_command(self, prompt_path: Path, model: str) -> str:
         """Build the Claude Code command.
 
         Args:
             prompt_path: Path to the prompt file.
+            model: Model variant to use (e.g., "sonnet", "opus", "haiku").
 
         Returns:
             Claude Code CLI command string with properly escaped paths.
+
+        Raises:
+            ValueError: If model parameter contains invalid characters that could
+                       enable flag injection (e.g., starts with '-', contains spaces).
         """
+        # Validate model parameter - only allow known valid values
+        if not model:
+            raise ValueError("Model parameter cannot be empty")
+        if model not in self.VALID_MODELS:
+            valid_models = ", ".join(sorted(self.VALID_MODELS))
+            raise ValueError(
+                f"Invalid model '{model}'. Must be one of: {valid_models}"
+            )
+
         prompt_path_escaped = shlex.quote(str(prompt_path))
-        return f'claude "$(cat {prompt_path_escaped})"'
+        model_escaped = shlex.quote(model)
+        return f'claude --model {model_escaped} "$(cat {prompt_path_escaped})"'
 
     def get_env_vars(self, host_factory_dir: Path) -> dict[str, str] | None:
         """Get Claude Code-specific environment variables.
