@@ -1,7 +1,7 @@
 ---
 plan_id: status-lifecycle-sync
 git_sha: 5dbdbefd3098dcdc34134171f9a4d7b2ffcc1aed
-status: draft
+status: done
 evaluation_notes: []
 ---
 
