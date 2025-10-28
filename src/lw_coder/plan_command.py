@@ -279,7 +279,8 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
             raise PlanCommandError(f"Failed to set up agents/droids: {exc}") from exc
 
         # Build command using the executor
-        command = executor.build_command(prompt_file)
+        # Use default model "sonnet" for plan command
+        command = executor.build_command(prompt_file, model="sonnet")
 
         # Get executor-specific environment variables
         executor_env_vars = executor.get_env_vars(host_factory_dir)

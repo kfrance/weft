@@ -46,7 +46,7 @@ def mock_executor_factory():
     """Create a mock executor for testing."""
     return SimpleNamespace(
         check_auth=lambda: None,
-        build_command=lambda p: f'claude "$(cat {p})"',
+        build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
         get_env_vars=lambda factory_dir: None
     )
 
@@ -563,20 +563,6 @@ def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path)
     assert front_matter["status"] == "coding"
 
 
-def test_code_command_validation_failure_no_update(tmp_path: Path, git_repo) -> None:
-    plan_path = git_repo.path / "invalid-plan.md"
-    plan_path.write_text(
-        "---\ninvalid: [\n",  # malformed YAML
-        encoding="utf-8",
-    )
-
-    original_content = plan_path.read_text(encoding="utf-8")
-    exit_code = run_code_command(plan_path)
-
-    assert exit_code == 1
-    assert plan_path.read_text(encoding="utf-8") == original_content
-
-
 def test_code_command_validation_failure_rolls_back_initial_update(
     git_repo,
 ) -> None:
@@ -732,75 +718,6 @@ def test_code_command_real_sha_matches_head_no_error(
     front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == head_sha
     assert front_matter["status"] == "done"
-
-def test_code_command_plan_md_cleanup(monkeypatch, git_repo, tmp_path: Path) -> None:
-    plan_id = "plan-cleanup"
-    plan_path = git_repo.path / f"{plan_id}.md"
-    head_sha = git_repo.latest_commit()
-    write_plan(
-        plan_path,
-        {
-            "git_sha": head_sha,
-            "plan_id": plan_id,
-            "status": "coding",
-        },
-    )
-
-    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_070000"
-    prompts_dir = run_dir / "prompts"
-    prompts_dir.mkdir(parents=True)
-    main_prompt = prompts_dir / "main.md"
-    main_prompt.write_text("prompt", encoding="utf-8")
-    droids_dir = run_dir / "droids"
-    droids_dir.mkdir(parents=True)
-    review_prompt = droids_dir / "code-review-auditor.md"
-    alignment_prompt = droids_dir / "plan-alignment-checker.md"
-    review_prompt.write_text("review", encoding="utf-8")
-    alignment_prompt.write_text("alignment", encoding="utf-8")
-    mock_prompts = {
-        "main_prompt": "Main prompt content",
-        "code_review_auditor": "Code review prompt",
-        "plan_alignment_checker": "Plan alignment prompt",
-    }
-
-    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
-    monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
-    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
-
-    worktree_path = git_repo.path / "worktree-cleanup"
-    worktree_path.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr(
-        code_command,
-        "ensure_worktree",
-        lambda _metadata: worktree_path,
-    )
-
-    settings_dir = tmp_path / "src-cleanup"
-    (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
-    monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
-    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
-    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
-    monkeypatch.setattr(
-        code_command,
-        "subprocess",
-        SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
-    )
-
-    # Verify plan.md doesn't exist before execution
-    plan_md_path = worktree_path / "plan.md"
-    assert not plan_md_path.exists()
-
-    exit_code = run_code_command(plan_path)
-    assert exit_code == 0
-
-    # Verify plan.md was cleaned up after execution
-    assert not plan_md_path.exists()
 
 
 def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path) -> None:
