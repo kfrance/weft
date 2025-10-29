@@ -87,6 +87,48 @@ Before using Droid, you must authenticate once:
 
 After authenticating, you can use Droid with `--tool droid` as shown above.
 
+## Code Command
+
+The `lw_coder code` command executes plans created with the `plan` command. It validates the plan, sets up a worktree, and runs the selected coding tool to implement the plan.
+
+### Basic Usage
+
+```bash
+# Run with defaults (Claude Code CLI with sonnet model)
+lw_coder code plan.md
+
+# Use Droid instead of Claude Code CLI
+lw_coder code plan.md --tool droid
+
+# Use Claude Code CLI with a specific model
+lw_coder code plan.md --model opus
+lw_coder code plan.md --tool claude-code --model haiku
+```
+
+### Parameters
+
+- `<plan_path>`: Path to the plan file to execute (required)
+- `--tool <tool>`: Coding tool to use. Options: `claude-code` (default), `droid`
+- `--model <model>`: Model variant for Claude Code CLI. Options: `sonnet` (default), `opus`, `haiku`
+  - Note: The `--model` parameter only works with `claude-code` and cannot be used with `droid`
+- `--debug`: Enable debug-level logging for troubleshooting
+
+### Examples
+
+```bash
+# Execute a plan with default settings
+lw_coder code .lw_coder/tasks/my-feature.md
+
+# Use Droid for execution
+lw_coder code .lw_coder/tasks/my-feature.md --tool droid
+
+# Use Claude Code CLI with opus model
+lw_coder code .lw_coder/tasks/my-feature.md --model opus
+
+# Enable debug logging
+lw_coder code .lw_coder/tasks/my-feature.md --debug
+```
+
 ## Logging
 
 The CLI uses Python's built-in `logging` module for all output:

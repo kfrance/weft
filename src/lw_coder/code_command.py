@@ -18,6 +18,7 @@ from pathlib import Path
 from .executors import ExecutorRegistry, ExecutorError
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
+from .param_validation import get_effective_model
 from .plan_lifecycle import (
     PlanLifecycleError,
     get_current_head_sha,
@@ -109,7 +110,7 @@ model: {model}
     logger.debug("Wrote plan-alignment-checker agent to %s", plan_alignment_agent)
 
 
-def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
+def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: str | None = None) -> int:
     """Execute the code command: end-to-end coding workflow.
 
     This function orchestrates:
@@ -122,7 +123,9 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
 
     Args:
         plan_path: Path to the plan file (string or Path object).
-        model: Model variant to use (default: "sonnet"). Valid: "sonnet", "opus", "haiku".
+        tool: Coding tool to use (default: "claude-code"). Valid: "claude-code", "droid".
+        model: Model variant to use. Valid: "sonnet", "opus", "haiku" for claude-code.
+               Defaults to "sonnet" for claude-code. Not used for droid.
 
     Returns:
         Exit code: 0 for success, 1 for failure.
@@ -130,6 +133,9 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
     # Resolve plan path
     if isinstance(plan_path, str):
         plan_path = Path(plan_path)
+
+    # Get effective model based on tool
+    effective_model = get_effective_model(tool, model)
 
     head_sha: str | None = None
     front_matter: dict[str, object] | None = None
@@ -230,18 +236,20 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
         logger.error("Failed to copy coding droids: %s", exc)
         return 1
 
-    # Load optimized prompts from disk (project-relative)
-    try:
-        logger.info("Loading optimized prompts for Claude Code CLI (%s model)...", model)
-        prompts = load_prompts(
-            repo_root=metadata.repo_root,
-            tool="claude-code-cli",
-            model=model,
-        )
-        logger.info("Prompts loaded successfully from %s/.lw_coder/optimized_prompts/", metadata.repo_root)
-    except PromptLoadingError as exc:
-        logger.error("Prompt loading failed: %s", exc)
-        return 1
+    # Load optimized prompts from disk (project-relative) if using Claude Code
+    prompts = None
+    if tool == "claude-code":
+        try:
+            logger.info("Loading optimized prompts for Claude Code CLI (%s model)...", effective_model)
+            prompts = load_prompts(
+                repo_root=metadata.repo_root,
+                tool="claude-code-cli",
+                model=effective_model,
+            )
+            logger.info("Prompts loaded successfully from %s/.lw_coder/optimized_prompts/", metadata.repo_root)
+        except PromptLoadingError as exc:
+            logger.error("Prompt loading failed: %s", exc)
+            return 1
 
     # Prune old run directories (non-fatal if it fails)
     try:
@@ -257,13 +265,14 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
         logger.error("Worktree preparation failed: %s", exc)
         return 1
 
-    # Write sub-agents to .claude/agents/ directory
-    try:
-        _write_sub_agents(prompts, worktree_path, model)
-        logger.info("Sub-agents written to %s/.claude/agents/", worktree_path)
-    except (IOError, OSError) as exc:
-        logger.error("Failed to write sub-agents: %s", exc)
-        return 1
+    # Write sub-agents to .claude/agents/ directory if using Claude Code
+    if tool == "claude-code" and prompts:
+        try:
+            _write_sub_agents(prompts, worktree_path, effective_model)
+            logger.info("Sub-agents written to %s/.claude/agents/", worktree_path)
+        except (IOError, OSError) as exc:
+            logger.error("Failed to write sub-agents: %s", exc)
+            return 1
 
     # Copy plan file to worktree root
     plan_md_path = worktree_path / "plan.md"
@@ -280,30 +289,55 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
         logger.debug("Forwarding %d environment variable(s) to executor", len(env_vars))
 
     # Log configuration
-    logger.info("Using model: %s", model)
+    logger.info("Using tool: %s", tool)
+    if effective_model:
+        logger.info("Using model: %s", effective_model)
     logger.info("Run artifacts available at: %s", run_dir)
     logger.info("  Coding droids: %s", droids_dir)
-    logger.info("  Sub-agents: %s/.claude/agents/", worktree_path)
+    if tool == "claude-code":
+        logger.info("  Sub-agents: %s/.claude/agents/", worktree_path)
 
     # Use executors pattern to build command
     try:
-        executor = ExecutorRegistry.get_executor("claude-code")
+        executor = ExecutorRegistry.get_executor(tool)
         executor.check_auth()
     except ExecutorError as exc:
         logger.error("Executor error: %s", exc)
         return 1
 
     # Create main prompt file in run directory for reference
-    main_prompt_path = run_dir / "prompts" / "main.md"
-    main_prompt_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        main_prompt_path.write_text(prompts["main_prompt"], encoding="utf-8")
-        logger.debug("Wrote main prompt to %s", main_prompt_path)
-    except (OSError, IOError) as exc:
-        logger.warning("Failed to write main prompt to run directory: %s", exc)
+    if tool == "claude-code" and prompts:
+        main_prompt_path = run_dir / "prompts" / "main.md"
+        main_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            main_prompt_path.write_text(prompts["main_prompt"], encoding="utf-8")
+            logger.debug("Wrote main prompt to %s", main_prompt_path)
+        except (OSError, IOError) as exc:
+            logger.warning("Failed to write main prompt to run directory: %s", exc)
+    elif tool == "droid":
+        # For droid, we need to create a simple prompt file
+        main_prompt_path = run_dir / "prompts" / "droid_prompt.md"
+        main_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            # Load the droid prompt from template
+            src_dir = get_lw_coder_src_dir()
+            droid_prompt_template = src_dir / "prompts" / "droid" / "code.md"
+            if droid_prompt_template.exists():
+                droid_prompt = droid_prompt_template.read_text(encoding="utf-8")
+                main_prompt_path.write_text(droid_prompt, encoding="utf-8")
+                logger.debug("Wrote droid prompt to %s", main_prompt_path)
+            else:
+                # Fallback to a basic prompt if template doesn't exist
+                main_prompt_path.write_text(
+                    "Implement the plan in plan.md\n",
+                    encoding="utf-8"
+                )
+                logger.warning("Droid prompt template not found, using basic prompt")
+        except (OSError, IOError) as exc:
+            logger.warning("Failed to write droid prompt to run directory: %s", exc)
 
     # Build executor command with properly escaped paths to prevent shell injection
-    command = executor.build_command(main_prompt_path, model)
+    command = executor.build_command(main_prompt_path, effective_model)
 
     # Get source directory and settings
     src_dir = get_lw_coder_src_dir()
@@ -337,7 +371,7 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
 
     # Build host command
     host_cmd, host_env = build_host_command(runner_config)
-    logger.info("Launching Claude Code CLI session on host...")
+    logger.info("Launching %s session on host...", tool)
     logger.debug("Host command: %s", " ".join(host_cmd))
 
     try:
@@ -359,9 +393,9 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
                 )
 
         if result.returncode != 0:
-            logger.warning("Claude Code CLI session exited with code %d", result.returncode)
+            logger.warning("%s session exited with code %d", tool, result.returncode)
         else:
-            logger.info("Claude Code CLI session completed successfully")
+            logger.info("%s session completed successfully", tool)
 
         # Log follow-up information
         logger.info(
@@ -376,10 +410,10 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
         return result.returncode
 
     except KeyboardInterrupt:
-        logger.info("Claude Code CLI session interrupted by user")
+        logger.info("%s session interrupted by user", tool)
         return 130  # Standard exit code for SIGINT
     except Exception as exc:
-        logger.error("Failed to run Claude Code CLI session: %s", exc)
+        logger.error("Failed to run %s session: %s", tool, exc)
         return 1
     finally:
         # Clean up plan.md from worktree, even on failure or interruption
@@ -390,32 +424,33 @@ def run_code_command(plan_path: Path | str, model: str = "sonnet") -> int:
         except (OSError, IOError) as exc:
             logger.warning("Failed to clean up plan.md from worktree: %s", exc)
 
-        # Clean up .claude/agents/ directory from worktree
-        try:
-            agents_dir = worktree_path / ".claude" / "agents"
-            if agents_dir.exists():
-                # Remove the agent files we created
-                for agent_file in ["code-review-auditor.md", "plan-alignment-checker.md"]:
-                    agent_path = agents_dir / agent_file
-                    if agent_path.exists():
-                        agent_path.unlink()
+        # Clean up .claude/agents/ directory from worktree if using Claude Code
+        if tool == "claude-code":
+            try:
+                agents_dir = worktree_path / ".claude" / "agents"
+                if agents_dir.exists():
+                    # Remove the agent files we created
+                    for agent_file in ["code-review-auditor.md", "plan-alignment-checker.md"]:
+                        agent_path = agents_dir / agent_file
+                        if agent_path.exists():
+                            agent_path.unlink()
 
-                # Try to remove empty directories
-                try:
-                    agents_dir.rmdir()  # Remove .claude/agents if empty
-                    logger.debug("Removed empty .claude/agents/ directory")
-                except OSError:
-                    # Directory not empty, which is fine - user may have other files
-                    pass
+                    # Try to remove empty directories
+                    try:
+                        agents_dir.rmdir()  # Remove .claude/agents if empty
+                        logger.debug("Removed empty .claude/agents/ directory")
+                    except OSError:
+                        # Directory not empty, which is fine - user may have other files
+                        pass
 
-                # Try to remove .claude directory if empty
-                try:
-                    (worktree_path / ".claude").rmdir()
-                    logger.debug("Removed empty .claude/ directory")
-                except OSError:
-                    # Directory not empty, which is fine
-                    pass
+                    # Try to remove .claude directory if empty
+                    try:
+                        (worktree_path / ".claude").rmdir()
+                        logger.debug("Removed empty .claude/ directory")
+                    except OSError:
+                        # Directory not empty, which is fine
+                        pass
 
-            logger.debug("Cleaned up agents from worktree")
-        except (OSError, IOError) as exc:
-            logger.warning("Failed to clean up agents from worktree: %s", exc)
+                logger.debug("Cleaned up agents from worktree")
+            except (OSError, IOError) as exc:
+                logger.warning("Failed to clean up agents from worktree: %s", exc)

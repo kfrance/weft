@@ -42,13 +42,20 @@ evaluation_notes: []
         pass
 
 
-def mock_executor_factory():
+def mock_executor_factory(tool="claude-code"):
     """Create a mock executor for testing."""
-    return SimpleNamespace(
-        check_auth=lambda: None,
-        build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
-        get_env_vars=lambda factory_dir: None
-    )
+    if tool == "droid":
+        return SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=lambda p, model: f'droid "$(cat {p})"',
+            get_env_vars=lambda factory_dir: None
+        )
+    else:  # claude-code
+        return SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
+            get_env_vars=lambda factory_dir: None
+        )
 
 
 def test_run_code_command_validation_failure(monkeypatch, caplog, tmp_path: Path) -> None:
@@ -790,3 +797,279 @@ def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path) -> N
     assert not agents_dir.exists()
     # Also verify .claude directory is gone since we created it
     assert not (worktree_path / ".claude").exists()
+
+
+def test_code_command_with_droid_tool(monkeypatch, git_repo, tmp_path: Path) -> None:
+    """Test code command with --tool droid."""
+    plan_id = "plan-droid"
+    plan_path = git_repo.path / f"{plan_id}.md"
+    head_sha = git_repo.latest_commit()
+    write_plan(
+        plan_path,
+        {
+            "git_sha": head_sha,
+            "plan_id": plan_id,
+            "status": "draft",
+        },
+    )
+
+    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_090000"
+    prompts_dir = run_dir / "prompts"
+    prompts_dir.mkdir(parents=True)
+    droids_dir = run_dir / "droids"
+    droids_dir.mkdir(parents=True)
+
+    worktree_path = git_repo.path / "worktree-droid"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
+    captured_command = {}
+    captured_tool = {}
+
+    def fake_build_command(prompt_path, model):
+        captured_command["path"] = str(prompt_path)
+        captured_command["model"] = model
+        return f'droid "$(cat {prompt_path})"'
+
+    def fake_get_executor(cls, tool):
+        captured_tool["value"] = tool
+        return SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=fake_build_command,
+            get_env_vars=lambda factory_dir: None
+        )
+
+    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
+    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
+    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
+
+    settings_dir = tmp_path / "src-droid"
+    (settings_dir / "droids").mkdir(parents=True)
+    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "prompts" / "droid").mkdir(parents=True)
+    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(fake_get_executor))
+    monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
+    monkeypatch.setattr(
+        code_command,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
+    )
+
+    # Run with droid tool
+    exit_code = run_code_command(plan_path, tool="droid")
+    assert exit_code == 0
+    assert captured_tool["value"] == "droid"
+    assert "droid_prompt.md" in captured_command["path"]
+    # Model is None for droid
+    assert captured_command["model"] is None
+
+
+def test_code_command_with_claude_code_tool_explicit_model(monkeypatch, git_repo, tmp_path: Path) -> None:
+    """Test code command with --tool claude-code and explicit model."""
+    plan_id = "plan-claude-opus"
+    plan_path = git_repo.path / f"{plan_id}.md"
+    head_sha = git_repo.latest_commit()
+    write_plan(
+        plan_path,
+        {
+            "git_sha": head_sha,
+            "plan_id": plan_id,
+            "status": "draft",
+        },
+    )
+
+    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_100000"
+    prompts_dir = run_dir / "prompts"
+    prompts_dir.mkdir(parents=True)
+    droids_dir = run_dir / "droids"
+    droids_dir.mkdir(parents=True)
+
+    worktree_path = git_repo.path / "worktree-claude-opus"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
+    captured_command = {}
+    captured_tool = {}
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
+
+    def fake_build_command(prompt_path, model):
+        captured_command["path"] = str(prompt_path)
+        captured_command["model"] = model
+        return f'claude --model {model} "$(cat {prompt_path})"'
+
+    def fake_get_executor(cls, tool):
+        captured_tool["value"] = tool
+        return SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=fake_build_command,
+            get_env_vars=lambda factory_dir: None
+        )
+
+    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
+    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
+    monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
+    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+
+    settings_dir = tmp_path / "src-claude-opus"
+    (settings_dir / "droids").mkdir(parents=True)
+    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(fake_get_executor))
+    monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
+    monkeypatch.setattr(
+        code_command,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
+    )
+
+    # Run with claude-code tool and opus model
+    exit_code = run_code_command(plan_path, tool="claude-code", model="opus")
+    assert exit_code == 0
+    assert captured_tool["value"] == "claude-code"
+    assert "main.md" in captured_command["path"]
+    assert captured_command["model"] == "opus"
+
+
+def test_code_command_with_claude_code_default_model(monkeypatch, git_repo, tmp_path: Path) -> None:
+    """Test code command with --tool claude-code uses sonnet by default."""
+    plan_id = "plan-claude-default"
+    plan_path = git_repo.path / f"{plan_id}.md"
+    head_sha = git_repo.latest_commit()
+    write_plan(
+        plan_path,
+        {
+            "git_sha": head_sha,
+            "plan_id": plan_id,
+            "status": "draft",
+        },
+    )
+
+    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_110000"
+    prompts_dir = run_dir / "prompts"
+    prompts_dir.mkdir(parents=True)
+    droids_dir = run_dir / "droids"
+    droids_dir.mkdir(parents=True)
+
+    worktree_path = git_repo.path / "worktree-claude-default"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
+    captured_model = {}
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
+
+    def fake_build_command(prompt_path, model):
+        captured_model["value"] = model
+        return f'claude --model {model} "$(cat {prompt_path})"'
+
+    def fake_get_executor(cls, tool):
+        return SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=fake_build_command,
+            get_env_vars=lambda factory_dir: None
+        )
+
+    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
+    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
+    monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
+    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+
+    settings_dir = tmp_path / "src-claude-default"
+    (settings_dir / "droids").mkdir(parents=True)
+    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(fake_get_executor))
+    monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
+    monkeypatch.setattr(
+        code_command,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
+    )
+
+    # Run with claude-code tool and no model (should default to sonnet)
+    exit_code = run_code_command(plan_path, tool="claude-code", model=None)
+    assert exit_code == 0
+    assert captured_model["value"] == "sonnet"
+
+
+def test_code_command_default_tool_and_model(monkeypatch, git_repo, tmp_path: Path) -> None:
+    """Test code command with defaults uses claude-code with sonnet."""
+    plan_id = "plan-defaults"
+    plan_path = git_repo.path / f"{plan_id}.md"
+    head_sha = git_repo.latest_commit()
+    write_plan(
+        plan_path,
+        {
+            "git_sha": head_sha,
+            "plan_id": plan_id,
+            "status": "draft",
+        },
+    )
+
+    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_120000"
+    prompts_dir = run_dir / "prompts"
+    prompts_dir.mkdir(parents=True)
+    droids_dir = run_dir / "droids"
+    droids_dir.mkdir(parents=True)
+
+    worktree_path = git_repo.path / "worktree-defaults"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
+    captured_tool = {}
+    captured_model = {}
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
+
+    def fake_build_command(prompt_path, model):
+        captured_model["value"] = model
+        return f'claude --model {model} "$(cat {prompt_path})"'
+
+    def fake_get_executor(cls, tool):
+        captured_tool["value"] = tool
+        return SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=fake_build_command,
+            get_env_vars=lambda factory_dir: None
+        )
+
+    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
+    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
+    monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
+    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+
+    settings_dir = tmp_path / "src-defaults"
+    (settings_dir / "droids").mkdir(parents=True)
+    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(fake_get_executor))
+    monkeypatch.setattr(code_command, "build_host_command", lambda _config: (["cmd"], {}))
+    monkeypatch.setattr(
+        code_command,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: SimpleNamespace(returncode=0)),
+    )
+
+    # Run with defaults (should use claude-code with sonnet)
+    exit_code = run_code_command(plan_path)
+    assert exit_code == 0
+    assert captured_tool["value"] == "claude-code"
+    assert captured_model["value"] == "sonnet"
