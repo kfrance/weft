@@ -761,7 +761,7 @@ wheels = [
 [[package]]
 name = "lw-coder"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "docopt-ng" },
     { name = "dspy-ai" },
