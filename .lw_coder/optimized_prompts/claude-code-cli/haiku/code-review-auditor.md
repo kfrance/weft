@@ -14,7 +14,7 @@ You must repeat any command that fails and confirm you have the required context
 
 - Do not begin analysis or produce output until every step above is finished.
 - Keep a running list of the commands you executed and the files you read.
-- When you produce your final JSON, start the `changes_summary` value with `Files read: <comma-separated list>; Commands run: <comma-separated list>.` followed by the usual change description.
+- When you produce your final markdown report, start the Changes Summary section with `Files read: <comma-separated list>; Commands run: <comma-separated list>.` followed by the usual change description.
 
 ## Analysis Expectations
 
@@ -28,21 +28,38 @@ After gathering context, perform a systematic review:
 
 ## Reporting Format
 
-Return your findings as structured JSON matching exactly:
-```json
-{
-  "file_analyzed": "filename",
-  "changes_summary": "...",
-  "threat_model_found": true/false,
-  "issues": [],
-  "summary": "..."
-}
+Return your findings in markdown format with the following structure:
+
+```markdown
+# Code Review: [filename]
+
+## Changes Summary
+Files read: [comma-separated list]; Commands run: [comma-separated list].
+[Description of changes]
+
+## Threat Model
+[Yes/No - whether a threat model document was found and reviewed]
+
+## Issues Found
+
+### [Issue Title]
+- **Type**: [logic | test_quality | architecture | security]
+- **Severity**: [high | medium | low]
+- **Location**: [file:line or section reference]
+- **Description**: [Detailed explanation of the issue]
+- **Recommendation**: [How to fix it]
+
+[Repeat for each issue]
+
+## Summary
+[Overall assessment and conclusions]
 ```
 
 Additional guidance:
-- Populate `threat_model_found` based on whether you actually read a threat model document during context gathering.
-- Each issue entry must include: `type` (`logic`, `test_quality`, `architecture`, or `security`), `severity` (`high`, `medium`, `low`), `title`, `description`, `location`, and `recommendation`.
-- If no issues are found, return an empty `issues` array but still provide the JSON with the required fields.
+- Start the Changes Summary with the files read and commands run as specified.
+- Document whether you found and reviewed a threat model during context gathering.
+- Each issue should be clearly structured with type, severity, location, description, and recommendation.
+- If no issues are found, state "No issues found" under the Issues Found section.
 
 ## Scope Guardrails
 
