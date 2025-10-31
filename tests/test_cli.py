@@ -175,8 +175,8 @@ def test_code_command_debug_flag(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("lw_coder.cli.configure_logging", mock_configure_logging)
     monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
 
-    # Run with debug flag
-    exit_code = main(["code", str(plan_path), "--debug"])
+    # Run with debug flag (must come before subcommand in argparse)
+    exit_code = main(["--debug", "code", str(plan_path)])
 
     assert exit_code == 0
     assert captured_debug["value"] is True
@@ -187,8 +187,8 @@ def test_help_flag() -> None:
     with pytest.raises(SystemExit) as exc_info:
         main(["--help"])
 
-    # docopt exits with 0 or None when showing help (both mean success)
-    assert exc_info.value.code in (0, None)
+    # argparse exits with 0 when showing help
+    assert exc_info.value.code == 0
 
 
 def test_code_command_parameter_order(monkeypatch, tmp_path) -> None:

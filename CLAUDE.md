@@ -15,8 +15,10 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 - **Run specific test**: `uv run pytest tests/test_<module>.py`
 
 ### CLI Usage
+- **Create/edit plan**: `uv run lw_coder plan --text "plan idea"` or `uv run lw_coder plan <plan_path>`
 - **Validate plan file**: `uv run lw_coder code <plan_path>`
 - **Finalize plan**: `uv run lw_coder finalize <plan_path>`
+- **Install bash completion**: `uv run lw_coder completion install` (see `docs/COMPLETION.md` for setup)
 
 ## Testing
 

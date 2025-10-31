@@ -1,7 +1,7 @@
 ---
 plan_id: load-optimized-prompts
-git_sha: '0000000000000000000000000000000000000000'
-status: draft
+git_sha: 286bc29d874ea1f5524e55c5feac5a049b9a5d59
+status: done
 evaluation_notes: []
 ---
 
