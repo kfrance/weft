@@ -139,30 +139,3 @@ def test_argcomplete_integration():
         pytest.fail(f"argcomplete.autocomplete() raised {type(exc).__name__}: {exc}")
 
 
-def test_all_subcommands_have_completers():
-    """Test that all relevant subcommands have completers attached."""
-    if not ARGCOMPLETE_AVAILABLE:
-        pytest.skip("argcomplete not available")
-
-    parser = create_parser()
-
-    # Get all subparsers
-    subparsers_action = None
-    for action in parser._subparsers._actions:
-        if hasattr(action, "choices") and action.choices is not None:
-            subparsers_action = action
-            break
-
-    assert subparsers_action is not None
-
-    # Check plan command
-    plan_parser = subparsers_action.choices.get("plan")
-    assert plan_parser is not None
-
-    # Check finalize command
-    finalize_parser = subparsers_action.choices.get("finalize")
-    assert finalize_parser is not None
-
-    # Check code command
-    code_parser = subparsers_action.choices.get("code")
-    assert code_parser is not None

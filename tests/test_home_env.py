@@ -32,36 +32,37 @@ def test_load_home_env_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert os.getenv("OPENROUTER_API_KEY") == "test-key-123"
 
 
-def test_load_home_env_missing_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "setup_func,test_desc",
+    [
+        (lambda tmp_path: tmp_path / "home", "missing_lw_coder_dir"),
+        (lambda tmp_path: (tmp_path / "home", (tmp_path / "home" / ".lw_coder").mkdir(parents=True)), "missing_file"),
+    ],
+    ids=["missing_directory", "missing_file"]
+)
+def test_load_home_env_missing_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setup_func, test_desc: str
 ) -> None:
-    """Test error when ~/.lw_coder/.env doesn't exist."""
-    # Setup: Create home directory without .lw_coder/.env
-    home_dir = tmp_path / "home"
-    home_dir.mkdir()
+    """Test error when ~/.lw_coder/.env or ~/.lw_coder directory doesn't exist."""
+    # Setup based on test case
+    result = setup_func(tmp_path)
+    home_dir = result[0] if isinstance(result, tuple) else result
+    if not home_dir.exists():
+        home_dir.mkdir()
 
     # Mock Path.home()
     monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
 
-    # Execute and assert
-    with pytest.raises(HomeEnvError, match="Environment file not found"):
-        load_home_env()
-
-
-def test_load_home_env_missing_lw_coder_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test error when ~/.lw_coder directory doesn't exist."""
-    # Setup: Create home directory without .lw_coder
-    home_dir = tmp_path / "home"
-    home_dir.mkdir()
-
-    # Mock Path.home()
-    monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
+    expected_path = home_dir / ".lw_coder" / ".env"
 
     # Execute and assert
-    with pytest.raises(HomeEnvError, match="Environment file not found"):
+    with pytest.raises(HomeEnvError, match="Environment file not found") as exc_info:
         load_home_env()
+
+    # Verify error message includes expected path
+    error_message = str(exc_info.value)
+    assert str(expected_path) in error_message
+    assert "~/.lw_coder/.env" in error_message
 
 
 def test_load_home_env_is_directory(
@@ -190,23 +191,3 @@ def test_load_home_env_empty_file(
 
     # Assert
     assert result_path == env_file
-
-
-def test_load_home_env_error_message_includes_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test that error messages include the expected path for user guidance."""
-    # Setup: home directory without .lw_coder
-    home_dir = tmp_path / "home"
-    home_dir.mkdir()
-    monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
-
-    expected_path = home_dir / ".lw_coder" / ".env"
-
-    # Execute and assert
-    with pytest.raises(HomeEnvError) as exc_info:
-        load_home_env()
-
-    error_message = str(exc_info.value)
-    assert str(expected_path) in error_message
-    assert "~/.lw_coder/.env" in error_message

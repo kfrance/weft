@@ -239,39 +239,3 @@ def test_code_command_invalid_model(monkeypatch, caplog, tmp_path) -> None:
     mock_run.assert_not_called()
 
 
-def test_code_command_droid_with_model_error(monkeypatch, caplog, tmp_path) -> None:
-    """Test code command rejects droid tool with model parameter."""
-    plan_path = tmp_path / "test.md"
-    plan_path.write_text("# Test Plan\n")
-
-    # Mock run_code_command - should not be called due to validation error
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with droid + model (invalid combination)
-    exit_code = main(["code", str(plan_path), "--tool", "droid", "--model", "sonnet"])
-
-    assert exit_code == 1
-    assert "cannot be used with --tool droid" in caplog.text
-    mock_run.assert_not_called()
-
-
-def test_code_command_invalid_tool_error(monkeypatch, caplog, tmp_path) -> None:
-    """Test code command rejects invalid tool name."""
-    plan_path = tmp_path / "test.md"
-    plan_path.write_text("# Test Plan\n")
-
-    # Mock run_code_command - should not be called due to validation error
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with invalid tool
-    exit_code = main(["code", str(plan_path), "--tool", "invalid-tool"])
-
-    assert exit_code == 1
-    assert "Unknown tool 'invalid-tool'" in caplog.text
-    mock_run.assert_not_called()

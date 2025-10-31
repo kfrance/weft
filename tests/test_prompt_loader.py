@@ -59,52 +59,29 @@ def test_load_prompts_invalid_model(tmp_path: Path) -> None:
     assert "invalid-model" in str(exc_info.value)
 
 
-def test_load_prompts_missing_main_file(tmp_path: Path) -> None:
-    """Test error when main.md prompt file is missing."""
-    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / "sonnet"
+@pytest.mark.parametrize(
+    "missing_file,other_files,model",
+    [
+        ("main.md", ["code-review-auditor.md", "plan-alignment-checker.md"], "sonnet"),
+        ("code-review-auditor.md", ["main.md", "plan-alignment-checker.md"], "opus"),
+        ("plan-alignment-checker.md", ["main.md", "code-review-auditor.md"], "haiku"),
+    ],
+    ids=["missing_main", "missing_code_review", "missing_alignment"]
+)
+def test_load_prompts_missing_file(tmp_path: Path, missing_file: str, other_files: list[str], model: str) -> None:
+    """Test error when a required prompt file is missing."""
+    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / model
     prompts_dir.mkdir(parents=True)
 
-    # Create only the sub-agent prompts, not the main prompt
-    (prompts_dir / "code-review-auditor.md").write_text("review")
-    (prompts_dir / "plan-alignment-checker.md").write_text("alignment")
+    # Create only the other files, not the missing one
+    for file in other_files:
+        (prompts_dir / file).write_text("content")
 
     with pytest.raises(PromptLoadingError) as exc_info:
-        load_prompts(repo_root=tmp_path, tool="claude-code-cli", model="sonnet")
+        load_prompts(repo_root=tmp_path, tool="claude-code-cli", model=model)
 
     assert "Prompt file not found" in str(exc_info.value)
-    assert "main.md" in str(exc_info.value)
-
-
-def test_load_prompts_missing_code_review_file(tmp_path: Path) -> None:
-    """Test error when code-review-auditor.md prompt file is missing."""
-    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / "opus"
-    prompts_dir.mkdir(parents=True)
-
-    # Create only main and alignment prompts, not code-review
-    (prompts_dir / "main.md").write_text("main")
-    (prompts_dir / "plan-alignment-checker.md").write_text("alignment")
-
-    with pytest.raises(PromptLoadingError) as exc_info:
-        load_prompts(repo_root=tmp_path, tool="claude-code-cli", model="opus")
-
-    assert "Prompt file not found" in str(exc_info.value)
-    assert "code-review-auditor.md" in str(exc_info.value)
-
-
-def test_load_prompts_missing_alignment_file(tmp_path: Path) -> None:
-    """Test error when plan-alignment-checker.md prompt file is missing."""
-    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / "haiku"
-    prompts_dir.mkdir(parents=True)
-
-    # Create only main and code-review prompts, not alignment
-    (prompts_dir / "main.md").write_text("main")
-    (prompts_dir / "code-review-auditor.md").write_text("review")
-
-    with pytest.raises(PromptLoadingError) as exc_info:
-        load_prompts(repo_root=tmp_path, tool="claude-code-cli", model="haiku")
-
-    assert "Prompt file not found" in str(exc_info.value)
-    assert "plan-alignment-checker.md" in str(exc_info.value)
+    assert missing_file in str(exc_info.value)
 
 
 def test_load_prompts_file_read_error(tmp_path: Path) -> None:

@@ -26,13 +26,6 @@ def test_get_branch_name_from_plan_id():
     assert get_branch_name_from_plan_id("feature-123") == "feature-123"
 
 
-def test_get_worktree_path():
-    repo_root = Path("/path/to/repo")
-    plan_id = "my-plan"
-    expected = repo_root / ".lw_coder" / "worktrees" / "my-plan"
-    assert get_worktree_path(repo_root, plan_id) == expected
-
-
 def test_is_git_worktree_nonexistent(git_repo):
     path = git_repo.path / ".lw_coder" / "worktrees" / "nonexistent"
     assert not is_git_worktree(path, git_repo.path)

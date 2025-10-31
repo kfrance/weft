@@ -110,16 +110,18 @@ class TestDroidExecutor:
 class TestClaudeCodeExecutor:
     """Tests for ClaudeCodeExecutor."""
 
-    def test_build_command(self, tmp_path: Path) -> None:
-        """Test building a Claude Code command with default model."""
+    @pytest.mark.parametrize("model", ["sonnet", "haiku", "opus"])
+    def test_build_command(self, tmp_path: Path, model: str) -> None:
+        """Test building a Claude Code command with different models."""
         executor = ClaudeCodeExecutor()
         prompt_path = tmp_path / "prompt.txt"
         prompt_path.write_text("test prompt")
 
-        command = executor.build_command(prompt_path, model="sonnet")
+        command = executor.build_command(prompt_path, model=model)
 
         assert command.startswith('claude --model')
-        assert "--model sonnet" in command
+        assert f"--model {model}" in command
+        assert f"claude --model {model}" in command
         assert "$(cat" in command
 
     def test_build_command_escapes_special_characters(self, tmp_path: Path) -> None:
@@ -139,28 +141,6 @@ class TestClaudeCodeExecutor:
         executor = ClaudeCodeExecutor()
         # Should not raise any exceptions
         executor.check_auth()
-
-    def test_build_command_with_haiku_model(self, tmp_path: Path) -> None:
-        """Test building a Claude Code command with haiku model."""
-        executor = ClaudeCodeExecutor()
-        prompt_path = tmp_path / "prompt.txt"
-        prompt_path.write_text("test prompt")
-
-        command = executor.build_command(prompt_path, model="haiku")
-
-        assert "--model haiku" in command
-        assert "claude --model haiku" in command
-
-    def test_build_command_with_opus_model(self, tmp_path: Path) -> None:
-        """Test building a Claude Code command with opus model."""
-        executor = ClaudeCodeExecutor()
-        prompt_path = tmp_path / "prompt.txt"
-        prompt_path.write_text("test prompt")
-
-        command = executor.build_command(prompt_path, model="opus")
-
-        assert "--model opus" in command
-        assert "claude --model opus" in command
 
     def test_build_command_rejects_shell_metacharacters(self, tmp_path: Path) -> None:
         """Test that build_command rejects model parameters with shell metacharacters."""

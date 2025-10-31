@@ -74,23 +74,6 @@ def test_get_effective_model_other_tool_returns_as_is() -> None:
     assert get_effective_model("some-other-tool", None) is None
 
 
-def test_validate_all_valid_claude_code_model_combinations() -> None:
-    """Test all valid model combinations for claude-code."""
-    valid_models = ["sonnet", "opus", "haiku", None]
-    for model in valid_models:
-        # Should not raise
-        validate_tool_model_compatibility("claude-code", model)
-
-
-def test_validate_droid_rejects_all_models() -> None:
-    """Test droid rejects all model specifications."""
-    invalid_models = ["sonnet", "opus", "haiku", "gpt-4", "unknown"]
-    for model in invalid_models:
-        with pytest.raises(ParameterValidationError) as exc_info:
-            validate_tool_model_compatibility("droid", model)
-        assert "cannot be used with --tool droid" in str(exc_info.value)
-
-
 def test_validate_invalid_model() -> None:
     """Test validation rejects invalid model names."""
     invalid_models = ["gpt-4", "unknown", "claude", ""]

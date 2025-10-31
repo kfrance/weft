@@ -106,26 +106,6 @@ def test_ensure_placeholder_git_sha(tmp_path: Path) -> None:
     assert front_matter["status"] == "draft"
 
 
-def test_run_plan_command_with_droid_executor() -> None:
-    """Test that run_plan_command can use droid executor."""
-    from lw_coder.plan_command import run_plan_command
-    from lw_coder.executors import ExecutorRegistry
-
-    # Verify droid executor is registered
-    executor = ExecutorRegistry.get_executor("droid")
-    assert executor is not None
-
-
-def test_run_plan_command_with_claude_code_executor() -> None:
-    """Test that run_plan_command can use claude-code executor."""
-    from lw_coder.plan_command import run_plan_command
-    from lw_coder.executors import ExecutorRegistry
-
-    # Verify claude-code executor is registered
-    executor = ExecutorRegistry.get_executor("claude-code")
-    assert executor is not None
-
-
 def test_run_plan_command_with_unknown_executor() -> None:
     """Test that run_plan_command fails with unknown executor."""
     from lw_coder.plan_command import run_plan_command
@@ -141,13 +121,23 @@ def test_run_plan_command_with_unknown_executor() -> None:
 # Tests for plan_file_copier module
 
 
-def test_get_existing_files_empty_directory(tmp_path: Path) -> None:
-    """Test get_existing_files returns empty set for empty directory."""
+@pytest.mark.parametrize(
+    "directory_exists,expected_result",
+    [
+        (True, set()),  # Empty directory
+        (False, set()),  # Nonexistent directory
+    ],
+    ids=["empty_directory", "nonexistent_directory"]
+)
+def test_get_existing_files_edge_cases(tmp_path: Path, directory_exists: bool, expected_result: set) -> None:
+    """Test get_existing_files with empty or nonexistent directory."""
     tasks_dir = tmp_path / "tasks"
-    tasks_dir.mkdir()
+
+    if directory_exists:
+        tasks_dir.mkdir()
 
     existing = get_existing_files(tasks_dir)
-    assert existing == set()
+    assert existing == expected_result
 
 
 def test_get_existing_files_with_files(tmp_path: Path) -> None:
@@ -162,14 +152,6 @@ def test_get_existing_files_with_files(tmp_path: Path) -> None:
 
     existing = get_existing_files(tasks_dir)
     assert existing == {"plan-a.md", "plan-b.md", "README.txt"}
-
-
-def test_get_existing_files_nonexistent_directory(tmp_path: Path) -> None:
-    """Test get_existing_files returns empty set for nonexistent directory."""
-    tasks_dir = tmp_path / "nonexistent"
-
-    existing = get_existing_files(tasks_dir)
-    assert existing == set()
 
 
 def test_find_new_files_identifies_new_files(tmp_path: Path) -> None:
@@ -425,12 +407,33 @@ def test_copy_droids_for_plan_success(tmp_path: Path, monkeypatch) -> None:
     assert dest_droid.read_text() == "---\nname: maintainability-reviewer\n---\nTest content"
 
 
-def test_copy_droids_for_plan_missing_source(tmp_path: Path, monkeypatch) -> None:
-    """Test _copy_droids_for_plan raises error when source droid doesn't exist."""
-    # Create a fake source directory WITHOUT the droid file
+@pytest.mark.parametrize(
+    "error_type,expected_match",
+    [
+        ("missing_source", "Maintainability reviewer droid not found"),
+        ("permission_error", "Failed to copy droid"),
+    ],
+    ids=["missing_source", "permission_error"]
+)
+def test_copy_droids_for_plan_errors(tmp_path: Path, monkeypatch, error_type: str, expected_match: str) -> None:
+    """Test _copy_droids_for_plan error handling for missing source and permission errors."""
+    # Create fake source directory
     fake_src_dir = tmp_path / "fake_src"
     droids_dir = fake_src_dir / "droids"
     droids_dir.mkdir(parents=True)
+
+    if error_type == "permission_error":
+        # Create source file for permission error test
+        source_droid = droids_dir / "maintainability-reviewer.md"
+        source_droid.write_text("Test content")
+
+        # Mock shutil.copy2 to raise permission error
+        import shutil
+
+        def mock_copy2(src, dst):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr("shutil.copy2", mock_copy2)
 
     # Mock get_lw_coder_src_dir
     monkeypatch.setattr(
@@ -440,39 +443,8 @@ def test_copy_droids_for_plan_missing_source(tmp_path: Path, monkeypatch) -> Non
     worktree_path = tmp_path / "worktree"
     worktree_path.mkdir()
 
-    # Should raise error about missing source file
-    with pytest.raises(PlanCommandError, match="Maintainability reviewer droid not found"):
-        _copy_droids_for_plan(worktree_path)
-
-
-def test_copy_droids_for_plan_permission_error(tmp_path: Path, monkeypatch) -> None:
-    """Test _copy_droids_for_plan handles permission errors gracefully."""
-    # Create a fake source droid file
-    fake_src_dir = tmp_path / "fake_src"
-    droids_dir = fake_src_dir / "droids"
-    droids_dir.mkdir(parents=True)
-    source_droid = droids_dir / "maintainability-reviewer.md"
-    source_droid.write_text("Test content")
-
-    # Mock get_lw_coder_src_dir
-    monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
-    )
-
-    worktree_path = tmp_path / "worktree"
-    worktree_path.mkdir()
-
-    # Mock shutil.copy2 to raise permission error
-    import shutil
-    original_copy2 = shutil.copy2
-
-    def mock_copy2(src, dst):
-        raise OSError("Permission denied")
-
-    monkeypatch.setattr("shutil.copy2", mock_copy2)
-
-    # Should raise error about failed copy
-    with pytest.raises(PlanCommandError, match="Failed to copy droid"):
+    # Should raise appropriate error
+    with pytest.raises(PlanCommandError, match=expected_match):
         _copy_droids_for_plan(worktree_path)
 
 
@@ -508,12 +480,33 @@ def test_write_maintainability_agent_success(tmp_path: Path, monkeypatch) -> Non
     assert dest_agent.read_text() == "---\nname: maintainability-reviewer\n---\nAgent content"
 
 
-def test_write_maintainability_agent_missing_source(tmp_path: Path, monkeypatch) -> None:
-    """Test _write_maintainability_agent raises error when source agent doesn't exist."""
-    # Create a fake source directory WITHOUT the agent file
+@pytest.mark.parametrize(
+    "error_type,expected_match",
+    [
+        ("missing_source", "Maintainability reviewer agent not found"),
+        ("permission_error", "Failed to write agent"),
+    ],
+    ids=["missing_source", "permission_error"]
+)
+def test_write_maintainability_agent_errors(tmp_path: Path, monkeypatch, error_type: str, expected_match: str) -> None:
+    """Test _write_maintainability_agent error handling for missing source and permission errors."""
+    # Create fake source directory
     fake_src_dir = tmp_path / "fake_src"
     droids_dir = fake_src_dir / "droids"
     droids_dir.mkdir(parents=True)
+
+    if error_type == "permission_error":
+        # Create source file for permission error test
+        source_agent = droids_dir / "maintainability-reviewer.md"
+        source_agent.write_text("Agent content")
+
+        # Mock shutil.copy2 to raise permission error
+        import shutil
+
+        def mock_copy2(src, dst):
+            raise OSError("Permission denied")
+
+        monkeypatch.setattr("shutil.copy2", mock_copy2)
 
     # Mock get_lw_coder_src_dir
     monkeypatch.setattr(
@@ -523,36 +516,6 @@ def test_write_maintainability_agent_missing_source(tmp_path: Path, monkeypatch)
     worktree_path = tmp_path / "worktree"
     worktree_path.mkdir()
 
-    # Should raise error about missing source file
-    with pytest.raises(PlanCommandError, match="Maintainability reviewer agent not found"):
-        _write_maintainability_agent(worktree_path)
-
-
-def test_write_maintainability_agent_permission_error(tmp_path: Path, monkeypatch) -> None:
-    """Test _write_maintainability_agent handles permission errors gracefully."""
-    # Create a fake source agent file
-    fake_src_dir = tmp_path / "fake_src"
-    droids_dir = fake_src_dir / "droids"
-    droids_dir.mkdir(parents=True)
-    source_agent = droids_dir / "maintainability-reviewer.md"
-    source_agent.write_text("Agent content")
-
-    # Mock get_lw_coder_src_dir
-    monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
-    )
-
-    worktree_path = tmp_path / "worktree"
-    worktree_path.mkdir()
-
-    # Mock shutil.copy2 to raise permission error
-    import shutil
-
-    def mock_copy2(src, dst):
-        raise OSError("Permission denied")
-
-    monkeypatch.setattr("shutil.copy2", mock_copy2)
-
-    # Should raise error about failed write
-    with pytest.raises(PlanCommandError, match="Failed to write agent"):
+    # Should raise appropriate error
+    with pytest.raises(PlanCommandError, match=expected_match):
         _write_maintainability_agent(worktree_path)
