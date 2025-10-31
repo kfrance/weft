@@ -27,7 +27,7 @@ def test_write_sub_agents_creates_both_files(tmp_path: Path) -> None:
 
 
 def test_write_sub_agents_correct_yaml_frontmatter(tmp_path: Path) -> None:
-    """Test that YAML frontmatter is correctly formatted."""
+    """Test that YAML frontmatter is correctly formatted without tools: field."""
     worktree_path = tmp_path / "worktree"
     worktree_path.mkdir()
 
@@ -47,7 +47,8 @@ def test_write_sub_agents_correct_yaml_frontmatter(tmp_path: Path) -> None:
     assert "---" in review_content
     assert "name: code-review-auditor" in review_content
     assert "description: Reviews code changes for quality and compliance" in review_content
-    assert 'tools: ["*"]' in review_content
+    # Verify tools: is not declared (enables inheritance from parent agent)
+    assert "tools:" not in review_content
     assert f"model: {model}" in review_content
 
     # Check plan-alignment-checker frontmatter
@@ -57,7 +58,8 @@ def test_write_sub_agents_correct_yaml_frontmatter(tmp_path: Path) -> None:
     assert "---" in alignment_content
     assert "name: plan-alignment-checker" in alignment_content
     assert "description: Verifies implementation aligns with the original plan" in alignment_content
-    assert 'tools: ["*"]' in alignment_content
+    # Verify tools: is not declared (enables inheritance from parent agent)
+    assert "tools:" not in alignment_content
     assert f"model: {model}" in alignment_content
 
 

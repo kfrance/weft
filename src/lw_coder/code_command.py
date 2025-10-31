@@ -70,6 +70,10 @@ def _write_sub_agents(
 ) -> None:
     """Write sub-agent files to .claude/agents/ directory.
 
+    Tool inheritance: The 'tools:' field is intentionally omitted from the YAML
+    front matter to enable subagents to inherit tool access from the parent
+    Claude Code agent. Including 'tools: ["*"]' actually prevents tool access.
+
     Args:
         prompts: Dictionary containing sub-agent prompts.
         worktree_path: Path to the worktree directory.
@@ -82,11 +86,11 @@ def _write_sub_agents(
     agents_dir.mkdir(parents=True, exist_ok=True)
 
     # Write code-review-auditor agent
+    # Note: 'tools:' field is omitted to enable tool inheritance from parent Claude Code agent
     code_review_agent = agents_dir / "code-review-auditor.md"
     code_review_frontmatter = f"""---
 name: code-review-auditor
 description: Reviews code changes for quality and compliance
-tools: ["*"]
 model: {model}
 ---
 
@@ -96,11 +100,11 @@ model: {model}
     logger.debug("Wrote code-review-auditor agent to %s", code_review_agent)
 
     # Write plan-alignment-checker agent
+    # Note: 'tools:' field is omitted to enable tool inheritance from parent Claude Code agent
     plan_alignment_agent = agents_dir / "plan-alignment-checker.md"
     plan_alignment_frontmatter = f"""---
 name: plan-alignment-checker
 description: Verifies implementation aligns with the original plan
-tools: ["*"]
 model: {model}
 ---
 
