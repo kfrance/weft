@@ -207,10 +207,10 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
 
     final_front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert final_front_matter["git_sha"] == head_sha
-    assert final_front_matter["status"] == "done"
+    assert final_front_matter["status"] == "implemented"
 
 
-def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:
+def test_code_command_status_implemented_on_success(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:
     plan_id = "plan-success"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()
@@ -276,7 +276,7 @@ def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Pa
 
     front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == head_sha
-    assert front_matter["status"] == "done"
+    assert front_matter["status"] == "implemented"
 
 
 def test_code_command_status_stays_coding_on_failure(
@@ -425,7 +425,7 @@ def test_code_command_warning_on_final_update_failure(
     original_update = code_command.update_plan_fields
 
     def conditional_update(path, updates):
-        if updates.get("status") == "done":
+        if updates.get("status") == "implemented":
             raise code_command.PlanLifecycleError("final write failed")
         return original_update(path, updates)
 
@@ -482,7 +482,7 @@ def test_code_command_warning_on_final_update_failure(
     exit_code = run_code_command(plan_path)
 
     assert exit_code == 0
-    assert "Failed to update plan status to 'done'" in caplog.text
+    assert "Failed to update plan status to 'implemented'" in caplog.text
 
     front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["status"] == "coding"
@@ -708,7 +708,7 @@ def test_code_command_real_sha_matches_head_no_error(
 
     front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == head_sha
-    assert front_matter["status"] == "done"
+    assert front_matter["status"] == "implemented"
 
 
 def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:

@@ -51,6 +51,27 @@ status: done
     assert "done" not in result
 
 
+def test_cache_includes_implemented_status(tmp_path):
+    """Test that cache includes plans with status 'implemented'."""
+    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create plans with different statuses
+    (tasks_dir / "draft.md").write_text("---\nstatus: draft\n---\n# Draft")
+    (tasks_dir / "coding.md").write_text("---\nstatus: coding\n---\n# Coding")
+    (tasks_dir / "implemented.md").write_text("---\nstatus: implemented\n---\n# Implemented")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    cache = PlanCompletionCache()
+    result = cache.get_active_plans(tasks_dir)
+
+    # Should include draft, coding, and implemented but not done
+    assert "draft" in result
+    assert "coding" in result
+    assert "implemented" in result
+    assert "done" not in result
+
+
 def test_cache_handles_malformed_yaml(tmp_path):
     """Test that cache gracefully handles malformed YAML."""
     tasks_dir = tmp_path / ".lw_coder" / "tasks"

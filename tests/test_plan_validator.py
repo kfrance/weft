@@ -56,7 +56,7 @@ def test_validate_git_sha_all_zeros_draft_status(git_repo) -> None:
     assert metadata.status == "draft"
 
 
-@pytest.mark.parametrize("status", ["coding", "done"])
+@pytest.mark.parametrize("status", ["coding", "implemented", "done"])
 def test_validate_git_sha_all_zeros_invalid_for_non_draft(git_repo, status: str) -> None:
     plan_path = git_repo.path / f"plan-{status}.md"
     write_plan(
@@ -72,7 +72,7 @@ def test_validate_git_sha_all_zeros_invalid_for_non_draft(git_repo, status: str)
         load_plan_metadata(plan_path)
 
 
-@pytest.mark.parametrize("status", ["draft", "coding", "done", "review"])
+@pytest.mark.parametrize("status", ["draft", "coding", "done", "implemented"])
 def test_validate_git_sha_real_sha_any_status(git_repo, status: str) -> None:
     plan_path = git_repo.path / f"plan-real-{status}.md"
     write_plan(

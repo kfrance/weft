@@ -21,7 +21,7 @@ _OPTIONAL_KEYS = {"evaluation_notes", "linear_issue_id", "created_by", "created_
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 PLACEHOLDER_SHA = "0" * 40
 _PLAN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,100}$")
-_VALID_STATUSES = {"draft", "ready", "coding", "review", "done", "abandoned"}
+_VALID_STATUSES = {"draft", "ready", "coding", "implemented", "done", "abandoned"}
 
 
 class PlanValidationError(Exception):

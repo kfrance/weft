@@ -199,3 +199,26 @@ def test_complete_plan_files_excludes_done_plans(tmp_path, monkeypatch):
 
     assert "active" in result
     assert "done" not in result
+
+
+def test_complete_plan_files_includes_implemented_plans(tmp_path, monkeypatch):
+    """Test plan file completion includes implemented plans."""
+    # Create real git repo
+    import subprocess
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create plans with different statuses
+    (tasks_dir / "draft.md").write_text("---\nstatus: draft\n---\n# Draft")
+    (tasks_dir / "implemented.md").write_text("---\nstatus: implemented\n---\n# Implemented")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_plan_files("", Namespace())
+
+    # Should include draft and implemented but not done
+    assert "draft" in result
+    assert "implemented" in result
+    assert "done" not in result

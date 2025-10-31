@@ -389,10 +389,10 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
 
         if result.returncode == 0:
             try:
-                update_plan_fields(plan_path, {"status": "done"})
+                update_plan_fields(plan_path, {"status": "implemented"})
             except PlanLifecycleError as exc:
                 logger.warning(
-                    "Failed to update plan status to 'done' after successful session: %s",
+                    "Failed to update plan status to 'implemented' after successful session: %s",
                     exc,
                 )
 
