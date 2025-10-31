@@ -6,6 +6,7 @@ evaluation_notes:
   - Were any fallback prompts made or ways to skirt around using DSPy?
   - Confirm if your implementation provides a starting point for prompts in the Signature using one of these valid approaches (1) a docstring in a class-based Signature, (2) the with_instructions method on a Signature, or (3) the instructions parameter in the Signature constructor.
   - Did any tests mock out DSPy or the LLM that it uses? It should be making calls to openrouter or hit cached results if the tests have run before?
+---
 
 # Task Plan: Implement DSPy Prompt Pipeline & Configuration Layer
 
