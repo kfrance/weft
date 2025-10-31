@@ -8,6 +8,7 @@ from typing import Sequence
 from docopt import docopt
 
 from .code_command import run_code_command
+from .finalize_command import run_finalize_command
 from .logging_config import configure_logging, get_logger
 from .param_validation import ParameterValidationError, validate_tool_model_compatibility
 from .plan_command import run_plan_command
@@ -18,6 +19,7 @@ _USAGE = """\
 Usage:
   lw_coder plan [<plan_path>] [--text <description>] [--tool <tool_name>] [--debug]
   lw_coder code <plan_path> [--tool <tool_name>] [--model <model>] [--debug]
+  lw_coder finalize <plan_path> [--tool <tool_name>] [--debug]
   lw_coder (-h | --help)
 
 Options:
@@ -35,6 +37,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parsed = docopt(_USAGE, argv=argv)
     debug = parsed["--debug"]
     is_plan_command = parsed["plan"]
+    is_finalize_command = parsed["finalize"]
 
     # Configure logging before any other operations
     configure_logging(debug=debug)
@@ -45,6 +48,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         text_input = parsed["--text"]
         tool = parsed["--tool"]
         return run_plan_command(plan_path, text_input, tool)
+
+    if is_finalize_command:
+        # Finalize command: commit, rebase, and merge completed plan
+        plan_path = parsed["<plan_path>"]
+        tool = parsed["--tool"]
+        return run_finalize_command(plan_path, tool=tool)
 
     # Code command: validate plan and prepare worktree
     plan_path = parsed["<plan_path>"]

@@ -11,6 +11,7 @@ from typing import Any, Iterable
 import yaml
 
 from .logging_config import get_logger
+from .repo_utils import RepoUtilsError, find_repo_root
 
 logger = get_logger(__name__)
 
@@ -42,6 +43,52 @@ class PlanMetadata:
     created_by: str | None = None
     created_at: str | None = None
     notes: str | None = None
+
+
+def extract_front_matter(markdown: str) -> tuple[dict[str, Any], str]:
+    """Extract YAML front matter from markdown content.
+
+    Public API for extracting front matter from plan files.
+
+    Args:
+        markdown: Markdown content with YAML front matter.
+
+    Returns:
+        Tuple of (front_matter_dict, body_text).
+
+    Raises:
+        PlanValidationError: If front matter is malformed.
+    """
+    return _extract_front_matter(markdown)
+
+
+def load_plan_id(plan_path: Path | str) -> tuple[str, Path]:
+    """Load plan_id from a plan file (lightweight version of load_plan_metadata).
+
+    Args:
+        plan_path: Path to the plan file.
+
+    Returns:
+        Tuple of (plan_id, resolved_plan_path).
+
+    Raises:
+        PlanValidationError: If plan file is invalid or missing plan_id.
+    """
+    resolved_path = Path(plan_path).expanduser().resolve()
+    if not resolved_path.exists():
+        raise PlanValidationError(f"Plan file not found: {resolved_path}")
+
+    try:
+        content = resolved_path.read_text(encoding="utf-8")
+        front_matter, _ = _extract_front_matter(content)
+    except (OSError, PlanValidationError) as exc:
+        raise PlanValidationError(f"Failed to read plan file: {exc}") from exc
+
+    plan_id = front_matter.get("plan_id")
+    if not isinstance(plan_id, str) or not plan_id.strip():
+        raise PlanValidationError("Plan file must have a valid 'plan_id' in front matter")
+
+    return plan_id.strip(), resolved_path
 
 
 def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
@@ -90,7 +137,11 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
     created_by_value = front_matter.get("created_by")
     notes_value = front_matter.get("notes")
 
-    repo_root = _find_repo_root(path)
+    try:
+        repo_root = find_repo_root(path)
+    except RepoUtilsError as exc:
+        raise PlanValidationError("Plan file must reside inside a Git repository.") from exc
+
     _ensure_path_within_repo(path, repo_root)
     if git_sha_value != PLACEHOLDER_SHA:
         _ensure_commit_exists(repo_root, git_sha_value)
@@ -271,27 +322,6 @@ def _validate_created_at(value: Any) -> str:
         ) from exc
 
     return stripped
-
-
-def _find_repo_root(path: Path) -> Path:
-    directory = path.parent
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(directory), "rev-parse", "--show-toplevel"],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
-        raise PlanValidationError(
-            "Plan file must reside inside a Git repository."
-        ) from exc
-
-    repo_root = Path(result.stdout.strip()).resolve()
-    if not repo_root.exists():  # pragma: no cover - defensive
-        raise PlanValidationError("Git repository root could not be determined.")
-    return repo_root
 
 
 def _ensure_path_within_repo(path: Path, repo_root: Path) -> None:

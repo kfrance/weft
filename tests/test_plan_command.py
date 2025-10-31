@@ -12,7 +12,6 @@ from lw_coder.plan_command import (
     _copy_droids_for_plan,
     _ensure_placeholder_git_sha,
     _extract_idea_text,
-    _load_template,
     _write_maintainability_agent,
 )
 from lw_coder.plan_file_copier import (
@@ -22,29 +21,9 @@ from lw_coder.plan_file_copier import (
     generate_unique_filename,
     get_existing_files,
 )
-from lw_coder.plan_validator import PLACEHOLDER_SHA, _extract_front_matter
+from lw_coder.plan_validator import PLACEHOLDER_SHA, extract_front_matter
 from tests.conftest import write_plan
 import lw_coder.plan_command
-
-
-def test_load_template_success() -> None:
-    """Test loading a valid template."""
-    template = _load_template("droid")
-    assert "{IDEA_TEXT}" in template
-    assert "Your task:" in template
-
-
-def test_load_template_claude_code() -> None:
-    """Test loading Claude Code CLI template."""
-    template = _load_template("claude-code")
-    assert "{IDEA_TEXT}" in template
-    assert "Your task:" in template
-
-
-def test_load_template_nonexistent_tool() -> None:
-    """Test loading template for nonexistent tool."""
-    with pytest.raises(PlanCommandError, match="Prompt template not found"):
-        _load_template("nonexistent_tool")
 
 
 def test_extract_idea_text_from_text_input() -> None:
@@ -106,44 +85,6 @@ def test_extract_idea_text_no_inputs() -> None:
         _extract_idea_text(None, None)
 
 
-def test_load_template_delegates_to_droid_session(monkeypatch) -> None:
-    """Test that _load_template uses get_lw_coder_src_dir from droid_session."""
-    # Track if get_lw_coder_src_dir was called
-    calls = []
-
-    def mock_get_lw_coder_src_dir():
-        calls.append(1)
-        # Return the actual source directory so template loading works
-        return Path(__file__).resolve().parent.parent / "src" / "lw_coder"
-
-    # Patch it in the plan_command module where it's imported
-    monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", mock_get_lw_coder_src_dir
-    )
-
-    # Call _load_template which should use the mocked function
-    template = _load_template("droid")
-
-    # Verify the mock was called
-    assert len(calls) == 1
-    # Verify template was loaded successfully
-    assert "{IDEA_TEXT}" in template
-
-
-def test_load_template_runtime_error_becomes_plan_command_error(monkeypatch) -> None:
-    """Test that RuntimeError from get_lw_coder_src_dir becomes PlanCommandError."""
-    def mock_get_lw_coder_src_dir():
-        raise RuntimeError("Source directory not found")
-
-    # Patch it in the plan_command module where it's imported
-    monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", mock_get_lw_coder_src_dir
-    )
-
-    with pytest.raises(PlanCommandError, match="Source directory not found"):
-        _load_template("droid")
-
-
 def test_ensure_placeholder_git_sha(tmp_path: Path) -> None:
     tasks_dir = tmp_path / "tasks"
     tasks_dir.mkdir()
@@ -160,7 +101,7 @@ def test_ensure_placeholder_git_sha(tmp_path: Path) -> None:
 
     _ensure_placeholder_git_sha(tasks_dir)
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == PLACEHOLDER_SHA
     assert front_matter["status"] == "draft"
 
@@ -190,7 +131,7 @@ def test_run_plan_command_with_unknown_executor() -> None:
     from lw_coder.plan_command import run_plan_command
     from unittest.mock import patch
 
-    with patch("lw_coder.plan_command._find_repo_root"):
+    with patch("lw_coder.plan_command.find_repo_root"):
         with patch("lw_coder.plan_command._extract_idea_text", return_value="test"):
             result = run_plan_command(None, "test idea", "unknown-executor")
             # Should fail due to unknown executor

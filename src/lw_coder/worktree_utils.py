@@ -269,3 +269,75 @@ def ensure_worktree(metadata: PlanMetadata) -> Path:
 
     logger.info("Created worktree at %s", worktree_path)
     return worktree_path
+
+
+def get_worktree_for_plan(repo_root: Path, plan_id: str) -> Path | None:
+    """Find the worktree for a given plan.
+
+    Args:
+        repo_root: The root directory of the Git repository.
+        plan_id: The plan identifier.
+
+    Returns:
+        Path to the worktree if it exists and is valid, None otherwise.
+    """
+    try:
+        worktree_path = get_worktree_path(repo_root, plan_id)
+    except WorktreeError:
+        return None
+
+    if worktree_path.exists() and is_git_worktree(worktree_path, repo_root):
+        return worktree_path
+
+    return None
+
+
+def validate_worktree_exists(repo_root: Path, plan_id: str) -> Path:
+    """Validate that worktree exists and is properly configured for the given plan.
+
+    Args:
+        repo_root: Repository root path.
+        plan_id: Plan identifier.
+
+    Returns:
+        Path to the validated worktree.
+
+    Raises:
+        WorktreeError: If worktree doesn't exist or is invalid.
+    """
+    worktree_path = get_worktree_path(repo_root, plan_id)
+
+    if not worktree_path.exists():
+        raise WorktreeError(
+            f"Worktree not found for plan '{plan_id}' at {worktree_path}. "
+            f"Run 'lw_coder code' first to create the worktree."
+        )
+
+    if not is_git_worktree(worktree_path, repo_root):
+        raise WorktreeError(
+            f"Directory {worktree_path} exists but is not a registered Git worktree."
+        )
+
+    return worktree_path
+
+
+def has_uncommitted_changes(worktree_path: Path) -> bool:
+    """Check if a worktree has uncommitted changes.
+
+    Args:
+        worktree_path: Path to the worktree.
+
+    Returns:
+        True if there are uncommitted changes, False otherwise.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(worktree_path), "status", "--porcelain"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return bool(result.stdout.strip())
+    except subprocess.CalledProcessError:
+        return False

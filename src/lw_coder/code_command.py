@@ -27,10 +27,10 @@ from .plan_lifecycle import (
 from .plan_validator import (
     PLACEHOLDER_SHA,
     PlanValidationError,
-    _extract_front_matter,
-    _find_repo_root,
+    extract_front_matter,
     load_plan_metadata,
 )
+from .repo_utils import RepoUtilsError, find_repo_root
 from .prompt_loader import PromptLoadingError, load_prompts
 from .run_manager import (
     RunManagerError,
@@ -145,8 +145,8 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
     front_matter: dict[str, object] | None = None
 
     try:
-        repo_root = _find_repo_root(plan_path)
-    except PlanValidationError:
+        repo_root = find_repo_root(plan_path)
+    except RepoUtilsError:
         repo_root = None
 
     if repo_root is not None:
@@ -159,7 +159,7 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
     if plan_path.exists():
         try:
             content = plan_path.read_text(encoding="utf-8")
-            fm, _ = _extract_front_matter(content)
+            fm, _ = extract_front_matter(content)
             if isinstance(fm, dict):
                 front_matter = fm
         except (OSError, PlanValidationError):

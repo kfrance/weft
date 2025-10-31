@@ -16,7 +16,8 @@ from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_c
 from .logging_config import get_logger
 from .plan_file_copier import PlanFileCopyError, copy_plan_files, get_existing_files
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
-from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, _extract_front_matter
+from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, extract_front_matter
+from .repo_utils import RepoUtilsError, find_repo_root, load_prompt_template
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
 
 logger = get_logger(__name__)
@@ -24,60 +25,6 @@ logger = get_logger(__name__)
 
 class PlanCommandError(Exception):
     """Raised when plan command operations fail."""
-
-
-
-
-def _find_repo_root() -> Path:
-    """Find the Git repository root from the current working directory.
-
-    Returns:
-        Path to the Git repository root.
-
-    Raises:
-        PlanCommandError: If not in a Git repository.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        return Path(result.stdout.strip()).resolve()
-    except subprocess.CalledProcessError as exc:
-        raise PlanCommandError(
-            "Must be run from within a Git repository."
-        ) from exc
-
-
-def _load_template(tool: str) -> str:
-    """Load the prompt template for the specified tool.
-
-    Args:
-        tool: Name of the tool (e.g., "droid").
-
-    Returns:
-        Template content as a string.
-
-    Raises:
-        PlanCommandError: If the template file cannot be loaded.
-    """
-    try:
-        src_dir = get_lw_coder_src_dir()
-    except RuntimeError as exc:
-        raise PlanCommandError(str(exc)) from exc
-
-    template_path = src_dir / "prompts" / tool / "plan.md"
-
-    if not template_path.exists():
-        raise PlanCommandError(
-            f"Prompt template not found for tool '{tool}' at {template_path}"
-        )
-
-    logger.debug("Loading template from %s", template_path)
-    return template_path.read_text(encoding="utf-8")
 
 
 def _extract_idea_text(plan_path: Path | None, text_input: str | None) -> str:
@@ -115,7 +62,7 @@ def _extract_idea_text(plan_path: Path | None, text_input: str | None) -> str:
 
     # Try to extract front matter and ignore it
     try:
-        _, body = _extract_front_matter(content)
+        _, body = extract_front_matter(content)
         return body.strip()
     except (PlanValidationError, ValueError, KeyError, TypeError):
         # If no front matter or parsing fails, use the whole content
@@ -223,14 +170,14 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
             raise PlanCommandError(str(exc)) from exc
 
         # Find repository root
-        repo_root = _find_repo_root()
+        repo_root = find_repo_root()
         logger.debug("Repository root: %s", repo_root)
 
         # Extract idea text
         idea_text = _extract_idea_text(plan_path, text_input)
 
         # Load template
-        template = _load_template(tool)
+        template = load_prompt_template(tool, "plan")
 
         # Replace placeholder
         combined_prompt = template.replace("{IDEA_TEXT}", idea_text)
@@ -324,7 +271,7 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
             logger.info("Session interrupted by user.")
             return 0
 
-    except (ExecutorError, PlanCommandError, TempWorktreeError) as exc:
+    except (ExecutorError, PlanCommandError, TempWorktreeError, RepoUtilsError) as exc:
         logger.error("%s", exc)
         return 1
 
@@ -354,7 +301,7 @@ def _ensure_placeholder_git_sha(tasks_dir: Path) -> None:
             continue
 
         try:
-            front_matter, _ = _extract_front_matter(content)
+            front_matter, _ = extract_front_matter(content)
         except PlanValidationError:
             continue
 

@@ -16,6 +16,7 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 
 ### CLI Usage
 - **Validate plan file**: `uv run lw_coder code <plan_path>`
+- **Finalize plan**: `uv run lw_coder finalize <plan_path>`
 
 ## Testing
 

@@ -12,7 +12,7 @@ import pytest
 import lw_coder.code_command as code_command
 from lw_coder.code_command import _filter_env_vars, run_code_command
 from lw_coder.executors import ExecutorRegistry
-from lw_coder.plan_validator import PLACEHOLDER_SHA, PlanMetadata, PlanValidationError, _extract_front_matter
+from lw_coder.plan_validator import PLACEHOLDER_SHA, PlanMetadata, PlanValidationError, extract_front_matter
 from lw_coder.worktree_utils import WorktreeError
 
 try:
@@ -40,22 +40,6 @@ evaluation_notes: []
     class GitRepo:
         """Simple GitRepo mock."""
         pass
-
-
-def mock_executor_factory(tool="claude-code"):
-    """Create a mock executor for testing."""
-    if tool == "droid":
-        return SimpleNamespace(
-            check_auth=lambda: None,
-            build_command=lambda p, model: f'droid "$(cat {p})"',
-            get_env_vars=lambda factory_dir: None
-        )
-    else:  # claude-code
-        return SimpleNamespace(
-            check_auth=lambda: None,
-            build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
-            get_env_vars=lambda factory_dir: None
-        )
 
 
 def test_run_code_command_validation_failure(monkeypatch, caplog, tmp_path: Path) -> None:
@@ -152,7 +136,7 @@ def test_filter_env_vars_no_matches(monkeypatch) -> None:
     assert result == {}
 
 
-def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_path: Path) -> None:
+def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:
     plan_id = "plan-placeholder"
     plan_path = git_repo.path / f"{plan_id}.md"
     write_plan(
@@ -190,7 +174,7 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
     ensure_called = {}
 
     def fake_ensure_worktree(metadata: PlanMetadata) -> Path:
-        front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+        front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
         assert front_matter["git_sha"] == head_sha
         assert front_matter["status"] == "coding"
         ensure_called["value"] = True
@@ -221,12 +205,12 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
     assert exit_code == 0
     assert ensure_called.get("value") is True
 
-    final_front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    final_front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert final_front_matter["git_sha"] == head_sha
     assert final_front_matter["status"] == "done"
 
 
-def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Path) -> None:
+def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:
     plan_id = "plan-success"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()
@@ -263,7 +247,7 @@ def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Pa
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
 
     def fake_ensure_worktree(metadata: PlanMetadata) -> Path:
-        front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+        front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
         assert front_matter["git_sha"] == head_sha
         assert front_matter["status"] == "coding"
         worktree_path = git_repo.path / "worktree-success"
@@ -290,13 +274,13 @@ def test_code_command_status_done_on_success(monkeypatch, git_repo, tmp_path: Pa
     exit_code = run_code_command(plan_path)
     assert exit_code == 0
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == head_sha
     assert front_matter["status"] == "done"
 
 
 def test_code_command_status_stays_coding_on_failure(
-    monkeypatch, git_repo, tmp_path: Path
+    monkeypatch, git_repo, tmp_path: Path, mock_executor_factory
 ) -> None:
     plan_id = "plan-failure"
     plan_path = git_repo.path / f"{plan_id}.md"
@@ -360,7 +344,7 @@ def test_code_command_status_stays_coding_on_failure(
     exit_code = run_code_command(plan_path)
     assert exit_code == 1
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == head_sha
     assert front_matter["status"] == "coding"
 
@@ -391,7 +375,7 @@ def test_code_command_error_when_sha_mismatch(monkeypatch, git_repo, caplog) -> 
     assert "does not match repository HEAD" in caplog.text
     assert "uncommitted changes" in caplog.text or "rebasing" in caplog.text
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == initial_sha
     assert front_matter["status"] == "coding"
 
@@ -418,14 +402,14 @@ def test_code_command_error_on_initial_update_failure(monkeypatch, git_repo, cap
     assert exit_code == 1
     assert "Failed to update plan metadata before coding session" in caplog.text
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == PLACEHOLDER_SHA
     assert front_matter["status"] == "draft"
 
 
 def test_code_command_warning_on_final_update_failure(
     monkeypatch, git_repo, tmp_path: Path, caplog
-) -> None:
+, mock_executor_factory) -> None:
     plan_id = "plan-final-failure"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()
@@ -500,11 +484,11 @@ def test_code_command_warning_on_final_update_failure(
     assert exit_code == 0
     assert "Failed to update plan status to 'done'" in caplog.text
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["status"] == "coding"
 
 
-def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path) -> None:
+def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:
     plan_id = "plan-interrupt"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()
@@ -566,7 +550,7 @@ def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path)
     exit_code = run_code_command(plan_path)
     assert exit_code == 130
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["status"] == "coding"
 
 
@@ -587,12 +571,12 @@ def test_code_command_validation_failure_rolls_back_initial_update(
     exit_code = run_code_command(plan_path)
 
     assert exit_code == 1
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == PLACEHOLDER_SHA
     assert front_matter["status"] == "draft"
 
 
-def test_code_command_worktree_uses_updated_sha(monkeypatch, git_repo, tmp_path: Path) -> None:
+def test_code_command_worktree_uses_updated_sha(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:
     plan_id = "plan-worktree"
     plan_path = git_repo.path / f"{plan_id}.md"
     write_plan(
@@ -660,7 +644,7 @@ def test_code_command_worktree_uses_updated_sha(monkeypatch, git_repo, tmp_path:
 
 def test_code_command_real_sha_matches_head_no_error(
     monkeypatch, git_repo, tmp_path: Path
-) -> None:
+, mock_executor_factory) -> None:
     plan_id = "plan-match"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()
@@ -722,12 +706,12 @@ def test_code_command_real_sha_matches_head_no_error(
     exit_code = run_code_command(plan_path)
     assert exit_code == 0
 
-    front_matter, _ = _extract_front_matter(plan_path.read_text(encoding="utf-8"))
+    front_matter, _ = extract_front_matter(plan_path.read_text(encoding="utf-8"))
     assert front_matter["git_sha"] == head_sha
     assert front_matter["status"] == "done"
 
 
-def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path) -> None:
+def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path, mock_executor_factory) -> None:
     plan_id = "plan-agents-cleanup"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()

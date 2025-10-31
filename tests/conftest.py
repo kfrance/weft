@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -53,3 +54,30 @@ def write_plan(path: Path, data: dict, body: str = "# Plan Body") -> None:
     yaml_block = yaml.safe_dump(data, sort_keys=False).strip()
     content = f"---\n{yaml_block}\n---\n\n{body}\n"
     path.write_text(content, encoding="utf-8")
+
+
+@pytest.fixture()
+def mock_executor_factory():
+    """Factory fixture for creating mock executors in tests."""
+    def _factory(tool="claude-code"):
+        """Create a mock executor for the specified tool.
+
+        Args:
+            tool: Tool name ("claude-code" or "droid").
+
+        Returns:
+            SimpleNamespace with mock executor methods.
+        """
+        if tool == "droid":
+            return SimpleNamespace(
+                check_auth=lambda: None,
+                build_command=lambda p, model: f'droid "$(cat {p})"',
+                get_env_vars=lambda factory_dir: {}
+            )
+        else:  # claude-code
+            return SimpleNamespace(
+                check_auth=lambda: None,
+                build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
+                get_env_vars=lambda factory_dir: {}
+            )
+    return _factory

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from lw_coder.worktree_utils import (
     get_branch_tip,
     get_branch_worktree,
     get_worktree_path,
+    has_uncommitted_changes,
     is_git_worktree,
 )
 from tests.conftest import write_plan
@@ -259,3 +261,33 @@ def test_get_worktree_path_valid_plan_ids(git_repo):
 
     path3 = get_worktree_path(git_repo.path, "test.plan")
     assert path3 == git_repo.path / ".lw_coder" / "worktrees" / "test.plan"
+
+
+def test_has_uncommitted_changes_with_changes(tmp_path: Path) -> None:
+    """Test has_uncommitted_changes returns True when there are changes."""
+    # Setup a git repo with uncommitted changes
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("test content")
+
+    # Assert
+    assert has_uncommitted_changes(tmp_path) is True
+
+
+def test_has_uncommitted_changes_clean_working_dir(tmp_path: Path) -> None:
+    """Test has_uncommitted_changes returns False for clean working directory."""
+    # Setup a git repo with no changes
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("test content")
+    subprocess.run(["git", "add", "test.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_path, check=True)
+
+    # Assert
+    assert has_uncommitted_changes(tmp_path) is False
