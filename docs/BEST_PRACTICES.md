@@ -4,6 +4,7 @@
 - **Use pytest.fail() for missing dependencies, not pytest.skip()**: When a test requires an external dependency that might not be available, use `pytest.fail()` with a clear error message instead of `pytest.skip()`. This ensures developers are notified of missing dependencies rather than silently skipping tests. Example: `pytest.fail("Required dependency 'droid' not found. Install it first with: pip install droid-cli")`.
 - **Avoid mocking DSPy and LLMs**: Use real DSPy components with real LLM API calls in tests. Configure tests with actual LLM providers (e.g., OpenRouter) rather than creating mock LLM objects or stub responses. DSPy's caching ensures the first test run hits the API while subsequent runs retrieve cached results, making tests both fast and representative of production behavior.
 - **Documentation is verified manually**: Avoid writing tests whose only purpose is to check for the existence of documentation pages or sections—keep effort focused on code behavior.
+- **Don't test interactive commands**: Avoid writing automated tests that run `lw_coder code` or `lw_coder plan` commands, as these launch interactive Claude Code sessions. Instead, test the underlying modules and functions directly with mock data or controlled inputs.
 
 ## Test Optimization
 
