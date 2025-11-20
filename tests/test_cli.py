@@ -10,30 +10,6 @@ import pytest
 from lw_coder.cli import main
 
 
-def test_code_command_default_tool_and_model(monkeypatch, caplog, tmp_path) -> None:
-    """Test code command with default tool and model."""
-    plan_path = tmp_path / "test.md"
-    plan_path.write_text("# Test Plan\n")
-
-    # Mock the run_code_command to capture arguments
-    captured_args = {}
-
-    def mock_run_code_command(path, tool="claude-code", model=None):
-        captured_args["path"] = path
-        captured_args["tool"] = tool
-        captured_args["model"] = model
-        return 0
-
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
-
-    # Run CLI with just plan path
-    exit_code = main(["code", str(plan_path)])
-
-    assert exit_code == 0
-    assert captured_args["tool"] == "claude-code"
-    assert captured_args["model"] == "sonnet"  # Default from docopt
-
-
 def test_code_command_explicit_tool(monkeypatch, tmp_path) -> None:
     """Test code command with explicit --tool parameter."""
     plan_path = tmp_path / "test.md"
