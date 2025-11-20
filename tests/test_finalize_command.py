@@ -232,6 +232,10 @@ evaluation_notes: []
     worktree_path = tmp_path / "worktree"
     worktree_path.mkdir()
 
+    # Create the tasks directory where the plan will be moved
+    tasks_dir = worktree_path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
     # Mock dependencies
     monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
     monkeypatch.setattr(
@@ -409,3 +413,110 @@ evaluation_notes: []
 
     # Verify only executor was called, no cleanup commands
     assert len(subprocess_calls) == 1
+
+
+def test_run_finalize_command_status_updated_after_merge(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
+    """Test finalize command updates plan status to 'done' only after successful merge verification."""
+    # Setup
+    plan_path = tmp_path / "test-plan.md"
+    plan_content = """---
+plan_id: test-plan
+git_sha: abcd1234abcd1234abcd1234abcd1234abcd1234
+status: coding
+evaluation_notes: []
+---
+
+# Test Plan
+"""
+    plan_path.write_text(plan_content)
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Create the tasks directory where the plan will be moved
+    tasks_dir = worktree_path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Track when update_plan_fields is called
+    update_calls = []
+
+    def track_update(path, fields):
+        update_calls.append((path, fields))
+        # Write the updated status to the file to simulate real behavior
+        content = path.read_text(encoding="utf-8")
+        front_matter, body = finalize_command.extract_front_matter(content)
+        front_matter.update(fields)
+        # Simple YAML writing for test
+        yaml_lines = ["---"]
+        for key, value in front_matter.items():
+            yaml_lines.append(f"{key}: {value}")
+        yaml_lines.append("---")
+        yaml_lines.append(body)
+        path.write_text("\n".join(yaml_lines))
+
+    monkeypatch.setattr(finalize_command, "update_plan_fields", track_update)
+
+    # Mock dependencies
+    monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+    monkeypatch.setattr(
+        finalize_command, "validate_worktree_exists",
+        lambda repo_root, plan_id: worktree_path
+    )
+    monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
+    monkeypatch.setattr(
+        finalize_command, "load_prompt_template",
+        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+    )
+    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
+    monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
+    monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
+
+    # Mock verification to return True
+    monkeypatch.setattr(finalize_command, "verify_branch_merged_to_main", lambda repo_root, branch: True)
+
+    # Mock subprocess for executor (successful exit)
+    mock_result = SimpleNamespace(returncode=0)
+    subprocess_calls = []
+
+    def mock_subprocess_run(*args, **kwargs):
+        subprocess_calls.append((args, kwargs))
+        # At this point, the plan file should have been moved to worktree
+        # but status should NOT yet be updated to 'done'
+        if len(subprocess_calls) == 1:
+            # Verify plan file exists in worktree and status is still 'coding'
+            plan_in_worktree = worktree_path / ".lw_coder" / "tasks" / "test-plan.md"
+            if plan_in_worktree.exists():
+                content = plan_in_worktree.read_text(encoding="utf-8")
+                front_matter, _ = finalize_command.extract_front_matter(content)
+                current_status = front_matter.get("status", "").strip().lower()
+                assert current_status == "coding", f"Status should be 'coding' before executor completes, got '{current_status}'"
+            return mock_result
+        # Subsequent calls are cleanup commands
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
+
+    # Mock executor
+    from lw_coder.executors import ExecutorRegistry
+    mock_executor = mock_executor_factory("claude-code")
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+    # Execute
+    caplog.set_level(logging.INFO)
+    exit_code = run_finalize_command(plan_path, tool="claude-code")
+
+    # Assert
+    assert exit_code == 0
+
+    # Verify update_plan_fields was called exactly once, after merge verification
+    assert len(update_calls) == 1
+    update_path, update_fields = update_calls[0]
+
+    # Verify it was called on the plan file in the worktree
+    assert update_path == worktree_path / ".lw_coder" / "tasks" / "test-plan.md"
+
+    # Verify it was called with status='done'
+    assert update_fields == {"status": "done"}
+
+    # Verify the log message appears
+    assert "Updated plan status to 'done'" in caplog.text

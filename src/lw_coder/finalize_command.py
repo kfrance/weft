@@ -178,23 +178,7 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
 
         logger.info("Found uncommitted changes in worktree")
 
-        # Update plan status to "done" before moving (so moved file has correct status)
-        try:
-            content = resolved_plan_path.read_text(encoding="utf-8")
-            front_matter, _ = extract_front_matter(content)
-            current_status = front_matter.get("status", "").strip().lower() if isinstance(front_matter.get("status"), str) else ""
-
-            if current_status != "done":
-                update_plan_fields(resolved_plan_path, {"status": "done"})
-                logger.info("Updated plan status to 'done'")
-        except OSError as exc:
-            # I/O errors - may be transient
-            logger.warning("Failed to update plan status (I/O error): %s", exc)
-        except (PlanValidationError, PlanLifecycleError) as exc:
-            # Validation errors - likely a user error in plan format
-            logger.warning("Failed to update plan status (validation error): %s", exc)
-
-        # Move plan file to worktree (after status update so it has status="done")
+        # Move plan file to worktree (will be committed as part of the finalize workflow)
         _move_plan_to_worktree(resolved_plan_path, worktree_path, plan_id)
 
         # Load template
@@ -265,6 +249,29 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
                 try:
                     if verify_branch_merged_to_main(repo_root, branch_name):
                         logger.info("Verified branch was merged into main")
+
+                        # Update plan status to "done" after successful merge (if not already done)
+                        plan_file_in_worktree = worktree_path / ".lw_coder" / "tasks" / f"{plan_id}.md"
+                        if not plan_file_in_worktree.exists():
+                            logger.warning(
+                                "Plan file not found in worktree at %s, skipping status update",
+                                plan_file_in_worktree
+                            )
+                        else:
+                            try:
+                                content = plan_file_in_worktree.read_text(encoding="utf-8")
+                                front_matter, _ = extract_front_matter(content)
+                                current_status = front_matter.get("status", "").strip().lower() if isinstance(front_matter.get("status"), str) else ""
+
+                                if current_status != "done":
+                                    update_plan_fields(plan_file_in_worktree, {"status": "done"})
+                                    logger.info("Updated plan status to 'done'")
+                            except OSError as exc:
+                                # I/O errors - may be transient
+                                logger.warning("Failed to update plan status (I/O error): %s", exc)
+                            except (PlanValidationError, PlanLifecycleError) as exc:
+                                # Validation errors - likely a user error in plan format
+                                logger.warning("Failed to update plan status (validation error): %s", exc)
 
                         # Clean up worktree and branch
                         try:
