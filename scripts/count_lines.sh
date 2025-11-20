@@ -27,6 +27,16 @@ echo "  Lines of Code Report"
 echo "=========================================="
 echo ""
 
+# Count non-test lines
+echo "NON-TEST LINES:"
+eval "find . -type f $EXCLUDE_ARGS -not -path '*/tests/*' -not -name '*.pyc'" | xargs wc -l 2>/dev/null | tail -1
+echo ""
+
+# Count test lines
+echo "TEST LINES:"
+eval "find . -type f $EXCLUDE_ARGS -path '*/tests/*' -not -name '*.pyc'" | xargs wc -l 2>/dev/null | tail -1
+echo ""
+
 # Total lines
 echo "TOTAL PROJECT LINES:"
 eval "find . -type f $EXCLUDE_ARGS -not -name '*.pyc'" | xargs wc -l 2>/dev/null | tail -1
@@ -47,21 +57,6 @@ echo "JSON (.json):"
 eval "find . -type f -name '*.json' $EXCLUDE_ARGS" | xargs wc -l 2>/dev/null | tail -1
 echo ""
 
-# TOML
-echo "TOML (.toml):"
-eval "find . -type f -name '*.toml' $EXCLUDE_ARGS" | xargs wc -l 2>/dev/null | tail -1
-echo ""
-
-# YAML
-echo "YAML (.yml, .yaml):"
-eval "find . -type f \( -name '*.yml' -o -name '*.yaml' \) $EXCLUDE_ARGS" | xargs wc -l 2>/dev/null | tail -1
-echo ""
-
-# Dockerfile
-echo "Dockerfile:"
-eval "find . -type f \( -name '*Dockerfile*' -o -name '*.dockerfile' \) $EXCLUDE_ARGS" | xargs wc -l 2>/dev/null | tail -1
-echo ""
-
 # Shell scripts
 echo "Shell scripts (.sh):"
 eval "find . -type f -name '*.sh' $EXCLUDE_ARGS" | xargs wc -l 2>/dev/null | tail -1
@@ -78,11 +73,6 @@ eval "find . -type f $EXCLUDE_ARGS \
     -not -name '*.py' \
     -not -name '*.md' \
     -not -name '*.json' \
-    -not -name '*.toml' \
-    -not -name '*.yml' \
-    -not -name '*.yaml' \
-    -not -name '*Dockerfile*' \
-    -not -name '*.dockerfile' \
     -not -name '*.sh' \
     -not -name '*.pyc'" | head -20 | while read file; do
     lines=$(wc -l < "$file" 2>/dev/null || echo "0")
@@ -96,11 +86,6 @@ eval "find . -type f $EXCLUDE_ARGS \
     -not -name '*.py' \
     -not -name '*.md' \
     -not -name '*.json' \
-    -not -name '*.toml' \
-    -not -name '*.yml' \
-    -not -name '*.yaml' \
-    -not -name '*Dockerfile*' \
-    -not -name '*.dockerfile' \
     -not -name '*.sh' \
     -not -name '*.pyc'" | sed 's/.*\.//' | sort | uniq -c | sort -rn | head -10
 echo ""
