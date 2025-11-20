@@ -44,3 +44,4 @@ Thumbs.db
 .lw_coder/runs/
 plan.md
 .claude/agents/
+.lw_coder/plan-traces/
