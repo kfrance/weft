@@ -2,10 +2,10 @@ Here is an initial idea for a plan that needs to be refined and formalized:
 
 {IDEA_TEXT}
 
-Before you proceed, look for supporting docs such as `docs/BEST_PRACTICES.md`, `AGENTS.md`, and `CLAUDE.md` in the project; keep any guidance you find in mind while planning.
+Before you proceed, look for supporting docs such as `docs/BEST_PRACTICES.md`, `AGENTS.md`, and `CLAUDE.md` in your current working directory; keep any guidance you find in mind while planning.
 
 Your task:
-1. Examine the codebase in the project to understand implementation context
+1. Examine the codebase in your current working directory to understand implementation context
 2. Ask me clarifying questions ONE AT A TIME until you fully understand the requirements
 3. Use the maintainability-reviewer subagent to evaluate long-term maintenance concerns
 4. Ask me additional clarifying questions if needed based on the maintainability review
