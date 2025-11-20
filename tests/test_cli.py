@@ -215,3 +215,158 @@ def test_code_command_invalid_model(monkeypatch, caplog, tmp_path) -> None:
     mock_run.assert_not_called()
 
 
+# Quick Fix CLI Tests
+
+
+def test_code_command_with_text_flag(monkeypatch, tmp_path, git_repo) -> None:
+    """Test code command with --text flag creates quick-fix plan."""
+    monkeypatch.chdir(git_repo.path)
+
+    captured_args = {}
+
+    def mock_run_code_command(path, tool="claude-code", model=None):
+        captured_args["path"] = path
+        captured_args["tool"] = tool
+        captured_args["model"] = model
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+
+    # Run CLI with --text flag
+    exit_code = main(["code", "--text", "Fix the login button"])
+
+    assert exit_code == 0
+    assert captured_args["tool"] == "claude-code"
+    assert captured_args["model"] == "sonnet"
+
+    # Verify plan file was created
+    plan_path = captured_args["path"]
+    assert plan_path.exists()
+    assert plan_path.name.startswith("quick-fix-")
+    assert "Fix the login button" in plan_path.read_text(encoding="utf-8")
+
+
+def test_code_command_text_mutual_exclusivity(monkeypatch, caplog, tmp_path, git_repo) -> None:
+    """Test that plan_path and --text are mutually exclusive."""
+    monkeypatch.chdir(git_repo.path)
+
+    plan_path = tmp_path / "test.md"
+    plan_path.write_text("# Test Plan\n")
+
+    mock_run = MagicMock()
+    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+
+    caplog.set_level(logging.ERROR)
+
+    # Run CLI with both plan_path and --text
+    exit_code = main(["code", str(plan_path), "--text", "Fix something"])
+
+    assert exit_code == 1
+    assert "mutually exclusive" in caplog.text
+    mock_run.assert_not_called()
+
+
+def test_code_command_text_empty_error(monkeypatch, caplog, git_repo) -> None:
+    """Test that empty --text is rejected."""
+    monkeypatch.chdir(git_repo.path)
+
+    mock_run = MagicMock()
+    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+
+    caplog.set_level(logging.ERROR)
+
+    # Run CLI with empty text
+    exit_code = main(["code", "--text", ""])
+
+    assert exit_code == 1
+    assert "Failed to create quick-fix plan" in caplog.text
+    mock_run.assert_not_called()
+
+
+def test_code_command_text_with_tool_flag(monkeypatch, git_repo) -> None:
+    """Test --text works with --tool flag."""
+    monkeypatch.chdir(git_repo.path)
+
+    captured_args = {}
+
+    def mock_run_code_command(path, tool="claude-code", model=None):
+        captured_args["path"] = path
+        captured_args["tool"] = tool
+        captured_args["model"] = model
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+
+    # Run CLI with --text and --tool
+    exit_code = main(["code", "--text", "Fix bug", "--tool", "droid"])
+
+    assert exit_code == 0
+    assert captured_args["tool"] == "droid"
+    assert captured_args["model"] is None  # droid ignores model
+
+
+def test_code_command_text_with_model_flag(monkeypatch, git_repo) -> None:
+    """Test --text works with --model flag."""
+    monkeypatch.chdir(git_repo.path)
+
+    captured_args = {}
+
+    def mock_run_code_command(path, tool="claude-code", model=None):
+        captured_args["path"] = path
+        captured_args["tool"] = tool
+        captured_args["model"] = model
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+
+    # Run CLI with --text and --model
+    exit_code = main(["code", "--text", "Fix bug", "--model", "opus"])
+
+    assert exit_code == 0
+    assert captured_args["model"] == "opus"
+
+
+def test_code_command_neither_path_nor_text(monkeypatch, caplog, git_repo) -> None:
+    """Test that error is raised when neither plan_path nor --text is provided."""
+    monkeypatch.chdir(git_repo.path)
+
+    mock_run = MagicMock()
+    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+
+    caplog.set_level(logging.ERROR)
+
+    # Run CLI with no arguments
+    exit_code = main(["code"])
+
+    assert exit_code == 1
+    assert "Must specify either plan_path or --text" in caplog.text
+    mock_run.assert_not_called()
+
+
+def test_code_command_text_multiline(monkeypatch, git_repo) -> None:
+    """Test --text with multiline input."""
+    monkeypatch.chdir(git_repo.path)
+
+    captured_args = {}
+
+    def mock_run_code_command(path, tool="claude-code", model=None):
+        captured_args["path"] = path
+        captured_args["tool"] = tool
+        captured_args["model"] = model
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+
+    multiline_text = "Fix login\n\nUpdate button styles\nAdd hover effect"
+
+    # Run CLI with multiline text
+    exit_code = main(["code", "--text", multiline_text])
+
+    assert exit_code == 0
+
+    # Verify multiline text is preserved
+    plan_path = captured_args["path"]
+    content = plan_path.read_text(encoding="utf-8")
+    assert multiline_text in content
+
+

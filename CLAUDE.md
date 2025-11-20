@@ -17,8 +17,20 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 ### CLI Usage
 - **Create/edit plan**: `uv run lw_coder plan --text "plan idea"` or `uv run lw_coder plan <plan_path>`
 - **Validate plan file**: `uv run lw_coder code <plan_path>`
+- **Quick fix mode**: `uv run lw_coder code --text "description"` - Bypasses interactive planning for simple fixes
 - **Finalize plan**: `uv run lw_coder finalize <plan_path>`
 - **Install bash completion**: `uv run lw_coder completion install` (see `docs/COMPLETION.md` for setup)
+
+#### Quick Fix Mode
+The `--text` flag allows you to quickly execute simple fixes without creating a full plan file:
+- Creates plan files with pattern `quick-fix-YYYY.MM-NNN.md` in `.lw_coder/tasks/`
+- Counter (NNN) resets monthly and increments from 001-999
+- On overflow (>999 fixes/month), automatically falls back to timestamp format: `quick-fix-YYYY.MM.DD-HHMMSS`
+- Works with `--tool` (claude-code, droid) and `--model` (sonnet, opus, haiku) flags
+- Examples:
+  - `uv run lw_coder code --text "Fix login button styling"`
+  - `uv run lw_coder code --text "Update API endpoint" --tool droid`
+  - `uv run lw_coder code --text "Refactor auth module" --model opus`
 
 ## Testing
 

@@ -72,9 +72,15 @@ def create_parser() -> argparse.ArgumentParser:
     )
     code_plan_path_arg = code_parser.add_argument(
         "plan_path",
+        nargs="?",
         help="Path to plan file or plan ID",
     )
     code_plan_path_arg.completer = complete_plan_files
+    code_parser.add_argument(
+        "--text",
+        dest="text",
+        help="Inline text for quick fix (mutually exclusive with plan_path)",
+    )
     code_tool_arg = code_parser.add_argument(
         "--tool",
         dest="tool",
@@ -187,12 +193,34 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Code command
     if args.command == "code":
-        # Resolve plan_path (could be ID or path)
-        try:
-            plan_path = PlanResolver.resolve(args.plan_path)
-        except FileNotFoundError as exc:
-            logger.error("%s", exc)
+        # Check for mutual exclusivity of plan_path and --text
+        if args.plan_path and args.text is not None:
+            logger.error("Cannot specify both plan_path and --text. They are mutually exclusive.")
             return 1
+
+        # Check that at least one is provided
+        if not args.plan_path and args.text is None:
+            logger.error("Must specify either plan_path or --text")
+            return 1
+
+        # Handle --text flag: create quick-fix plan
+        if args.text is not None:
+            from .quick_fix import QuickFixError, create_quick_fix_plan
+
+            try:
+                plan_path = create_quick_fix_plan(args.text)
+                logger.info("Created quick-fix plan: %s", plan_path)
+            except QuickFixError as exc:
+                logger.error("Failed to create quick-fix plan: %s", exc)
+                return 1
+        else:
+            # Resolve plan_path (could be ID or path)
+            try:
+                plan_path = PlanResolver.resolve(args.plan_path)
+            except FileNotFoundError as exc:
+                logger.error("%s", exc)
+                return 1
+
         tool = args.tool
 
         # Check if model was explicitly provided in command line

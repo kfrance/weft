@@ -108,6 +108,10 @@ These aren't security issues but are documented for completeness:
 - **Rationale:** Documentation only; show example prompt structure
 - **Note:** Tests verify templates exist but they're not used in code
 
+**Decision: Non-atomic quick-fix ID generation (TOCTOU race condition accepted)**
+- **Risk Accepted:** Concurrent `lw_coder code --text` invocations (~20ms window) could generate duplicate IDs, causing silent file overwrite
+- **Justification:** Single-developer CLI tool; race requires near-simultaneous execution; user can re-run if collision occurs
+
 ## Security Boundary Summary
 
 ```
