@@ -30,6 +30,7 @@ Analyze the staged changes using `git diff --staged` and create a commit message
 
 ```
 <short descriptive summary>
+
 @.lw_coder/tasks/{PLAN_ID}.md
 
 <detailed description of changes>
@@ -37,8 +38,10 @@ Analyze the staged changes using `git diff --staged` and create a commit message
 
 **Requirements:**
 - Line 1: Short description (50-72 chars) summarizing the changes
-- Line 2: Plan reference `@.lw_coder/tasks/{PLAN_ID}.md`
-- Line 3+: Detailed description explaining what changed and why
+- Line 2: Blank line
+- Line 3: Plan reference `@.lw_coder/tasks/{PLAN_ID}.md`
+- Line 4: Blank line
+- Line 5+: Detailed description explaining what changed and why
 
 ### 5. Commit the changes
 
