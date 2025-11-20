@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from .executors import ExecutorError, ExecutorRegistry
@@ -19,6 +20,12 @@ from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, extract_front_matter
 from .repo_utils import RepoUtilsError, find_repo_root, load_prompt_template
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
+from .trace_capture import (
+    TraceCaptureError,
+    capture_session_trace,
+    create_plan_trace_directory,
+    prune_old_plan_traces,
+)
 
 logger = get_logger(__name__)
 
@@ -246,6 +253,25 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         # Build host command
         host_cmd, host_env = build_host_command(runner_config)
 
+        # Create plan trace directory
+        plan_trace_dir = None
+        if tool == "claude-code":
+            try:
+                plan_trace_dir = create_plan_trace_directory(repo_root)
+                logger.debug("Created plan trace directory: %s", plan_trace_dir)
+            except TraceCaptureError as exc:
+                logger.warning("Failed to create plan trace directory: %s", exc)
+
+        # Prune old plan traces (non-fatal if it fails)
+        if tool == "claude-code":
+            try:
+                prune_old_plan_traces(repo_root)
+            except Exception as exc:
+                logger.debug("Failed to prune old plan traces: %s", exc)
+
+        # Capture execution start time for trace capture
+        execution_start = time.time()
+
         # Run executor interactively on the host
         try:
             result = subprocess.run(
@@ -254,6 +280,25 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
                 env=host_env,
                 cwd=temp_worktree,
             )
+
+            # Capture execution end time for trace capture
+            execution_end = time.time()
+
+            # Capture conversation trace (non-fatal if it fails)
+            if tool == "claude-code" and plan_trace_dir:
+                try:
+                    trace_file = capture_session_trace(
+                        worktree_path=temp_worktree,
+                        command="plan",
+                        run_dir=plan_trace_dir,
+                        execution_start=execution_start,
+                        execution_end=execution_end,
+                    )
+                    if trace_file:
+                        logger.debug("Trace captured at: %s", trace_file)
+                except TraceCaptureError as exc:
+                    logger.warning("Warning: Trace capture failed")
+                    logger.debug("Trace capture error details: %s", exc)
 
             # Copy newly created plan files from worktree to main repository
             try:
@@ -268,7 +313,25 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
 
             return result.returncode
         except KeyboardInterrupt:
+            execution_end = time.time()
             logger.info("Session interrupted by user.")
+
+            # Capture conversation trace even for interrupted sessions (non-fatal if it fails)
+            if tool == "claude-code" and plan_trace_dir:
+                try:
+                    trace_file = capture_session_trace(
+                        worktree_path=temp_worktree,
+                        command="plan",
+                        run_dir=plan_trace_dir,
+                        execution_start=execution_start,
+                        execution_end=execution_end,
+                    )
+                    if trace_file:
+                        logger.debug("Trace captured at: %s", trace_file)
+                except TraceCaptureError as exc:
+                    logger.warning("Warning: Trace capture failed")
+                    logger.debug("Trace capture error details: %s", exc)
+
             return 0
 
     except (ExecutorError, PlanCommandError, TempWorktreeError, RepoUtilsError) as exc:

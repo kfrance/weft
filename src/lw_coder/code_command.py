@@ -13,6 +13,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from .executors import ExecutorRegistry, ExecutorError
@@ -38,6 +39,7 @@ from .run_manager import (
     create_run_directory,
     prune_old_runs,
 )
+from .trace_capture import TraceCaptureError, capture_session_trace
 from .worktree_utils import WorktreeError, ensure_worktree
 
 logger = get_logger(__name__)
@@ -378,6 +380,9 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
     logger.info("Launching %s session on host...", tool)
     logger.debug("Host command: %s", " ".join(host_cmd))
 
+    # Capture execution start time for trace capture
+    execution_start = time.time()
+
     try:
         # Run interactively, streaming output to user
         result = subprocess.run(
@@ -387,6 +392,9 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
             cwd=worktree_path,
         )
 
+        # Capture execution end time for trace capture
+        execution_end = time.time()
+
         if result.returncode == 0:
             try:
                 update_plan_fields(plan_path, {"status": "implemented"})
@@ -395,6 +403,22 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
                     "Failed to update plan status to 'implemented' after successful session: %s",
                     exc,
                 )
+
+        # Capture conversation trace (non-fatal if it fails)
+        if tool == "claude-code":
+            try:
+                trace_file = capture_session_trace(
+                    worktree_path=worktree_path,
+                    command="code",
+                    run_dir=run_dir,
+                    execution_start=execution_start,
+                    execution_end=execution_end,
+                )
+                if trace_file:
+                    logger.debug("Trace captured at: %s", trace_file)
+            except TraceCaptureError as exc:
+                logger.warning("Warning: Trace capture failed")
+                logger.debug("Trace capture error details: %s", exc)
 
         if result.returncode != 0:
             logger.warning("%s session exited with code %d", tool, result.returncode)
@@ -414,9 +438,28 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
         return result.returncode
 
     except KeyboardInterrupt:
+        execution_end = time.time()
         logger.info("%s session interrupted by user", tool)
+
+        # Capture conversation trace even for interrupted sessions (non-fatal if it fails)
+        if tool == "claude-code":
+            try:
+                trace_file = capture_session_trace(
+                    worktree_path=worktree_path,
+                    command="code",
+                    run_dir=run_dir,
+                    execution_start=execution_start,
+                    execution_end=execution_end,
+                )
+                if trace_file:
+                    logger.debug("Trace captured at: %s", trace_file)
+            except TraceCaptureError as exc:
+                logger.warning("Warning: Trace capture failed")
+                logger.debug("Trace capture error details: %s", exc)
+
         return 130  # Standard exit code for SIGINT
     except Exception as exc:
+        execution_end = time.time()
         logger.error("Failed to run %s session: %s", tool, exc)
         return 1
     finally:

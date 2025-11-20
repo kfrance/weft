@@ -6,6 +6,58 @@
 - **Documentation is verified manually**: Avoid writing tests whose only purpose is to check for the existence of documentation pages or sections—keep effort focused on code behavior.
 - **Don't test interactive commands**: Avoid writing automated tests that run `lw_coder code` or `lw_coder plan` commands, as these launch interactive Claude Code sessions. Instead, test the underlying modules and functions directly with mock data or controlled inputs.
 
+## Architecture Decision Records (ADRs)
+
+Architecture Decision Records document significant architectural choices, trade-offs, and technical decisions. They provide context for future maintainers and help evaluate whether past decisions still make sense.
+
+### When to Create an ADR
+
+Create an ADR for:
+- **Significant architectural choices**: Design patterns, system structure, technology selection
+- **External dependencies on undocumented APIs**: Relying on internal implementation details of third-party tools
+- **Trade-off decisions**: Choosing between competing approaches with clear pros/cons
+- **Breaking changes**: Changes that affect how components interact or how the system is used
+- **Security decisions**: Authentication, authorization, data handling choices
+- **Performance trade-offs**: Accepting reduced performance for other benefits (or vice versa)
+
+Do NOT create ADRs for:
+- Routine code changes or refactoring
+- Bug fixes (unless they reveal a design flaw worth documenting)
+- Trivial dependency additions
+- Configuration changes
+
+### ADR Format and Location
+
+- **Location**: `docs/adr/NNN-title-with-dashes.md`
+- **Numbering**: Sequential starting from 001
+- **Template**:
+
+```markdown
+# ADR NNN: Title
+
+## Status
+[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
+
+## Context
+What is the issue that we're seeing? What factors are influencing this decision?
+
+## Decision
+What decision have we made? Be specific and concrete.
+
+## Consequences
+What becomes easier or harder as a result? Include positive, negative, and neutral consequences.
+
+## Alternatives Considered
+What other options were evaluated? Why were they rejected?
+
+## References
+Links to related documents, tickets, or discussions.
+```
+
+### Example ADR
+
+See `docs/adr/001-trace-capture-claude-dependency.md` for a complete example documenting the decision to rely on Claude Code's undocumented internal file format for conversation trace capture.
+
 ## Test Optimization
 
 - **Avoid redundant tests**: Before adding a new test, check if similar test coverage already exists. Duplicate tests increase maintenance burden without adding value.
