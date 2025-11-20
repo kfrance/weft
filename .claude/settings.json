@@ -2,7 +2,7 @@
 		"sandbox": {
 				"enabled": true,
 				"autoAllowBashIfSandboxed": true,
-				"excludedCommands": ["git", "docker"],
+				"excludedCommands": ["git", "docker", "uv"],
 				"network": {
 						"allowLocalBinding": true
 				}
@@ -11,7 +11,8 @@
 				"allow": [
 						"WebFetch(domain:files.pythonhosted.org)",
 						"WebFetch(domain:pypi.org)",
-						"WebFetch(domain:app.asana.com)"
+						"WebFetch(domain:app.asana.com)",
+						"Bash(uv run pytest:*)"
 				],
 				"deny": [
 						"Read(./.env*)"
