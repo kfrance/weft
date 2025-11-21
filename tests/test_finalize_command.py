@@ -409,3 +409,139 @@ evaluation_notes: []
 
     # Verify only executor was called, no cleanup commands
     assert len(subprocess_calls) == 1
+
+
+# Integration tests for backup cleanup functionality
+
+
+def test_backup_cleanup_called_after_successful_finalize(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
+    """Test that cleanup_backup is called after successful finalize."""
+    from unittest.mock import Mock
+
+    # Setup plan file
+    plan_path = tmp_path / "test-plan.md"
+    plan_content = """---
+plan_id: test-plan
+git_sha: abcd1234abcd1234abcd1234abcd1234abcd1234
+status: implemented
+evaluation_notes: []
+---
+
+# Test Plan
+"""
+    plan_path.write_text(plan_content)
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Mock cleanup_backup to track calls
+    mock_cleanup_backup = Mock()
+    monkeypatch.setattr(finalize_command, "cleanup_backup", mock_cleanup_backup)
+
+    # Mock dependencies
+    monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+    monkeypatch.setattr(
+        finalize_command, "validate_worktree_exists",
+        lambda repo_root, plan_id: worktree_path
+    )
+    monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
+    monkeypatch.setattr(
+        finalize_command, "load_prompt_template",
+        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+    )
+    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
+    monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
+    monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
+
+    # Mock verification to return True (branch was merged)
+    monkeypatch.setattr(finalize_command, "verify_branch_merged_to_main", lambda repo_root, branch: True)
+
+    # Mock cleanup functions to succeed
+    monkeypatch.setattr(finalize_command, "_cleanup_worktree_and_branch", lambda repo_root, worktree_path, plan_id: None)
+
+    # Mock subprocess for executor (successful exit)
+    mock_result = SimpleNamespace(returncode=0)
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: mock_result)
+
+    # Mock executor
+    from lw_coder.executors import ExecutorRegistry
+    mock_executor = mock_executor_factory("claude-code")
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+    # Execute
+    exit_code = run_finalize_command(plan_path, tool="claude-code")
+
+    # Assert
+    assert exit_code == 0
+    mock_cleanup_backup.assert_called_once_with(tmp_path, "test-plan")
+
+
+def test_finalize_succeeds_with_idempotent_cleanup(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
+    """Test that finalize succeeds when cleanup is idempotent (ref already gone)."""
+    import logging
+    from unittest.mock import Mock
+
+    # Setup plan file
+    plan_path = tmp_path / "test-plan.md"
+    plan_content = """---
+plan_id: test-plan
+git_sha: abcd1234abcd1234abcd1234abcd1234abcd1234
+status: implemented
+evaluation_notes: []
+---
+
+# Test Plan
+"""
+    plan_path.write_text(plan_content)
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Track cleanup_backup calls - it should be idempotent and not raise
+    cleanup_called = []
+    def mock_cleanup_backup_idempotent(repo_root, plan_id):
+        cleanup_called.append((repo_root, plan_id))
+        # Simulate idempotent behavior - logs but doesn't raise
+        import logging
+        logging.getLogger("lw_coder.plan_backup").debug(f"Backup reference already deleted: refs/plan-backups/{plan_id}")
+
+    monkeypatch.setattr(finalize_command, "cleanup_backup", mock_cleanup_backup_idempotent)
+
+    # Mock dependencies
+    monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+    monkeypatch.setattr(
+        finalize_command, "validate_worktree_exists",
+        lambda repo_root, plan_id: worktree_path
+    )
+    monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
+    monkeypatch.setattr(
+        finalize_command, "load_prompt_template",
+        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+    )
+    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
+    monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
+    monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
+
+    # Mock verification to return True (branch was merged)
+    monkeypatch.setattr(finalize_command, "verify_branch_merged_to_main", lambda repo_root, branch: True)
+
+    # Mock cleanup functions to succeed
+    monkeypatch.setattr(finalize_command, "_cleanup_worktree_and_branch", lambda repo_root, worktree_path, plan_id: None)
+
+    # Mock subprocess for executor (successful exit)
+    mock_result = SimpleNamespace(returncode=0)
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: mock_result)
+
+    # Mock executor
+    from lw_coder.executors import ExecutorRegistry
+    mock_executor = mock_executor_factory("claude-code")
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+    # Execute
+    caplog.set_level(logging.INFO)
+    exit_code = run_finalize_command(plan_path, tool="claude-code")
+
+    # Assert - command should succeed with idempotent cleanup
+    assert exit_code == 0
+    assert len(cleanup_called) == 1
+    assert cleanup_called[0] == (tmp_path, "test-plan")

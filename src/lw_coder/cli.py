@@ -9,13 +9,14 @@ from typing import Sequence
 import argcomplete
 
 from .code_command import run_code_command
-from .completion.completers import complete_models, complete_plan_files, complete_tools
+from .completion.completers import complete_backup_plans, complete_models, complete_plan_files, complete_tools
 from .completion_install import run_completion_install
 from .finalize_command import run_finalize_command
 from .logging_config import configure_logging, get_logger
 from .param_validation import ParameterValidationError, validate_tool_model_compatibility
 from .plan_command import run_plan_command
 from .plan_resolver import PlanResolver
+from .recover_command import run_recover_command
 
 logger = get_logger(__name__)
 
@@ -114,6 +115,24 @@ def create_parser() -> argparse.ArgumentParser:
     )
     finalize_tool_arg.completer = complete_tools
 
+    # Recover-plan command
+    recover_parser = subparsers.add_parser(
+        "recover-plan",
+        help="List or recover backed-up plans",
+    )
+    recover_plan_id_arg = recover_parser.add_argument(
+        "plan_id",
+        nargs="?",
+        help="Plan ID to recover (omit to list all backups)",
+    )
+    recover_plan_id_arg.completer = complete_backup_plans
+    recover_parser.add_argument(
+        "--force",
+        dest="force",
+        action="store_true",
+        help="Overwrite existing plan file if it exists",
+    )
+
     # Completion command
     completion_parser = subparsers.add_parser(
         "completion",
@@ -181,6 +200,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         tool = args.tool
         return run_finalize_command(plan_path, tool=tool)
+
+    # Recover-plan command
+    if args.command == "recover-plan":
+        plan_id = args.plan_id
+        force = args.force
+        return run_recover_command(plan_id, force)
 
     # Completion command
     if args.command == "completion":

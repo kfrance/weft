@@ -15,6 +15,7 @@ from pathlib import Path
 from .executors import ExecutorError, ExecutorRegistry
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
+from .plan_backup import cleanup_backup
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PlanValidationError, extract_front_matter, load_plan_id
 from .repo_utils import (
@@ -283,6 +284,10 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
                                 branch_name,
                             )
                             return 1
+
+                        # Clean up backup reference (non-fatal if it fails)
+                        cleanup_backup(repo_root, plan_id)
+                        logger.info("Cleaned up backup reference for plan '%s'", plan_id)
                     else:
                         logger.warning(
                             "Branch '%s' was not merged into main - skipping cleanup",

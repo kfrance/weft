@@ -15,6 +15,7 @@ from pathlib import Path
 from .executors import ExecutorError, ExecutorRegistry
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
+from .plan_backup import PlanBackupError, create_backup
 from .plan_file_copier import PlanFileCopyError, copy_plan_files, get_existing_files
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, extract_front_matter
@@ -302,14 +303,36 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
 
             # Copy newly created plan files from worktree to main repository
             try:
-                copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
+                file_mapping = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
             except PlanFileCopyError as exc:
                 logger.warning("Failed to copy plan files from worktree: %s", exc)
+                file_mapping = {}
 
             try:
                 _ensure_placeholder_git_sha(tasks_dir)
             except PlanLifecycleError as exc:
                 logger.warning("Failed to normalize plan git_sha placeholder: %s", exc)
+
+            # Create backups for all copied plan files (non-fatal)
+            failed_backups = []
+            for final_filename in file_mapping.values():
+                try:
+                    # Extract plan_id from file name (remove .md extension)
+                    plan_id = Path(final_filename).stem
+                    create_backup(repo_root, plan_id)
+                    logger.info("Created backup for plan: %s", plan_id)
+                except PlanBackupError as exc:
+                    failed_backups.append((plan_id, str(exc)))
+                    logger.error("Failed to create backup for plan '%s': %s", plan_id, exc)
+
+            # Log summary if any backups failed (non-fatal)
+            if failed_backups:
+                logger.warning(
+                    "Plan files copied successfully but %d backup(s) failed. "
+                    "Plans may not be recoverable if deleted. Failed: %s",
+                    len(failed_backups),
+                    ", ".join(plan_id for plan_id, _ in failed_backups),
+                )
 
             return result.returncode
         except KeyboardInterrupt:

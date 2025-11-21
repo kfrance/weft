@@ -127,3 +127,39 @@ def complete_models(prefix: str, parsed_args, **kwargs) -> list[str]:
     except Exception as exc:
         logger.debug("Error in complete_models: %s", exc)
         return []
+
+
+def complete_backup_plans(prefix: str, parsed_args, **kwargs) -> list[str]:
+    """Complete backup plan IDs with status indicators.
+
+    Provides completions for plan IDs from backup references in the format:
+    - "plan-id (exists)" for plans with existing files
+    - "plan-id (missing)" for plans without existing files
+
+    Args:
+        prefix: Current input prefix being completed.
+        parsed_args: Parsed arguments from argparse (unused).
+        **kwargs: Additional argcomplete arguments (unused).
+
+    Returns:
+        List of backup plan IDs with status indicators.
+    """
+    try:
+        from ..plan_backup import list_backups
+        from ..repo_utils import find_repo_root
+
+        repo_root = find_repo_root()
+        backups = list_backups(repo_root)
+
+        completions = []
+        for plan_id, timestamp, file_exists in backups:
+            status = "exists" if file_exists else "missing"
+            completion = f"{plan_id} ({status})"
+            if completion.startswith(prefix):
+                completions.append(completion)
+
+        return completions
+
+    except Exception as exc:
+        logger.debug("Error in complete_backup_plans: %s", exc)
+        return []

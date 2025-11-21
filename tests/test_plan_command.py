@@ -519,3 +519,161 @@ def test_write_maintainability_agent_errors(tmp_path: Path, monkeypatch, error_t
     # Should raise appropriate error
     with pytest.raises(PlanCommandError, match=expected_match):
         _write_maintainability_agent(worktree_path)
+
+# Integration tests for backup functionality
+
+
+def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> None:
+    """Test that create_backup is called after plan files are copied."""
+    from unittest.mock import Mock, MagicMock
+    from lw_coder.plan_command import run_plan_command
+
+    # Track calls to create_backup
+    mock_create_backup = Mock()
+    monkeypatch.setattr("lw_coder.plan_command.create_backup", mock_create_backup)
+
+    # Mock all external dependencies
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    tasks_dir = repo_root / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("lw_coder.plan_command.find_repo_root", Mock(return_value=repo_root))
+
+    # Mock temp worktree
+    temp_worktree = tmp_path / "worktree"
+    temp_worktree.mkdir()
+    worktree_tasks_dir = temp_worktree / ".lw_coder" / "tasks"
+    worktree_tasks_dir.mkdir(parents=True)
+
+    # Create a plan file in worktree
+    (worktree_tasks_dir / "test-plan.md").write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
+
+    monkeypatch.setattr("lw_coder.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("lw_coder.plan_command.remove_temp_worktree", Mock())
+    monkeypatch.setattr("lw_coder.plan_command.get_lw_coder_src_dir", Mock(return_value=tmp_path / "src"))
+
+    # Mock agent/droid setup
+    monkeypatch.setattr("lw_coder.plan_command._write_maintainability_agent", Mock())
+    monkeypatch.setattr("lw_coder.plan_command._copy_droids_for_plan", Mock())
+
+    # Mock trace capture functions
+    monkeypatch.setattr("lw_coder.plan_command.create_plan_trace_directory", Mock(return_value=tmp_path / "traces"))
+    monkeypatch.setattr("lw_coder.plan_command.prune_old_plan_traces", Mock())
+    monkeypatch.setattr("lw_coder.plan_command.capture_session_trace", Mock(return_value=None))
+
+    # Mock copy_plan_files to return a file mapping indicating a plan was copied
+    def mock_copy_plan_files(source_dir, dest_dir, existing_files):
+        # Simulate copying a plan file
+        plan_file = dest_dir / "test-plan.md"
+        plan_file.write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
+        return {"test-plan.md": "test-plan.md"}
+
+    monkeypatch.setattr("lw_coder.plan_command.copy_plan_files", mock_copy_plan_files)
+
+    # Mock executor
+    mock_executor = MagicMock()
+    mock_executor.check_auth = Mock()
+    mock_executor.build_command = Mock(return_value="echo test")
+    mock_executor.get_env_vars = Mock(return_value={})
+    from lw_coder.executors import ExecutorRegistry
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", Mock(return_value=mock_executor))
+
+    # Mock host runner
+    monkeypatch.setattr("lw_coder.plan_command.host_runner_config", Mock(return_value={}))
+    monkeypatch.setattr("lw_coder.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+    monkeypatch.setattr("lw_coder.plan_command.load_prompt_template", Mock(return_value="test template"))
+
+    # Mock subprocess to succeed
+    mock_result = MagicMock(returncode=0)
+    monkeypatch.setattr("lw_coder.plan_command.subprocess.run", Mock(return_value=mock_result))
+
+    # Run the command
+    exit_code = run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+    # Verify backup was created
+    assert exit_code == 0
+    assert mock_create_backup.called
+    # Verify it was called with repo_root and a plan_id
+    call_args = mock_create_backup.call_args
+    assert call_args[0][0] == repo_root
+    assert isinstance(call_args[0][1], str)  # plan_id
+
+
+def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatch, caplog) -> None:
+    """Test that plan command succeeds even when backup creation fails (non-fatal)."""
+    from unittest.mock import Mock, MagicMock
+    from lw_coder.plan_command import run_plan_command
+    from lw_coder.plan_backup import PlanBackupError
+
+    # Mock create_backup to raise error
+    def mock_create_backup_failing(repo_root, plan_id):
+        raise PlanBackupError(f"Test backup failure for {plan_id}")
+
+    monkeypatch.setattr("lw_coder.plan_command.create_backup", mock_create_backup_failing)
+
+    # Mock all external dependencies
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    tasks_dir = repo_root / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("lw_coder.plan_command.find_repo_root", Mock(return_value=repo_root))
+
+    # Mock temp worktree
+    temp_worktree = tmp_path / "worktree"
+    temp_worktree.mkdir()
+    worktree_tasks_dir = temp_worktree / ".lw_coder" / "tasks"
+    worktree_tasks_dir.mkdir(parents=True)
+
+    # Create a plan file in worktree
+    (worktree_tasks_dir / "test-plan.md").write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
+
+    monkeypatch.setattr("lw_coder.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("lw_coder.plan_command.remove_temp_worktree", Mock())
+    monkeypatch.setattr("lw_coder.plan_command.get_lw_coder_src_dir", Mock(return_value=tmp_path / "src"))
+
+    # Mock agent/droid setup
+    monkeypatch.setattr("lw_coder.plan_command._write_maintainability_agent", Mock())
+    monkeypatch.setattr("lw_coder.plan_command._copy_droids_for_plan", Mock())
+
+    # Mock trace capture functions
+    monkeypatch.setattr("lw_coder.plan_command.create_plan_trace_directory", Mock(return_value=tmp_path / "traces"))
+    monkeypatch.setattr("lw_coder.plan_command.prune_old_plan_traces", Mock())
+    monkeypatch.setattr("lw_coder.plan_command.capture_session_trace", Mock(return_value=None))
+
+    # Mock copy_plan_files to return a file mapping indicating a plan was copied
+    def mock_copy_plan_files(source_dir, dest_dir, existing_files):
+        # Simulate copying a plan file
+        plan_file = dest_dir / "test-plan.md"
+        plan_file.write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
+        return {"test-plan.md": "test-plan.md"}
+
+    monkeypatch.setattr("lw_coder.plan_command.copy_plan_files", mock_copy_plan_files)
+
+    # Mock executor
+    mock_executor = MagicMock()
+    mock_executor.check_auth = Mock()
+    mock_executor.build_command = Mock(return_value="echo test")
+    mock_executor.get_env_vars = Mock(return_value={})
+    from lw_coder.executors import ExecutorRegistry
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", Mock(return_value=mock_executor))
+
+    # Mock host runner
+    monkeypatch.setattr("lw_coder.plan_command.host_runner_config", Mock(return_value={}))
+    monkeypatch.setattr("lw_coder.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+    monkeypatch.setattr("lw_coder.plan_command.load_prompt_template", Mock(return_value="test template"))
+
+    # Mock subprocess to succeed
+    mock_result = MagicMock(returncode=0)
+    monkeypatch.setattr("lw_coder.plan_command.subprocess.run", Mock(return_value=mock_result))
+
+    # Run the command - should succeed despite backup error
+    exit_code = run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+    # Verify command succeeded (backup failure is non-fatal)
+    assert exit_code == 0
+
+    # Verify warning was logged about backup failure
+    assert "backup(s) failed" in caplog.text
+    assert "test-plan" in caplog.text
