@@ -18,6 +18,7 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 - **Create/edit plan**: `uv run lw_coder plan --text "plan idea"` or `uv run lw_coder plan <plan_path>`
 - **Validate plan file**: `uv run lw_coder code <plan_path>`
 - **Quick fix mode**: `uv run lw_coder code --text "description"` - Bypasses interactive planning for simple fixes
+- **Evaluate code changes**: `uv run lw_coder eval <plan_id>` - Run LLM judges on implemented changes
 - **Finalize plan**: `uv run lw_coder finalize <plan_path>`
 - **Install bash completion**: `uv run lw_coder completion install` (see `docs/COMPLETION.md` for setup)
 
@@ -31,6 +32,17 @@ The `--text` flag allows you to quickly execute simple fixes without creating a 
   - `uv run lw_coder code --text "Fix login button styling"`
   - `uv run lw_coder code --text "Update API endpoint" --tool droid`
   - `uv run lw_coder code --text "Refactor auth module" --model opus`
+
+#### Eval Command
+The `eval` command evaluates code changes using LLM judges:
+- **Command**: `uv run lw_coder eval <plan_id>`
+- **When to use**: After running `lw_coder code` to evaluate the implementation
+- **What it does**: Runs all judges in `.lw_coder/judges/` against the code changes
+- **Output**: Shows each judge's score (0.0-1.0) and detailed feedback
+- **Judges included**:
+  - `code-reuse`: Evaluates whether code properly reuses existing functionality
+  - `plan-compliance`: Verifies implementation matches plan requirements
+- **Requirements**: `OPENROUTER_API_KEY` in `~/.lw_coder/.env`
 
 ## Testing
 

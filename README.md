@@ -129,6 +129,124 @@ lw_coder code .lw_coder/tasks/my-feature.md --model opus
 lw_coder code .lw_coder/tasks/my-feature.md --debug
 ```
 
+## Eval Command
+
+The `lw_coder eval` command evaluates code changes using LLM judges. After implementing a plan with the `code` command, use `eval` to get automated feedback on code quality and plan compliance.
+
+### Basic Usage
+
+```bash
+# Evaluate changes for a plan
+lw_coder eval <plan_id>
+
+# Examples
+lw_coder eval my-feature
+lw_coder eval quick-fix-2025.01-001
+```
+
+### How It Works
+
+The eval command:
+1. Discovers all judge files in `.lw_coder/judges/` directory
+2. Gathers the plan content and git changes from the worktree
+3. Executes all judges in parallel using DSPy and OpenRouter
+4. Displays each judge's score (0.0-1.0) and detailed feedback
+5. Shows an overall weighted score combining all judge results
+
+### Built-in Judges
+
+Two judges are included by default:
+
+#### Code Reuse Judge
+- **Weight**: 0.4
+- **Purpose**: Evaluates whether code properly reuses existing functionality
+- **Checks**: Looks for reimplemented logic that should have called existing functions
+- **File**: `.lw_coder/judges/code-reuse.md`
+
+#### Plan Compliance Judge
+- **Weight**: 0.6
+- **Purpose**: Verifies implementation matches plan requirements
+- **Checks**: Ensures all requirements are implemented and no out-of-scope additions
+- **File**: `.lw_coder/judges/plan-compliance.md`
+
+### Example Output
+
+```
+================================================================================
+Evaluation Results for: my-feature
+Worktree: .lw_coder/worktrees/my-feature
+================================================================================
+
+Judge: code-reuse
+Weight: 0.40
+Score: 0.85 / 1.00
+--------------------------------------------------------------------------------
+Feedback:
+Good code reuse overall. The implementation properly uses existing utility
+functions in most cases. Minor issue: function validate_input() at line 42
+reimplements logic similar to validation.check_format()...
+
+================================================================================
+
+Judge: plan-compliance
+Weight: 0.60
+Score: 0.92 / 1.00
+--------------------------------------------------------------------------------
+Feedback:
+Excellent plan compliance. All requirements from the plan are implemented:
+✓ User authentication module
+✓ Session management
+✓ Password reset flow...
+
+================================================================================
+
+Overall Weighted Score: 0.89 / 1.00
+================================================================================
+```
+
+### Requirements
+
+- `OPENROUTER_API_KEY` must be set in `~/.lw_coder/.env`
+- Worktree must exist (run `lw_coder code <plan_id>` first)
+- At least one judge file in `.lw_coder/judges/`
+
+### When to Use
+
+- **During development**: Run eval while coding to get early feedback
+- **Before finalize**: Run eval before `lw_coder finalize` to ensure quality
+- **After changes**: Run eval after making fixes to verify improvements
+- **Code review**: Use eval output to supplement manual code review
+
+### Creating Custom Judges
+
+Judges are markdown files with YAML frontmatter. Create new judges in `.lw_coder/judges/`:
+
+```markdown
+---
+weight: 0.5
+model: x-ai/grok-4.1-fast
+---
+
+# Your Judge Name
+
+You are evaluating code changes for [specific criteria].
+
+## Evaluation Criteria
+- [Criterion 1]
+- [Criterion 2]
+
+## Scoring Guidelines
+**Score: 0.9-1.0** - [Description]
+**Score: 0.7-0.8** - [Description]
+...
+```
+
+Required frontmatter fields:
+- `weight`: Float between 0.0 and 1.0 for weighted scoring
+- `model`: OpenRouter model tag (e.g., "x-ai/grok-4.1-fast")
+
+The judge instructions in the markdown body are loaded dynamically into DSPy using the `.with_instructions()` pattern.
+
 ## Recover Plan Command
 
 The `lw_coder recover-plan` command provides backup and recovery of plan files. Plan files are automatically backed up when created or modified during the `plan` command, and backups are automatically cleaned up when plans are finalized.

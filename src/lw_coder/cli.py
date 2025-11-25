@@ -147,6 +147,17 @@ def create_parser() -> argparse.ArgumentParser:
         help="Install bash completion for lw_coder",
     )
 
+    # Eval command
+    eval_parser = subparsers.add_parser(
+        "eval",
+        help="Evaluate code changes using LLM judges",
+    )
+    eval_plan_id_arg = eval_parser.add_argument(
+        "plan_id",
+        help="Plan ID to evaluate",
+    )
+    eval_plan_id_arg.completer = complete_plan_files
+
     return parser
 
 
@@ -215,6 +226,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             # No sub-command specified, show help
             parser.parse_args(["completion", "--help"])
             return 1
+
+    # Eval command
+    if args.command == "eval":
+        # Lazy import to avoid loading dspy (2+ seconds) during tab completion
+        from .eval_command import run_eval_command
+
+        plan_id = args.plan_id
+        return run_eval_command(plan_id)
 
     # Code command
     if args.command == "code":
