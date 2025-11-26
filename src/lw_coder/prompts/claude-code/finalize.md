@@ -65,7 +65,7 @@ If conflicts occur, work with the user to resolve them interactively, then conti
 
 First, navigate to the main repository root (not the worktree):
 ```bash
-cd $(git rev-parse --show-toplevel)
+cd $(git rev-parse --git-common-dir)/..
 ```
 
 Then checkout main and merge:
