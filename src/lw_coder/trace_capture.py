@@ -486,12 +486,16 @@ def capture_session_trace(
     command: str,
     run_dir: Path,
     execution_start: float,
-    execution_end: float
+    execution_end: float,
+    session_id: Optional[str] = None,
 ) -> Optional[Path]:
     """Capture conversation trace from Claude Code session.
 
     Main entry point for trace capture. Searches for Claude Code conversation
     files, parses them, and generates a clean markdown trace.
+
+    When session_id is provided (from SDK execution), it is used directly to
+    filter messages instead of relying on timing-based folder matching.
 
     Args:
         worktree_path: Path to the worktree directory
@@ -499,6 +503,8 @@ def capture_session_trace(
         run_dir: Directory where trace should be stored
         execution_start: Subprocess start time (seconds since epoch)
         execution_end: Subprocess end time (seconds since epoch)
+        session_id: Optional session ID from SDK execution. When provided,
+                    skips timing-based search and uses session ID directly.
 
     Returns:
         Path to the created trace file, or None if capture failed
@@ -509,6 +515,8 @@ def capture_session_trace(
     logger.debug("Starting trace capture for %s command", command)
     logger.debug("DEBUG: execution_start: %s (%s)", execution_start, datetime.fromtimestamp(execution_start).isoformat())
     logger.debug("DEBUG: execution_end: %s (%s)", execution_end, datetime.fromtimestamp(execution_end).isoformat())
+    if session_id:
+        logger.debug("DEBUG: Using provided session_id: %s", session_id)
 
     # Calculate execution window with 5-second buffer
     execution_window = (execution_start - 5, execution_end + 5)
@@ -532,11 +540,12 @@ def capture_session_trace(
 
     logger.debug("DEBUG: Found %d JSONL files to check", len(jsonl_files))
 
-    # Match session
-    session_id = match_session_files(jsonl_files, worktree_path)
+    # Use provided session_id or match from files
     if not session_id:
-        logger.warning("Could not match session for worktree %s", worktree_path)
-        return None
+        session_id = match_session_files(jsonl_files, worktree_path)
+        if not session_id:
+            logger.warning("Could not match session for worktree %s", worktree_path)
+            return None
 
     # Parse all JSONL files for this session
     all_messages = []

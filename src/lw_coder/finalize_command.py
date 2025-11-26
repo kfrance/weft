@@ -222,7 +222,6 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
         tasks_dir = repo_root / ".lw_coder" / "tasks"
         droids_dir = lw_coder_src / "droids"
         host_factory_dir = Path.home() / ".factory"
-        settings_file = lw_coder_src / "container_settings.json"
         git_dir = repo_root / ".git"
 
         logger.info("Starting %s session for finalization...", tool)
@@ -240,7 +239,6 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
             repo_git_dir=git_dir,
             tasks_dir=tasks_dir,
             droids_dir=droids_dir,
-            settings_file=settings_file,
             command=command,
             host_factory_dir=host_factory_dir,
             env_vars=executor_env_vars,

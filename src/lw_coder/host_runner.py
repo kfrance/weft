@@ -102,7 +102,6 @@ class HostRunnerConfig:
         repo_git_dir: Path to the repository's .git directory.
         tasks_dir: Path to the .lw_coder/tasks directory.
         droids_dir: Path to the droids directory.
-        settings_file: Path to the settings.json file.
         command: Command string to run on the host.
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
@@ -113,7 +112,6 @@ class HostRunnerConfig:
     repo_git_dir: Path
     tasks_dir: Path
     droids_dir: Path
-    settings_file: Path
     command: str
     host_factory_dir: Path
     env_vars: dict[str, str] | None = None
@@ -125,7 +123,6 @@ def host_runner_config(
     repo_git_dir: Path,
     tasks_dir: Path,
     droids_dir: Path,
-    settings_file: Path,
     command: str,
     host_factory_dir: Path,
     env_vars: dict[str, str] | None = None,
@@ -138,7 +135,6 @@ def host_runner_config(
         repo_git_dir: Path to the repository's .git directory.
         tasks_dir: Path to the .lw_coder/tasks directory.
         droids_dir: Path to the droids directory.
-        settings_file: Path to the settings.json file.
         command: Command string to run on the host.
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
@@ -157,7 +153,6 @@ def host_runner_config(
         repo_git_dir=repo_git_dir,
         tasks_dir=tasks_dir,
         droids_dir=droids_dir,
-        settings_file=settings_file,
         command=command,
         host_factory_dir=host_factory_dir,
         env_vars=env_vars,
@@ -185,7 +180,6 @@ def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, s
 
     # Validate that required files/directories exist
     _validate_path_exists(config.droids_dir, "Droids directory")
-    _validate_path_exists(config.settings_file, "Settings file")
 
     # Build environment for the command
     env = os.environ.copy()

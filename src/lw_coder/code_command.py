@@ -19,6 +19,7 @@ from pathlib import Path
 from .executors import ExecutorRegistry, ExecutorError
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
+from .sdk_runner import SDKRunnerError, run_sdk_session_sync
 from .param_validation import get_effective_model
 from .plan_lifecycle import (
     PlanLifecycleError,
@@ -342,21 +343,43 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
         except (OSError, IOError) as exc:
             logger.warning("Failed to write droid prompt to run directory: %s", exc)
 
-    # Build executor command with properly escaped paths to prevent shell injection
-    command = executor.build_command(main_prompt_path, effective_model)
+    # Capture execution start time for trace capture
+    execution_start = time.time()
 
-    # Get source directory and settings
-    src_dir = get_lw_coder_src_dir()
-    settings_file = src_dir / "container_settings.json"
+    # Session ID for SDK-based execution (claude-code only)
+    session_id: str | None = None
 
-    # Create minimal settings file if it doesn't exist
-    if not settings_file.exists():
-        try:
-            settings_file.write_text('{"version": "1.0"}\n')
-            logger.debug("Created minimal settings file at %s", settings_file)
-        except (OSError, IOError) as exc:
-            logger.error("Failed to create settings file: %s", exc)
+    # For claude-code: Run SDK session first, then resume with CLI
+    if tool == "claude-code" and prompts:
+        src_dir = get_lw_coder_src_dir()
+        sdk_settings_path = src_dir / "sdk_settings.json"
+
+        if not sdk_settings_path.exists():
+            logger.error(
+                "SDK settings file not found at %s. Ensure the package is properly installed.",
+                sdk_settings_path,
+            )
             return 1
+
+        logger.info("Running initial SDK session...")
+        try:
+            session_id = run_sdk_session_sync(
+                worktree_path=worktree_path,
+                prompt_content=prompts["main_prompt"],
+                model=effective_model,
+                sdk_settings_path=sdk_settings_path,
+            )
+            logger.info("SDK session completed. Session ID: %s", session_id)
+        except SDKRunnerError as exc:
+            logger.error("SDK session failed: %s", exc)
+            return 1
+
+        # Build CLI resume command: claude -r <session_id> --model <model>
+        command = f"claude -r {shlex.quote(session_id)} --model {shlex.quote(effective_model)}"
+        logger.info("Resuming with CLI session...")
+    else:
+        # For droid or other tools: use executor pattern directly
+        command = executor.build_command(main_prompt_path, effective_model)
 
     # Use auth file from home directory
     auth_file = Path.home() / ".factory" / "auth.json"
@@ -369,7 +392,6 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
         tasks_dir=metadata.repo_root / ".lw_coder" / "tasks",
         droids_dir=droids_dir,
         auth_file=auth_file,
-        settings_file=settings_file,
         command=command,
         host_factory_dir=Path.home() / ".factory",
         env_vars=env_vars,
@@ -379,9 +401,6 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
     host_cmd, host_env = build_host_command(runner_config)
     logger.info("Launching %s session on host...", tool)
     logger.debug("Host command: %s", " ".join(host_cmd))
-
-    # Capture execution start time for trace capture
-    execution_start = time.time()
 
     try:
         # Run interactively, streaming output to user
@@ -413,6 +432,7 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
                     run_dir=run_dir,
                     execution_start=execution_start,
                     execution_end=execution_end,
+                    session_id=session_id,
                 )
                 if trace_file:
                     logger.debug("Trace captured at: %s", trace_file)
@@ -450,6 +470,7 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
                     run_dir=run_dir,
                     execution_start=execution_start,
                     execution_end=execution_end,
+                    session_id=session_id,
                 )
                 if trace_file:
                     logger.debug("Trace captured at: %s", trace_file)

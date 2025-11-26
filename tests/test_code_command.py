@@ -187,7 +187,7 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
     settings_dir = tmp_path / "src"
     droids_template_dir = settings_dir / "droids"
     droids_template_dir.mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
 
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(lambda cls, tool: mock_executor_factory()))
@@ -258,7 +258,7 @@ def test_code_command_status_implemented_on_success(monkeypatch, git_repo, tmp_p
 
     settings_dir = tmp_path / "src-success"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -324,7 +324,6 @@ def test_code_command_status_stays_coding_on_failure(
 
     settings_dir = tmp_path / "src-failure"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -461,7 +460,7 @@ def test_code_command_warning_on_final_update_failure(
 
     settings_dir = tmp_path / "src-final"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -530,7 +529,7 @@ def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path,
 
     settings_dir = tmp_path / "src-interrupt"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -623,7 +622,7 @@ def test_code_command_worktree_uses_updated_sha(monkeypatch, git_repo, tmp_path:
 
     settings_dir = tmp_path / "src-worktree"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -686,7 +685,7 @@ def test_code_command_real_sha_matches_head_no_error(
 
     settings_dir = tmp_path / "src-match"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -757,7 +756,7 @@ def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path, mock
 
     settings_dir = tmp_path / "src-agents-cleanup"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -829,7 +828,6 @@ def test_code_command_with_droid_tool(monkeypatch, git_repo, tmp_path: Path) -> 
 
     settings_dir = tmp_path / "src-droid"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
     (settings_dir / "prompts" / "droid").mkdir(parents=True)
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
@@ -851,7 +849,11 @@ def test_code_command_with_droid_tool(monkeypatch, git_repo, tmp_path: Path) -> 
 
 
 def test_code_command_with_claude_code_tool_explicit_model(monkeypatch, git_repo, tmp_path: Path) -> None:
-    """Test code command with --tool claude-code and explicit model."""
+    """Test code command with --tool claude-code and explicit model.
+
+    With SDK integration, claude-code now runs SDK session first, then resumes with CLI.
+    This test verifies the SDK is called with the correct model.
+    """
     plan_id = "plan-claude-opus"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()
@@ -873,7 +875,7 @@ def test_code_command_with_claude_code_tool_explicit_model(monkeypatch, git_repo
     worktree_path = git_repo.path / "worktree-claude-opus"
     worktree_path.mkdir(parents=True, exist_ok=True)
 
-    captured_command = {}
+    captured_sdk_call = {}
     captured_tool = {}
     mock_prompts = {
         "main_prompt": "Main prompt content",
@@ -881,16 +883,16 @@ def test_code_command_with_claude_code_tool_explicit_model(monkeypatch, git_repo
         "plan_alignment_checker": "Plan alignment prompt",
     }
 
-    def fake_build_command(prompt_path, model):
-        captured_command["path"] = str(prompt_path)
-        captured_command["model"] = model
-        return f'claude --model {model} "$(cat {prompt_path})"'
+    def fake_sdk_runner(**kwargs):
+        captured_sdk_call["model"] = kwargs.get("model")
+        captured_sdk_call["prompt_content"] = kwargs.get("prompt_content")
+        return "mock-session-opus"
 
     def fake_get_executor(cls, tool):
         captured_tool["value"] = tool
         return SimpleNamespace(
             check_auth=lambda: None,
-            build_command=fake_build_command,
+            build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
             get_env_vars=lambda factory_dir: None
         )
 
@@ -900,10 +902,11 @@ def test_code_command_with_claude_code_tool_explicit_model(monkeypatch, git_repo
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "run_sdk_session_sync", fake_sdk_runner)
 
     settings_dir = tmp_path / "src-claude-opus"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(fake_get_executor))
@@ -918,12 +921,16 @@ def test_code_command_with_claude_code_tool_explicit_model(monkeypatch, git_repo
     exit_code = run_code_command(plan_path, tool="claude-code", model="opus")
     assert exit_code == 0
     assert captured_tool["value"] == "claude-code"
-    assert "main.md" in captured_command["path"]
-    assert captured_command["model"] == "opus"
+    # SDK should be called with the opus model
+    assert captured_sdk_call["model"] == "opus"
+    assert captured_sdk_call["prompt_content"] == "Main prompt content"
 
 
 def test_code_command_default_tool_and_model(monkeypatch, git_repo, tmp_path: Path) -> None:
-    """Test code command with defaults uses claude-code with sonnet."""
+    """Test code command with defaults uses claude-code with sonnet.
+
+    With SDK integration, this verifies SDK is called with default sonnet model.
+    """
     plan_id = "plan-defaults"
     plan_path = git_repo.path / f"{plan_id}.md"
     head_sha = git_repo.latest_commit()
@@ -946,22 +953,22 @@ def test_code_command_default_tool_and_model(monkeypatch, git_repo, tmp_path: Pa
     worktree_path.mkdir(parents=True, exist_ok=True)
 
     captured_tool = {}
-    captured_model = {}
+    captured_sdk_call = {}
     mock_prompts = {
         "main_prompt": "Main prompt content",
         "code_review_auditor": "Code review prompt",
         "plan_alignment_checker": "Plan alignment prompt",
     }
 
-    def fake_build_command(prompt_path, model):
-        captured_model["value"] = model
-        return f'claude --model {model} "$(cat {prompt_path})"'
+    def fake_sdk_runner(**kwargs):
+        captured_sdk_call["model"] = kwargs.get("model")
+        return "mock-session-defaults"
 
     def fake_get_executor(cls, tool):
         captured_tool["value"] = tool
         return SimpleNamespace(
             check_auth=lambda: None,
-            build_command=fake_build_command,
+            build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
             get_env_vars=lambda factory_dir: None
         )
 
@@ -971,10 +978,11 @@ def test_code_command_default_tool_and_model(monkeypatch, git_repo, tmp_path: Pa
     monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "run_sdk_session_sync", fake_sdk_runner)
 
     settings_dir = tmp_path / "src-defaults"
     (settings_dir / "droids").mkdir(parents=True)
-    (settings_dir / "container_settings.json").write_text("{}", encoding="utf-8")
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
     monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
     monkeypatch.setattr(code_command, "host_runner_config", lambda **kwargs: SimpleNamespace())
     monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(fake_get_executor))
@@ -989,4 +997,67 @@ def test_code_command_default_tool_and_model(monkeypatch, git_repo, tmp_path: Pa
     exit_code = run_code_command(plan_path)
     assert exit_code == 0
     assert captured_tool["value"] == "claude-code"
-    assert captured_model["value"] == "sonnet"
+    # SDK should be called with default sonnet model
+    assert captured_sdk_call["model"] == "sonnet"
+
+
+def test_code_command_sdk_session_failure(monkeypatch, git_repo, tmp_path: Path, caplog) -> None:
+    """Test code command handles SDK session failure gracefully."""
+    from lw_coder.sdk_runner import SDKRunnerError
+
+    plan_id = "plan-sdk-fail"
+    plan_path = git_repo.path / f"{plan_id}.md"
+    head_sha = git_repo.latest_commit()
+    write_plan(
+        plan_path,
+        {
+            "git_sha": head_sha,
+            "plan_id": plan_id,
+            "status": "draft",
+        },
+    )
+
+    run_dir = git_repo.path / ".lw_coder" / "runs" / plan_id / "20250101_130000"
+    prompts_dir = run_dir / "prompts"
+    prompts_dir.mkdir(parents=True)
+    droids_dir = run_dir / "droids"
+    droids_dir.mkdir(parents=True)
+
+    worktree_path = git_repo.path / "worktree-sdk-fail"
+    worktree_path.mkdir(parents=True, exist_ok=True)
+
+    mock_prompts = {
+        "main_prompt": "Main prompt content",
+        "code_review_auditor": "Code review prompt",
+        "plan_alignment_checker": "Plan alignment prompt",
+    }
+
+    def failing_sdk_runner(*args, **kwargs):
+        raise SDKRunnerError("SDK connection failed")
+
+    monkeypatch.setattr(code_command, "create_run_directory", lambda *_args, **_kwargs: run_dir)
+    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
+    monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
+    monkeypatch.setattr(code_command, "prune_old_runs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
+    monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(code_command, "run_sdk_session_sync", failing_sdk_runner)
+
+    settings_dir = tmp_path / "src-sdk-fail"
+    (settings_dir / "droids").mkdir(parents=True)
+    (settings_dir / "sdk_settings.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(code_command, "get_lw_coder_src_dir", lambda: settings_dir)
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", classmethod(
+        lambda cls, tool: SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=lambda p, model: f'claude "$(cat {p})"',
+            get_env_vars=lambda factory_dir: None
+        )
+    ))
+
+    caplog.set_level(logging.ERROR)
+    exit_code = run_code_command(plan_path)
+
+    assert exit_code == 1
+    assert "SDK session failed" in caplog.text
+    assert "SDK connection failed" in caplog.text

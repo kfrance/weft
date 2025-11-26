@@ -11,6 +11,8 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 ### Development Commands
 - **Install dependencies**: `uv sync`
 - **Run tests**: `uv run pytest`
+- **Run integration tests**: `uv run pytest -m integration` (makes real SDK calls)
+- **Run all tests**: `uv run pytest -m ''`
 - **Run CLI**: `uv run lw_coder <command>`
 - **Run specific test**: `uv run pytest tests/test_<module>.py`
 

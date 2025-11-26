@@ -81,3 +81,24 @@ def mock_executor_factory():
                 get_env_vars=lambda factory_dir: {}
             )
     return _factory
+
+
+@pytest.fixture(autouse=True)
+def mock_sdk_runner(request, monkeypatch):
+    """Auto-mock SDK runner to prevent real SDK calls in tests.
+
+    This fixture is auto-used for all tests to ensure we never accidentally
+    make real SDK API calls during testing. Returns a mock session ID.
+
+    Tests marked with @pytest.mark.integration will skip this mock.
+    """
+    # Skip mocking for integration tests
+    if request.node.get_closest_marker("integration"):
+        return
+
+    import lw_coder.code_command as code_command
+    monkeypatch.setattr(
+        code_command,
+        "run_sdk_session_sync",
+        lambda *args, **kwargs: "mock-session-id-12345"
+    )
