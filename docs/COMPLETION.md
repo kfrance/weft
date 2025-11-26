@@ -106,13 +106,25 @@ lw_coder code .lw_coder/tasks/<TAB>
 
 The completion system:
 1. Searches for `.lw_coder/tasks/*.md` files in your repository
-2. Parses YAML front matter to check the `status` field
+2. Parses front matter to check the `status` field
 3. Filters out plans where `status: done`
 4. Returns plan IDs (filenames without `.md` extension)
 
 ### Caching
 
 To improve performance, the completion system caches the list of active plans for 2 seconds. This prevents expensive filesystem scans on every tab press while still keeping completions relatively fresh.
+
+### Performance Optimizations
+
+The completion system includes several performance optimizations to ensure fast tab completion:
+
+1. **Regex-based front matter parsing**: Plan file front matter is parsed using regex instead of PyYAML, eliminating a ~100-150ms import overhead.
+
+2. **Lazy-loaded command modules**: Command modules (code_command, finalize_command, plan_command, recover_command) are imported only when their respective commands are executed, not at CLI startup. This prevents loading heavy dependencies during tab completion.
+
+3. **TTL-based caching**: Plan lists are cached with a 2-second TTL to avoid repeated filesystem scans.
+
+4. **Performance regression testing**: Automated tests verify that tab completion completes within a defined threshold (see `tests/completion/test_performance.py`).
 
 ### Dynamic Discovery
 
@@ -220,7 +232,8 @@ The completion system consists of four main components:
 │  (cache.py)             │
 │  - PlanCompletionCache  │
 │  - TTL-based caching    │
-│  - YAML parsing         │
+│  - Regex front matter   │
+│    parsing (for perf)   │
 └─────────────────────────┘
 ```
 
@@ -418,7 +431,7 @@ The completion system has comprehensive test coverage:
 
 **Filesystem operations:**
 - Plan scanning is O(n) where n = number of plan files
-- YAML parsing is relatively expensive (uses PyYAML)
+- Front matter parsing uses regex (not YAML) for fast parsing
 - Cache prevents this cost on every tab press
 
 **Memory:**

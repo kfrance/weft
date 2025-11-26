@@ -23,7 +23,7 @@ def test_code_command_explicit_tool(monkeypatch, tmp_path) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Run CLI with explicit tool
     exit_code = main(["code", str(plan_path), "--tool", "droid"])
@@ -45,7 +45,7 @@ def test_code_command_explicit_model(monkeypatch, tmp_path) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Run CLI with explicit model
     exit_code = main(["code", str(plan_path), "--model", "opus"])
@@ -67,7 +67,7 @@ def test_code_command_tool_and_model(monkeypatch, tmp_path) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Run CLI with both tool and model
     exit_code = main(["code", str(plan_path), "--tool", "claude-code", "--model", "haiku"])
@@ -84,7 +84,7 @@ def test_code_command_validation_error_droid_with_model(monkeypatch, caplog, tmp
 
     # Mock run_code_command - should not be called due to validation error
     mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
 
     caplog.set_level(logging.ERROR)
 
@@ -103,7 +103,7 @@ def test_code_command_validation_error_invalid_tool(monkeypatch, caplog, tmp_pat
 
     # Mock run_code_command - should not be called due to validation error
     mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
 
     caplog.set_level(logging.ERROR)
 
@@ -125,7 +125,7 @@ def test_plan_command_tool_parameter(monkeypatch, tmp_path) -> None:
         captured_args["tool"] = tool
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_plan_command", mock_run_plan_command)
+    monkeypatch.setattr("lw_coder.plan_command.run_plan_command", mock_run_plan_command)
 
     # Run plan command with tool
     exit_code = main(["plan", "--text", "Test idea", "--tool", "droid"])
@@ -149,7 +149,7 @@ def test_code_command_debug_flag(monkeypatch, tmp_path) -> None:
         return 0
 
     monkeypatch.setattr("lw_coder.cli.configure_logging", mock_configure_logging)
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Run with debug flag (must come before subcommand in argparse)
     exit_code = main(["--debug", "code", str(plan_path)])
@@ -180,7 +180,7 @@ def test_code_command_parameter_order(monkeypatch, tmp_path) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Test different parameter orders
     test_cases = [
@@ -203,7 +203,7 @@ def test_code_command_invalid_model(monkeypatch, caplog, tmp_path) -> None:
 
     # Mock run_code_command - should not be called due to validation error
     mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
 
     caplog.set_level(logging.ERROR)
 
@@ -230,7 +230,7 @@ def test_code_command_with_text_flag(monkeypatch, tmp_path, git_repo) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Run CLI with --text flag
     exit_code = main(["code", "--text", "Fix the login button"])
@@ -254,7 +254,7 @@ def test_code_command_text_mutual_exclusivity(monkeypatch, caplog, tmp_path, git
     plan_path.write_text("# Test Plan\n")
 
     mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
 
     caplog.set_level(logging.ERROR)
 
@@ -271,7 +271,7 @@ def test_code_command_text_empty_error(monkeypatch, caplog, git_repo) -> None:
     monkeypatch.chdir(git_repo.path)
 
     mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
 
     caplog.set_level(logging.ERROR)
 
@@ -295,7 +295,7 @@ def test_code_command_text_with_tool_flag(monkeypatch, git_repo) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Run CLI with --text and --tool
     exit_code = main(["code", "--text", "Fix bug", "--tool", "droid"])
@@ -317,7 +317,7 @@ def test_code_command_text_with_model_flag(monkeypatch, git_repo) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     # Run CLI with --text and --model
     exit_code = main(["code", "--text", "Fix bug", "--model", "opus"])
@@ -331,7 +331,7 @@ def test_code_command_neither_path_nor_text(monkeypatch, caplog, git_repo) -> No
     monkeypatch.chdir(git_repo.path)
 
     mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
 
     caplog.set_level(logging.ERROR)
 
@@ -355,7 +355,7 @@ def test_code_command_text_multiline(monkeypatch, git_repo) -> None:
         captured_args["model"] = model
         return 0
 
-    monkeypatch.setattr("lw_coder.cli.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
     multiline_text = "Fix login\n\nUpdate button styles\nAdd hover effect"
 

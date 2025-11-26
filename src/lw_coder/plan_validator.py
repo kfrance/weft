@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-import yaml
-
 from .logging_config import get_logger
 from .repo_utils import RepoUtilsError, find_repo_root
 
@@ -170,6 +168,22 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
 
 
 def _extract_front_matter(markdown: str) -> tuple[dict[str, Any], str]:
+    """Extract front matter from markdown content using regex parsing.
+
+    Note: Uses regex instead of YAML for performance and simplicity.
+    Plan files use simple format (key: value pairs, simple lists).
+    If format becomes complex (nested structures, multiline values, etc.),
+    migrate to full YAML parsing library.
+
+    Args:
+        markdown: Markdown content with front matter.
+
+    Returns:
+        Tuple of (front_matter_dict, body_text).
+
+    Raises:
+        PlanValidationError: If front matter is malformed.
+    """
     lines = markdown.splitlines()
     if not lines or lines[0].strip() != _FRONT_MATTER_DELIM:
         raise PlanValidationError("Plan file must begin with a YAML front matter block (---).")
@@ -183,18 +197,102 @@ def _extract_front_matter(markdown: str) -> tuple[dict[str, Any], str]:
     except StopIteration as exc:
         raise PlanValidationError("Front matter block is missing the closing --- fence.") from exc
 
-    yaml_block = "\n".join(lines[1:closing_index])
-    try:
-        parsed = yaml.safe_load(yaml_block) if yaml_block.strip() else {}
-    except yaml.YAMLError as exc:  # pragma: no cover - exercised in tests
-        raise PlanValidationError(f"Unable to parse YAML front matter: {exc}") from exc
-
-    if not isinstance(parsed, dict):
-        raise PlanValidationError("Front matter must be a mapping of keys to values.")
+    # Parse front matter lines using regex
+    front_matter_lines = lines[1:closing_index]
+    parsed = _parse_front_matter_lines(front_matter_lines)
 
     body = "\n".join(lines[closing_index + 1 :])
 
     return parsed, body
+
+
+# Regex patterns for parsing front matter
+# Matches "key: value" or "key:" (value on next lines)
+_KEY_VALUE_PATTERN = re.compile(r'^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.*)$')
+# Matches list items "- value" with optional leading whitespace
+# yaml.safe_dump produces "- item" (no indent), but hand-written YAML often uses "  - item"
+_LIST_ITEM_PATTERN = re.compile(r'^(\s*)-\s+(.*)$')
+
+
+def _parse_front_matter_lines(lines: list[str]) -> dict[str, Any]:
+    """Parse front matter lines into a dictionary.
+
+    Handles:
+    - Simple key: value pairs
+    - Empty lists: key: []
+    - Multi-line lists with - items
+
+    Args:
+        lines: Lines between the --- delimiters.
+
+    Returns:
+        Dictionary of parsed key-value pairs.
+
+    Raises:
+        PlanValidationError: If parsing fails.
+    """
+    parsed: dict[str, Any] = {}
+    current_key: str | None = None
+    current_list: list[str] | None = None
+
+    for line in lines:
+        # Skip empty lines
+        if not line.strip():
+            continue
+
+        # Check for list item first (indented with -)
+        list_match = _LIST_ITEM_PATTERN.match(line)
+        if list_match:
+            if current_key is None or current_list is None:
+                raise PlanValidationError(
+                    "Front matter contains list item without preceding key."
+                )
+            item_value = list_match.group(2).strip()
+            # Remove surrounding quotes if present
+            if (item_value.startswith('"') and item_value.endswith('"')) or \
+               (item_value.startswith("'") and item_value.endswith("'")):
+                item_value = item_value[1:-1]
+            current_list.append(item_value)
+            continue
+
+        # Check for key: value pattern
+        key_match = _KEY_VALUE_PATTERN.match(line)
+        if key_match:
+            # Save previous list if any
+            if current_key is not None and current_list is not None:
+                parsed[current_key] = current_list
+
+            key = key_match.group(1)
+            value = key_match.group(2).strip()
+
+            if value == "[]":
+                # Empty list
+                parsed[key] = []
+                current_key = None
+                current_list = None
+            elif value == "":
+                # Value will be a list on following lines
+                current_key = key
+                current_list = []
+            else:
+                # Simple string value - remove surrounding quotes if present
+                if (value.startswith('"') and value.endswith('"')) or \
+                   (value.startswith("'") and value.endswith("'")):
+                    value = value[1:-1]
+                parsed[key] = value
+                current_key = None
+                current_list = None
+        else:
+            # Line doesn't match expected patterns
+            raise PlanValidationError(
+                f"Unable to parse front matter line: {line!r}"
+            )
+
+    # Save final list if any
+    if current_key is not None and current_list is not None:
+        parsed[current_key] = current_list
+
+    return parsed
 
 
 def _enforce_exact_keys(data: dict[str, Any], required_keys: Iterable[str]) -> None:
@@ -286,7 +384,7 @@ def _validate_plan_id(value: Any, plan_path: Path) -> str:
                 raise
             # Otherwise skip files with other validation errors
             continue
-        except (yaml.YAMLError, KeyError, OSError):
+        except (KeyError, OSError):
             # Skip files that can't be read or parsed
             continue
 

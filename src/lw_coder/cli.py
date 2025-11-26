@@ -8,16 +8,16 @@ from typing import Sequence
 
 import argcomplete
 
-from .code_command import run_code_command
+# Note: Command modules (code_command, finalize_command, plan_command, recover_command)
+# are lazy-loaded inside their respective dispatch blocks to avoid importing heavy
+# dependencies (executors, sdk_runner, worktree_utils, etc.) during tab completion.
+# This significantly improves tab completion performance.
 from .completion.completers import complete_backup_plans, complete_models, complete_plan_files, complete_tools
 from .completion_install import run_completion_install
-from .finalize_command import run_finalize_command
 from .init_command import run_init_command
 from .logging_config import configure_logging, get_logger
 from .param_validation import ParameterValidationError, validate_tool_model_compatibility
-from .plan_command import run_plan_command
 from .plan_resolver import PlanResolver
-from .recover_command import run_recover_command
 
 logger = get_logger(__name__)
 
@@ -206,6 +206,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Plan command
     if args.command == "plan":
+        # Lazy import to avoid loading heavy dependencies during tab completion
+        from .plan_command import run_plan_command
+
         # Resolve plan_path if provided (could be ID or path)
         if args.plan_path:
             try:
@@ -226,6 +229,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Finalize command
     if args.command == "finalize":
+        # Lazy import to avoid loading heavy dependencies during tab completion
+        from .finalize_command import run_finalize_command
+
         # Resolve plan_path (could be ID or path)
         try:
             plan_path = PlanResolver.resolve(args.plan_path)
@@ -237,6 +243,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Recover-plan command
     if args.command == "recover-plan":
+        # Lazy import to avoid loading heavy dependencies during tab completion
+        from .recover_command import run_recover_command
+
         plan_id = args.plan_id
         force = args.force
         return run_recover_command(plan_id, force)
@@ -260,6 +269,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Code command
     if args.command == "code":
+        # Lazy import to avoid loading heavy dependencies during tab completion
+        from .code_command import run_code_command
+
         # Check for mutual exclusivity of plan_path and --text
         if args.plan_path and args.text is not None:
             logger.error("Cannot specify both plan_path and --text. They are mutually exclusive.")
