@@ -370,3 +370,93 @@ def test_code_command_text_multiline(monkeypatch, git_repo) -> None:
     assert multiline_text in content
 
 
+# =============================================================================
+# Init Command CLI Tests
+# =============================================================================
+
+
+def test_init_command_success(monkeypatch, git_repo) -> None:
+    """Test init command success via CLI."""
+    captured_args = {}
+
+    def mock_run_init_command(force=False, yes=False):
+        captured_args["force"] = force
+        captured_args["yes"] = yes
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_init_command", mock_run_init_command)
+
+    exit_code = main(["init"])
+
+    assert exit_code == 0
+    assert captured_args["force"] is False
+    assert captured_args["yes"] is False
+
+
+def test_init_command_with_force(monkeypatch, git_repo) -> None:
+    """Test init command with --force flag."""
+    captured_args = {}
+
+    def mock_run_init_command(force=False, yes=False):
+        captured_args["force"] = force
+        captured_args["yes"] = yes
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_init_command", mock_run_init_command)
+
+    exit_code = main(["init", "--force"])
+
+    assert exit_code == 0
+    assert captured_args["force"] is True
+    assert captured_args["yes"] is False
+
+
+def test_init_command_with_yes(monkeypatch, git_repo) -> None:
+    """Test init command with --yes flag."""
+    captured_args = {}
+
+    def mock_run_init_command(force=False, yes=False):
+        captured_args["force"] = force
+        captured_args["yes"] = yes
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_init_command", mock_run_init_command)
+
+    exit_code = main(["init", "--yes"])
+
+    assert exit_code == 0
+    assert captured_args["force"] is False
+    assert captured_args["yes"] is True
+
+
+def test_init_command_with_force_and_yes(monkeypatch, git_repo) -> None:
+    """Test init command with both --force and --yes flags."""
+    captured_args = {}
+
+    def mock_run_init_command(force=False, yes=False):
+        captured_args["force"] = force
+        captured_args["yes"] = yes
+        return 0
+
+    monkeypatch.setattr("lw_coder.cli.run_init_command", mock_run_init_command)
+
+    exit_code = main(["init", "--force", "--yes"])
+
+    assert exit_code == 0
+    assert captured_args["force"] is True
+    assert captured_args["yes"] is True
+
+
+def test_init_command_help_text(capsys) -> None:
+    """Test init command help text is displayed."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["init", "--help"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    # Check that help is displayed (may be in either out or err depending on argparse version)
+    help_text = captured.out + captured.err
+    assert "--force" in help_text
+    assert "--yes" in help_text
+    assert "init" in help_text
+

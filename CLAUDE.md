@@ -17,12 +17,28 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 - **Run specific test**: `uv run pytest tests/test_<module>.py`
 
 ### CLI Usage
+- **Initialize project**: `uv run lw_coder init` - Initialize lw_coder in git repository with baseline templates
 - **Create/edit plan**: `uv run lw_coder plan --text "plan idea"` or `uv run lw_coder plan <plan_path>`
 - **Validate plan file**: `uv run lw_coder code <plan_path>`
 - **Quick fix mode**: `uv run lw_coder code --text "description"` - Bypasses interactive planning for simple fixes
 - **Evaluate code changes**: `uv run lw_coder eval <plan_id>` - Run LLM judges on implemented changes
 - **Finalize plan**: `uv run lw_coder finalize <plan_path>`
 - **Install bash completion**: `uv run lw_coder completion install` (see `docs/COMPLETION.md` for setup)
+
+#### Init Command
+The `init` command bootstraps a new project with frozen baseline templates:
+- **Command**: `uv run lw_coder init`
+- **What it creates**:
+  - `.lw_coder/judges/` - LLM judges for code evaluation (code-reuse, plan-compliance)
+  - `.lw_coder/optimized_prompts/` - Optimized prompts for Claude Code CLI
+  - `.lw_coder/VERSION` - Template version tracking file
+- **Flags**:
+  - `--force` - Reinitialize when `.lw_coder/` already exists (with confirmation)
+  - `--yes` - Skip interactive prompts (for CI/CD automation)
+- **Examples**:
+  - `uv run lw_coder init` - Initialize new project
+  - `uv run lw_coder init --force` - Reinitialize with prompts
+  - `uv run lw_coder init --force --yes` - Reinitialize without prompts (CI/CD)
 
 #### Quick Fix Mode
 The `--text` flag allows you to quickly execute simple fixes without creating a full plan file:

@@ -12,6 +12,7 @@ from .code_command import run_code_command
 from .completion.completers import complete_backup_plans, complete_models, complete_plan_files, complete_tools
 from .completion_install import run_completion_install
 from .finalize_command import run_finalize_command
+from .init_command import run_init_command
 from .logging_config import configure_logging, get_logger
 from .param_validation import ParameterValidationError, validate_tool_model_compatibility
 from .plan_command import run_plan_command
@@ -97,6 +98,24 @@ def create_parser() -> argparse.ArgumentParser:
     )
     code_model_arg.completer = complete_models
 
+    # Init command
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Initialize lw_coder in current git repository",
+    )
+    init_parser.add_argument(
+        "--force",
+        dest="force",
+        action="store_true",
+        help="Reinitialize even if .lw_coder already exists",
+    )
+    init_parser.add_argument(
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Skip interactive prompts (for CI/CD automation)",
+    )
+
     # Finalize command
     finalize_parser = subparsers.add_parser(
         "finalize",
@@ -180,6 +199,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.command:
         parser.print_help()
         return 0
+
+    # Init command
+    if args.command == "init":
+        return run_init_command(force=args.force, yes=args.yes)
 
     # Plan command
     if args.command == "plan":

@@ -27,6 +27,26 @@ For an editable install (where code changes are immediately reflected without re
 uv tool install --force --editable .
 ```
 
+## Quick Start
+
+Get started with lw_coder in a new project:
+
+1. **Install lw_coder** (see Installation above)
+2. **Configure credentials** in `~/.lw_coder/.env` (see Configuration below)
+3. **Initialize your project**:
+   ```bash
+   cd your-project
+   lw_coder init
+   ```
+4. **Create a plan**:
+   ```bash
+   lw_coder plan --text "your feature idea"
+   ```
+5. **Implement it**:
+   ```bash
+   lw_coder code <plan_id>
+   ```
+
 ## Setup and Authentication
 
 ### Configuration
@@ -86,6 +106,50 @@ Before using Droid, you must authenticate once:
    ```
 
 After authenticating, you can use Droid with `--tool droid` as shown above.
+
+## Init Command
+
+The `lw_coder init` command initializes a new project with frozen baseline templates. This is the recommended first step when adopting lw_coder in a new repository.
+
+### What It Does
+
+Running `lw_coder init` creates a `.lw_coder/` directory at your repository root containing:
+
+- **Judges** (`.lw_coder/judges/`): LLM judges for evaluating code changes
+  - `code-reuse.md`: Evaluates proper reuse of existing functionality
+  - `plan-compliance.md`: Verifies implementation matches plan requirements
+- **Optimized Prompts** (`.lw_coder/optimized_prompts/`): Pre-optimized prompts for Claude Code CLI
+  - Includes prompts for sonnet, opus, and haiku models
+- **VERSION**: Tracks template version and file hashes for customization detection
+
+### Basic Usage
+
+```bash
+# Initialize in a new project
+cd your-project
+lw_coder init
+
+# Reinitialize with prompts (when .lw_coder already exists)
+lw_coder init --force
+
+# Reinitialize without prompts (CI/CD automation)
+lw_coder init --force --yes
+```
+
+### Customization Detection
+
+When reinitializing with `--force`, lw_coder detects which files you've customized by comparing current file hashes against the VERSION file. You'll see warnings before overwriting customized files:
+
+```
+WARNING: 1 judges have been customized from baseline:
+  - judges/code-reuse.md
+Overwrite existing judges? (y/n):
+```
+
+### Parameters
+
+- `--force`: Allow initialization when `.lw_coder/` already exists (asks for confirmation)
+- `--yes`: Skip interactive prompts and overwrite everything (for CI/CD)
 
 ## Code Command
 

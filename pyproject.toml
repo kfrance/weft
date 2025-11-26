@@ -21,7 +21,7 @@ dependencies = [
 lw_coder = "lw_coder.cli:main"
 
 [tool.setuptools.package-data]
-lw_coder = ["droids/**/*.md", "prompts/**/*.md", "sdk_settings.json"]
+lw_coder = ["droids/**/*.md", "prompts/**/*.md", "sdk_settings.json", "init_templates/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
