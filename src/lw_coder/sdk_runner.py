@@ -15,6 +15,7 @@ may be light at this time.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -98,6 +99,16 @@ async def run_sdk_session(
     logger.info("Starting SDK session with model '%s' in %s", model, worktree_path)
     logger.debug("SDK settings: %s", sdk_settings_path)
 
+    # Save original NO_PROXY value for restoration after SDK session
+    # NO_PROXY is documented at https://code.claude.com/docs/en/settings
+    # Setting NO_PROXY="*" bypasses proxy for all network requests, enabling
+    # tools like WebFetch to function correctly during SDK execution
+    original_no_proxy = os.environ.get("NO_PROXY")
+
+    # Set NO_PROXY="*" to enable network access for SDK session
+    os.environ["NO_PROXY"] = "*"
+    logger.debug("Set NO_PROXY='*' for SDK session network access")
+
     # Build options for the SDK client
     options = ClaudeAgentOptions(
         cwd=worktree_path,
@@ -145,6 +156,17 @@ async def run_sdk_session(
         raise
     except Exception as exc:
         raise SDKRunnerError(f"SDK session failed: {exc}") from exc
+    finally:
+        # Restore original NO_PROXY value to ensure environment is not polluted
+        # This guarantees cleanup even if SDK session raises exceptions
+        if original_no_proxy is None:
+            # NO_PROXY was not set originally, remove it
+            os.environ.pop("NO_PROXY", None)
+            logger.debug("Restored NO_PROXY to original value (unset)")
+        else:
+            # Restore to original value
+            os.environ["NO_PROXY"] = original_no_proxy
+            logger.debug("Restored NO_PROXY to original value: %s", original_no_proxy)
 
     if not session_id:
         raise SDKRunnerError("Failed to capture session ID from SDK session")

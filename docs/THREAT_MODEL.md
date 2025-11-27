@@ -91,6 +91,20 @@ This document describes the threat model, trust boundaries, and security design 
 - **Justification:** Developer already knows their own filesystem structure
 - **Alternative Considered:** Verbose/debug flags - rejected as unnecessary complexity
 
+### SDK Network Access
+
+**Decision: Enable unrestricted network access for SDK sessions via `NO_PROXY="*"`**
+- **Rationale:** SDK sessions need network access for WebFetch and similar tools to function correctly
+- **Risk Accepted:** SDK sessions can make requests to any domain without audit trail or allowlist
+  - Potential for injection attacks if malicious code is executed
+  - No visibility into what external resources are accessed
+- **Justification:** Local developer CLI tool with trusted codebase; external attack surface is low
+  - Repository code is under developer control (same trust boundary as rest of system)
+  - Not a multi-tenant or production system
+  - Developer controls what code is executed
+- **Mitigation:** Environment variable is scoped to SDK session only (restored after completion)
+- **Reference:** NO_PROXY documented at https://code.claude.com/docs/en/settings
+
 ## Non-Security Quality Decisions
 
 These aren't security issues but are documented for completeness:
