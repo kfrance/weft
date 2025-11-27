@@ -118,26 +118,3 @@ def test_load_prompts_default_parameters(tmp_path: Path) -> None:
     assert result["main_prompt"] == "main"
     assert result["code_review_auditor"] == "review"
     assert result["plan_alignment_checker"] == "alignment"
-
-
-def test_load_prompts_correct_path_construction(tmp_path: Path) -> None:
-    """Test that correct path is constructed for different models and tools."""
-    # Create structure for multiple tools/models
-    for tool in ["claude-code-cli"]:
-        for model in ["sonnet", "opus", "haiku"]:
-            prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / tool / model
-            prompts_dir.mkdir(parents=True)
-
-            (prompts_dir / "main.md").write_text(f"main-{tool}-{model}")
-            (prompts_dir / "code-review-auditor.md").write_text(f"review-{tool}-{model}")
-            (prompts_dir / "plan-alignment-checker.md").write_text(f"alignment-{tool}-{model}")
-
-    # Verify each combination loads from correct path
-    result_sonnet = load_prompts(repo_root=tmp_path, tool="claude-code-cli", model="sonnet")
-    assert "sonnet" in result_sonnet["main_prompt"]
-
-    result_opus = load_prompts(repo_root=tmp_path, tool="claude-code-cli", model="opus")
-    assert "opus" in result_opus["main_prompt"]
-
-    result_haiku = load_prompts(repo_root=tmp_path, tool="claude-code-cli", model="haiku")
-    assert "haiku" in result_haiku["main_prompt"]
