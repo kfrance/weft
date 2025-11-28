@@ -1,11 +1,11 @@
 """Integration tests for judge executor with real DSPy LLM calls.
 
-These tests use real LLM API calls but benefit from DSPy's disk caching.
+These tests make real LLM API calls to external services (OpenRouter).
+They require OPENROUTER_API_KEY to be configured and consume API credits.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import dspy
@@ -20,6 +20,7 @@ from lw_coder.judge_executor import (
 from lw_coder.judge_loader import JudgeConfig
 
 
+@pytest.mark.integration
 def test_execute_judge_with_real_llm(tmp_path: Path) -> None:
     """Test executing a judge with real DSPy LLM call.
 
@@ -95,51 +96,3 @@ def add(a, b):
     # The fact that we got a valid score and meaningful feedback proves
     # that the judge instructions were successfully loaded and passed to the LLM
     # via the .with_instructions() pattern
-
-
-def test_execute_judge_invalid_api_key(tmp_path: Path) -> None:
-    """Test judge execution with invalid API key."""
-    judge = JudgeConfig(
-        name="test-judge",
-        weight=0.5,
-        model="x-ai/grok-4.1-fast",
-        instructions="Test instructions",
-        file_path=tmp_path / "test-judge.md",
-    )
-
-    plan_content = "# Test Plan"
-    git_changes = "=== Git Status ===\n(no changes)"
-    cache_dir = tmp_path / "cache"
-
-    # Use clearly invalid API key
-    with pytest.raises(JudgeExecutionError, match="Failed to execute judge"):
-        execute_judge(judge, plan_content, git_changes, "invalid_key", cache_dir)
-
-
-def test_get_openrouter_api_key_not_found(monkeypatch) -> None:
-    """Test getting API key when OPENROUTER_API_KEY is not set."""
-    # Remove the environment variable if it exists
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-
-    # Also need to handle the case where load_home_env() sets it
-    # We'll monkeypatch load_home_env to not set the key
-    from lw_coder import judge_executor
-
-    def mock_load_home_env():
-        # Don't load anything
-        pass
-
-    monkeypatch.setattr(judge_executor, "load_home_env", mock_load_home_env)
-
-    with pytest.raises(
-        JudgeExecutionError, match="OPENROUTER_API_KEY not found in environment"
-    ):
-        get_openrouter_api_key()
-
-
-def test_get_cache_dir() -> None:
-    """Test cache directory path generation."""
-    cache_dir = get_cache_dir()
-
-    assert cache_dir == Path.home() / ".lw_coder" / "dspy_cache"
-    assert isinstance(cache_dir, Path)

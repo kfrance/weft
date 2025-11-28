@@ -1,6 +1,7 @@
 """Integration tests for SDK session execution.
 
 These tests verify the SDK runner module works correctly with real SDK calls.
+They make actual API calls to the Claude SDK.
 """
 
 from __future__ import annotations

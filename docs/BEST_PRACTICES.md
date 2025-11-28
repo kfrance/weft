@@ -58,6 +58,50 @@ Links to related documents, tickets, or discussions.
 
 See `docs/adr/001-trace-capture-claude-dependency.md` for a complete example documenting the decision to rely on Claude Code's undocumented internal file format for conversation trace capture.
 
+## Test Organization
+
+Tests are organized into two directories based on whether they make external API calls:
+
+### Directory Structure
+- `tests/unit/` - Fast tests with mocked dependencies, no external API calls
+- `tests/integration/` - Tests that make real external API calls (Claude SDK, OpenRouter, etc.)
+- `tests/conftest.py` - Shared fixtures available to both directories
+
+### Test Categorization Rules
+- **Unit Test**: Tests internal logic using mocks, no external network calls
+  - Place in `tests/unit/`
+  - No special marker needed
+- **Integration Test**: Makes real API calls to Claude SDK, OpenRouter, or other external services
+  - Place in `tests/integration/`
+  - MUST have `@pytest.mark.integration` decorator
+
+### Marker Requirement
+All tests in `tests/integration/` MUST have the `@pytest.mark.integration` decorator:
+
+```python
+import pytest
+
+@pytest.mark.integration
+def test_real_api_call():
+    """This test makes real API calls."""
+    ...
+
+@pytest.mark.integration
+class TestRealAPIIntegration:
+    """All methods in this class make real API calls."""
+    def test_method(self):
+        ...
+```
+
+This requirement is enforced by `tests/unit/test_marker_consistency.py`.
+
+### Running Tests
+- `pytest` - Runs unit tests only (default behavior)
+- `pytest tests/unit/` - Runs unit tests by directory
+- `pytest tests/integration/` - Runs integration tests by directory
+- `pytest -m integration` - Runs integration tests by marker
+- `pytest -m ''` - Runs all tests (removes the default marker filter)
+
 ## Test Optimization
 
 - **Avoid redundant tests**: Before adding a new test, check if similar test coverage already exists. Duplicate tests increase maintenance burden without adding value.

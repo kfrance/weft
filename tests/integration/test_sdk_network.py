@@ -2,6 +2,7 @@
 
 These tests verify that setting NO_PROXY="*" enables network access for SDK sessions
 and that the environment variable is properly restored after session completion.
+They make actual API calls to the Claude SDK.
 """
 
 from __future__ import annotations
@@ -72,39 +73,6 @@ class TestSDKNetworkAccess:
             assert session_id is not None
 
             # Verify NO_PROXY was restored to original value
-            assert os.environ.get("NO_PROXY") == original_value
-        finally:
-            # Cleanup: restore environment
-            if "NO_PROXY" in os.environ:
-                del os.environ["NO_PROXY"]
-
-    def test_no_proxy_restored_on_sdk_error(self, tmp_path: Path):
-        """NO_PROXY should be restored even when SDK session raises exception.
-
-        This test verifies the finally block guarantees cleanup even on errors.
-        """
-        # Set NO_PROXY to a custom value before test
-        original_value = "custom_error_test_value"
-        os.environ["NO_PROXY"] = original_value
-
-        # Create minimal sdk_settings.json
-        settings_path = tmp_path / "sdk_settings.json"
-        settings_path.write_text('{"sandbox": {"enabled": true}}')
-
-        # Create a non-existent settings path to trigger an error
-        bad_settings_path = tmp_path / "nonexistent" / "settings.json"
-
-        try:
-            # Attempt SDK session that should fail
-            with pytest.raises((SDKRunnerError, Exception)):
-                asyncio.run(run_sdk_session(
-                    worktree_path=tmp_path,
-                    prompt_content="This should fail due to bad settings path.",
-                    model="haiku",
-                    sdk_settings_path=bad_settings_path,
-                ))
-
-            # Verify NO_PROXY was still restored despite the error
             assert os.environ.get("NO_PROXY") == original_value
         finally:
             # Cleanup: restore environment

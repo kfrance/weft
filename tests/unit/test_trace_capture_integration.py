@@ -1,4 +1,9 @@
-"""Integration tests for trace_capture module."""
+"""Unit tests for trace capture component integration.
+
+Despite the name, these tests use mocks and make no external API calls.
+The 'integration' refers to component integration (testing how trace_capture
+works with mock JSONL files), not external API integration.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""Integration tests for argparse + argcomplete."""
+"""Unit tests for argparse/argcomplete integration.
+
+These tests verify the integration between argparse and argcomplete
+for tab completion. No external API calls are made.
+"""
 
 from __future__ import annotations
 

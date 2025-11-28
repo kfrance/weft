@@ -10,11 +10,12 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 
 ### Development Commands
 - **Install dependencies**: `uv sync`
-- **Run tests**: `uv run pytest`
-- **Run integration tests**: `uv run pytest -m integration` (makes real SDK calls)
+- **Run tests**: `uv run pytest` (runs unit tests only by default)
+- **Run unit tests**: `uv run pytest tests/unit/`
+- **Run integration tests**: `uv run pytest tests/integration/` or `uv run pytest -m integration` (makes real API calls)
 - **Run all tests**: `uv run pytest -m ''`
 - **Run CLI**: `uv run lw_coder <command>`
-- **Run specific test**: `uv run pytest tests/test_<module>.py`
+- **Run specific test**: `uv run pytest tests/unit/test_<module>.py`
 
 ### CLI Usage
 - **Initialize project**: `uv run lw_coder init` - Initialize lw_coder in git repository with baseline templates
@@ -64,8 +65,26 @@ The `eval` command evaluates code changes using LLM judges:
 
 ## Testing
 
-Test files are located in `tests/` with pytest configuration in `pyproject.toml`:
+Test files are organized in `tests/` with pytest configuration in `pyproject.toml`:
+
+### Test Organization
+- `tests/unit/` - Fast tests with mocked dependencies, no external API calls
+- `tests/integration/` - Tests that make real external API calls (Claude SDK, OpenRouter, etc.)
+- `tests/conftest.py` - Shared fixtures available to both unit and integration tests
+
+### Test Commands
+- `pytest` - Runs unit tests only (default, excludes integration tests via marker)
+- `pytest tests/unit/` - Runs unit tests by directory
+- `pytest tests/integration/` - Runs integration tests by directory
+- `pytest -m integration` - Runs integration tests by marker
+- `pytest -m ''` - Runs all tests (removes marker filter)
+
+### Adding New Tests
+- **Unit tests**: Add to `tests/unit/`, no marker needed
+- **Integration tests**: Add to `tests/integration/` AND mark with `@pytest.mark.integration`
+
+### Configuration
 - `pythonpath = ["src"]` allows importing from source without installation
-- Tests cover plan validation logic and CLI behavior
-- Use `conftest.py` for shared test fixtures and utilities
+- `addopts = "-m 'not integration'"` excludes integration tests by default
 - **See `docs/BEST_PRACTICES.md` for testing guidelines** (pytest.fail vs skip, DSPy/LLM usage, etc.)
+- **See `tests/README.md` for detailed test organization documentation**
