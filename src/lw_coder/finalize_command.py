@@ -228,8 +228,8 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
         logger.info("This will commit changes, rebase onto main, and merge")
 
         # Build command using the executor
-        # Use default model "sonnet" for finalize command
-        command = executor.build_command(prompt_file, model="sonnet")
+        # Use default model "haiku" for finalize command (fast execution)
+        command = executor.build_command(prompt_file, model="haiku")
 
         # Get executor-specific environment variables
         executor_env_vars = executor.get_env_vars(host_factory_dir)
