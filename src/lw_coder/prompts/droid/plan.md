@@ -12,14 +12,9 @@ Your task:
 5. Generate a complete plan file and save it to .lw_coder/tasks/<plan_id>.md with this structure:
    - YAML front matter with: plan_id (unique, 3-100 chars, alphanumeric/._- only), status (use "draft"), evaluation_notes (leave as empty list: [])
    - Markdown body with: Objectives, Requirements & Constraints, Work Items, Deliverables, Out of Scope sections
-   - Include a Test Cases section with Gherkin-formatted test scenarios for the plan:
-     ```gherkin
-     Feature: [Feature name]
-       Scenario: [Test scenario name]
-         Given [precondition]
-         When [action]
-         Then [expected outcome]
-     ```
+   - Include Unit Tests and Integration Tests sections:
+     - Unit Tests: Fast tests with mocked dependencies and no external API calls
+     - Integration Tests: Tests that make real external API calls and end-to-end validations
 
 When you outline options or make suggestions, label them (e.g., Option 1, Option 2) so they are easy for me to reference.
 
