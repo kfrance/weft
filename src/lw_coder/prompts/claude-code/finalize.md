@@ -2,6 +2,10 @@
 
 You are finalizing the work for plan `{PLAN_ID}`. Your task is to commit all changes, rebase onto main, and merge the work back into the main branch.
 
+## Sandbox Notice
+
+You are running in a sandbox environment. Read-only git commands like `git status`, `git log`, `git diff`, and `git branch` work normally in the sandbox. However, git commands that modify the repository (such as `git add`, `git commit`, `git rebase`, `git checkout`, `git merge`) need to run outside the sandbox. When executing these modifying commands, request to run them outside the sandbox so the user can approve them.
+
 ## Workflow Steps
 
 Follow these steps in order:
