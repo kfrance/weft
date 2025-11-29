@@ -7,6 +7,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .cache_sync import (
+    check_rsync_available,
+    get_global_cache_dir,
+    get_worktree_cache_dir,
+    sync_cache_from_worktree,
+    sync_cache_to_worktree,
+)
 from .git_context import GitContextError, gather_git_context
 from .judge_executor import JudgeExecutionError, get_cache_dir, get_openrouter_api_key
 from .judge_loader import JudgeLoaderError, discover_judges
@@ -98,6 +105,20 @@ def run_eval_command(plan_id: str) -> int:
             )
             return 1
 
+        # Sync cache to worktree before execution
+        global_cache = get_global_cache_dir()
+        worktree_cache = get_worktree_cache_dir(worktree_path)
+
+        rsync_available = check_rsync_available()
+        if not rsync_available:
+            logger.warning(
+                "rsync is not available. DSPy cache sync disabled. "
+                "Install rsync to enable cache synchronization between worktrees."
+            )
+        else:
+            logger.debug("Syncing DSPy cache to worktree...")
+            sync_cache_to_worktree(global_cache, worktree_cache)
+
         # Discover judges
         judges_dir = Path(".lw_coder/judges")
         try:
@@ -140,6 +161,11 @@ def run_eval_command(plan_id: str) -> int:
         except JudgeOrchestrationError as exc:
             logger.error("Judge execution failed: %s", exc)
             return 1
+        finally:
+            # Sync cache from worktree back to global (even on failure)
+            if rsync_available:
+                logger.debug("Syncing DSPy cache from worktree back to global...")
+                sync_cache_from_worktree(worktree_cache, global_cache)
 
         # Format and display results
         output = format_judge_results(results, actual_plan_id, worktree_path)

@@ -10,6 +10,17 @@ This project hosts a self-optimizing multi-agent coding assistant that orchestra
 - Runs directly on Linux hosts with Git worktrees for isolated code experiments
 - Feeds GEPA with task/eval logs to iteratively improve prompt scaffolding, delegation order, and runtime efficiency
 
+## Requirements
+
+- Python 3.10+
+- Git
+- `rsync` command (for DSPy cache synchronization in worktrees)
+  - Linux/macOS: Usually pre-installed
+  - Windows: Install via WSL, Cygwin, or `choco install rsync`
+  - Verify installation: `rsync --version`
+
+If `rsync` is not available, commands will run but cache synchronization will be disabled.
+
 ## Installation
 
 To install `lw_coder` as a system-wide command that works from any directory:

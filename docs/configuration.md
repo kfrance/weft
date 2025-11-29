@@ -57,18 +57,36 @@ OPENROUTER_APP_NAME=lw_coder
 
 ### DSPy Caching
 
-DSPy automatically caches LLM responses to disk at `~/.lw_coder/dspy_cache/`. This cache:
+DSPy caches LLM responses to improve performance and reduce API costs.
 
-- Reduces API costs by reusing responses for identical prompts
-- Speeds up development by avoiding redundant API calls
-- Persists across runs
+**Cache Locations:**
+- Global cache: `~/.lw_coder/dspy_cache/`
+- Worktree cache: `<worktree>/.lw_coder/dspy_cache/`
 
-The cache directory is created automatically on first use. You can safely delete it to clear the cache.
+**How It Works:**
+- Cache entries are automatically synced to worktrees before command execution
+- Cache entries created in worktrees sync back to global cache after execution
+- This allows worktrees to benefit from existing cache while running in sandbox environments
 
 **Cache behavior:**
 - Initial runs that generate new prompts will call the LLM API
 - Subsequent runs with the same plan will reuse cached responses
 - Cache is keyed by prompt content, so plan changes trigger new API calls
+- Cache persists across runs and is shared between worktrees
+
+**Requirements:**
+- `rsync` command must be available for cache synchronization
+- If rsync is not available, you'll see a warning and cache sync will be disabled
+- Commands continue to work without cache sync, just without worktree cache sharing
+
+**Manual Cache Management:**
+- Clear cache: `rm -rf ~/.lw_coder/dspy_cache`
+- Verify rsync: `which rsync`
+
+**Troubleshooting:**
+- If cache sync fails, check rsync installation with `rsync --version`
+- Cache sync failures are logged as warnings but don't block command execution
+- For permission issues, ensure write access to both cache directories
 
 ## Validation
 

@@ -56,6 +56,29 @@ class JudgeSignatureBase(dspy.Signature):
     feedback: str = dspy.OutputField(desc="Detailed feedback and recommendations")
 
 
+def configure_dspy_cache(cache_dir: Path) -> None:
+    """Configure DSPy to use the specified cache directory.
+
+    Args:
+        cache_dir: Directory for disk cache
+
+    Note:
+        This configures DSPy's global cache settings. Must be called before
+        any LM operations to ensure cache is used.
+    """
+    # Ensure cache directory exists
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Configure DSPy cache to use the specified directory
+    dspy.configure_cache(
+        enable_disk_cache=True,
+        enable_memory_cache=True,
+        disk_cache_dir=str(cache_dir),
+    )
+
+    logger.debug("Configured DSPy cache at %s", cache_dir)
+
+
 def create_lm(model: str, api_key: str, cache_dir: Path) -> dspy.LM:
     """Create a DSPy LM instance for OpenRouter.
 
@@ -71,8 +94,8 @@ def create_lm(model: str, api_key: str, cache_dir: Path) -> dspy.LM:
         JudgeExecutionError: If LM creation fails
     """
     try:
-        # Ensure cache directory exists
-        cache_dir.mkdir(parents=True, exist_ok=True)
+        # Configure DSPy cache to use the specified directory
+        configure_dspy_cache(cache_dir)
 
         # Create LM with OpenRouter via LiteLLM
         lm = dspy.LM(f"openrouter/{model}", api_key=api_key, max_tokens=64000)
@@ -173,7 +196,27 @@ def get_openrouter_api_key() -> str:
 def get_cache_dir() -> Path:
     """Get DSPy cache directory.
 
+    Returns local .lw_coder/dspy_cache when in worktree,
+    global ~/.lw_coder/dspy_cache otherwise.
+
     Returns:
-        Path to cache directory (~/.lw_coder/dspy_cache)
+        Path to cache directory
     """
+    cwd = Path.cwd()
+    cwd_resolved = str(cwd.resolve())
+
+    # Check if we're in a worktree
+    # Pattern: /path/to/project/.lw_coder/worktrees/temp-xyz/...
+    if "/.lw_coder/worktrees/" in cwd_resolved:
+        # Find worktree root and use local cache
+        parts = cwd.resolve().parts
+        try:
+            worktree_idx = parts.index("worktrees") + 1
+            if worktree_idx < len(parts):
+                worktree_root = Path(*parts[: worktree_idx + 1])
+                return worktree_root / ".lw_coder" / "dspy_cache"
+        except (ValueError, IndexError):
+            pass  # Fall through to global cache
+
+    # Use global cache
     return Path.home() / ".lw_coder" / "dspy_cache"

@@ -1,7 +1,12 @@
 """Implementation of the finalize command for merging completed plans.
 
-This command automates the workflow of finalizing work from a plan's worktree by
-committing changes, merging them into the main branch, and cleaning up.
+This command automates the workflow of finalizing work from a plan's worktree by:
+1. Committing changes (runs outside sandbox, no permission prompts)
+2. Rebasing onto main (runs outside sandbox, no permission prompts)
+3. Merging into main with fast-forward (runs outside sandbox, no permission prompts)
+4. Cleaning up the worktree and branch
+
+All git operations run outside the sandbox environment without requiring user approval.
 """
 
 from __future__ import annotations
@@ -225,7 +230,10 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
         git_dir = repo_root / ".git"
 
         logger.info("Starting %s session for finalization...", tool)
-        logger.info("This will commit changes, rebase onto main, and merge")
+        logger.info(
+            "Running outside sandbox: will commit changes, rebase onto main, and merge "
+            "(no permission prompts required)"
+        )
 
         # Build command using the executor
         # Use default model "haiku" for finalize command (fast execution)

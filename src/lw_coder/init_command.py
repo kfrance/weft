@@ -159,6 +159,59 @@ def prompt_yes_no(message: str, skip_prompts: bool = False) -> bool:
             return False
 
 
+# Gitignore marker and entries for lw_coder cache directories
+_GITIGNORE_MARKER = "# lw_coder cache"
+_GITIGNORE_ENTRIES = """
+# lw_coder cache and temporary files
+.lw_coder/dspy_cache/
+.lw_coder/worktrees/
+.lw_coder/runs/
+.lw_coder/plan-traces/
+"""
+
+
+def update_gitignore(project_root: Path) -> None:
+    """Add lw_coder cache directories to .gitignore.
+
+    Args:
+        project_root: Path to the project root directory.
+
+    Note:
+        - If .gitignore exists and already contains the marker, no changes are made.
+        - If .gitignore exists without marker, entries are appended.
+        - If .gitignore doesn't exist, it is created with the entries.
+    """
+    gitignore_path = project_root / ".gitignore"
+
+    if gitignore_path.exists():
+        try:
+            content = gitignore_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Failed to read .gitignore: %s", exc)
+            return
+
+        # Check if already present
+        if _GITIGNORE_MARKER in content:
+            logger.debug(".gitignore already contains lw_coder cache entries")
+            return
+
+        # Append to existing .gitignore
+        try:
+            gitignore_path.write_text(
+                content.rstrip() + "\n" + _GITIGNORE_ENTRIES, encoding="utf-8"
+            )
+            logger.info("Added lw_coder cache entries to .gitignore")
+        except OSError as exc:
+            logger.warning("Failed to update .gitignore: %s", exc)
+    else:
+        # Create new .gitignore
+        try:
+            gitignore_path.write_text(_GITIGNORE_ENTRIES.lstrip(), encoding="utf-8")
+            logger.info("Created .gitignore with lw_coder cache entries")
+        except OSError as exc:
+            logger.warning("Failed to create .gitignore: %s", exc)
+
+
 class AtomicInitializer:
     """Context manager for atomic initialization with rollback on failure.
 
@@ -433,6 +486,9 @@ def run_init_command(force: bool = False, yes: bool = False) -> int:
                 overwrite_judges=overwrite_judges,
                 overwrite_prompts=overwrite_prompts,
             )
+
+        # Update .gitignore with lw_coder cache entries
+        update_gitignore(repo_root)
 
         # Display appropriate message based on what was done
         if not overwrite_judges and not overwrite_prompts:

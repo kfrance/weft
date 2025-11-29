@@ -39,9 +39,10 @@ Thumbs.db
 *.swo
 
 
-# .lw_coder that aren't tracked
+# lw_coder cache and temporary files
+.lw_coder/dspy_cache/
 .lw_coder/worktrees/
 .lw_coder/runs/
+.lw_coder/plan-traces/
 plan.md
 .claude/agents/
-.lw_coder/plan-traces/

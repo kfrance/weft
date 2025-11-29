@@ -42,6 +42,13 @@ from .run_manager import (
 )
 from .trace_capture import TraceCaptureError, capture_session_trace
 from .worktree_utils import WorktreeError, ensure_worktree
+from .cache_sync import (
+    check_rsync_available,
+    get_global_cache_dir,
+    get_worktree_cache_dir,
+    sync_cache_from_worktree,
+    sync_cache_to_worktree,
+)
 
 logger = get_logger(__name__)
 
@@ -343,6 +350,20 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
         except (OSError, IOError) as exc:
             logger.warning("Failed to write droid prompt to run directory: %s", exc)
 
+    # Sync cache to worktree before execution
+    global_cache = get_global_cache_dir()
+    worktree_cache = get_worktree_cache_dir(worktree_path)
+
+    rsync_available = check_rsync_available()
+    if not rsync_available:
+        logger.warning(
+            "rsync is not available. DSPy cache sync disabled. "
+            "Install rsync to enable cache synchronization between worktrees."
+        )
+    else:
+        logger.debug("Syncing DSPy cache to worktree...")
+        sync_cache_to_worktree(global_cache, worktree_cache)
+
     # Capture execution start time for trace capture
     execution_start = time.time()
 
@@ -484,6 +505,11 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
         logger.error("Failed to run %s session: %s", tool, exc)
         return 1
     finally:
+        # Sync cache from worktree back to global (even on failure/interruption)
+        if rsync_available:
+            logger.debug("Syncing DSPy cache from worktree back to global...")
+            sync_cache_from_worktree(worktree_cache, global_cache)
+
         # Clean up plan.md from worktree, even on failure or interruption
         try:
             if plan_md_path.exists():

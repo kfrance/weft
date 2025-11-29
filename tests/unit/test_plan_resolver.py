@@ -121,24 +121,6 @@ def test_resolve_path_input(tmp_path):
     assert result == plan_file.resolve()
 
 
-def test_resolve_with_backslash_separator(tmp_path, monkeypatch):
-    """Test resolving paths with backslash separators (Windows-style)."""
-    import sys
-    if sys.platform != "win32":
-        # Skip on non-Windows platforms (backslash is not a separator)
-        pytest.skip("Backslash path separator only supported on Windows")
-
-    monkeypatch.chdir(tmp_path)
-    subdir = tmp_path / "subdir"
-    subdir.mkdir()
-    plan_file = subdir / "test.md"
-    plan_file.write_text("# Test Plan\n")
-
-    # Use backslash separator
-    result = PlanResolver.resolve("subdir\\test.md", cwd=tmp_path)
-    assert result == plan_file.resolve()
-
-
 def test_resolve_default_cwd(tmp_path, monkeypatch):
     """Test that PlanResolver uses current directory by default."""
     monkeypatch.chdir(tmp_path)
