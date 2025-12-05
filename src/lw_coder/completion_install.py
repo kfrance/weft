@@ -5,11 +5,30 @@ This module provides logic for installing bash completion for lw_coder CLI.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def check_argcomplete_installed() -> tuple[bool, str]:
+    """Check if argcomplete is properly installed.
+
+    Returns:
+        Tuple of (is_installed, message).
+    """
+    # Check if register-python-argcomplete command is available
+    if shutil.which("register-python-argcomplete") is None:
+        return False, (
+            "argcomplete is not installed or not in PATH.\n\n"
+            "To install argcomplete:\n"
+            "  Recommended: pipx install argcomplete\n"
+            "  Alternative: pip install argcomplete  (or pip3)\n\n"
+            "After installing, run 'lw_coder completion install' again."
+        )
+    return True, ""
 
 
 def run_completion_install() -> int:
@@ -60,15 +79,20 @@ eval "$(register-python-argcomplete lw_coder)"
                 f.write(source_line)
             logger.info("Added completion source to %s", bashrc)
 
-        # Print success message with next steps
+        # Check if argcomplete is installed
+        argcomplete_ok, argcomplete_msg = check_argcomplete_installed()
+
+        if not argcomplete_ok:
+            print("\nCompletion script installed, but argcomplete is missing.")
+            print()
+            print(argcomplete_msg)
+            return 1
+
+        # Everything is set up correctly
         print("\nBash completion installed successfully!")
-        print("\nSetup steps:")
-        print("1. Install argcomplete globally:")
-        print("   Recommended: pipx install argcomplete")
-        print("   Alternative: pip install argcomplete  (or pip3)")
-        print("2. Activate global argcomplete: activate-global-python-argcomplete")
-        print("3. Reload your shell: source ~/.bashrc")
-        print("\nAfter these steps, you can use tab completion with lw_coder commands.")
+        print("\nTo activate, reload your shell:")
+        print("  source ~/.bashrc")
+        print("\nAfter that, tab completion will work with lw_coder commands.")
 
         return 0
 
