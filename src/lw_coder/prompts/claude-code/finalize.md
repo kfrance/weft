@@ -10,28 +10,17 @@ You are running in a sandbox environment. Read-only git commands like `git statu
 
 Follow these steps in order:
 
-### 1. Verify uncommitted changes exist
+### 1. Verify and analyze uncommitted changes
 
-Run `git status` to verify there are uncommitted changes. If the working directory is clean, **stop** and report an error.
+Run `git status` once to:
+1. Verify there are uncommitted changes - if the working directory is clean, **stop** and report an error
+2. Review the list of changed and untracked files to understand what was modified
 
-### 2. Analyze changed and untracked files
+### 2. Generate commit message and commit
 
-Use `git status` to see all changed and untracked files. Review each file to understand what was modified.
+Generate a commit message based on the git status output, then stage and commit in a single command:
 
-### 3. Stage files for commit
-
-- **Automatically stage** files that are clearly related to the plan implementation (source code, tests, configuration, documentation).
-- **Ask the user for confirmation** before staging files that appear:
-  - Unrelated to the plan
-  - Temporary (e.g., `.pyc`, `.log`, `__pycache__`, temp files)
-  - Testing artifacts not meant for commit
-
-The plan file at `.lw_coder/tasks/{PLAN_ID}.md` should ALWAYS be staged.
-
-### 4. Generate commit message
-
-Analyze the staged changes using `git diff --staged` and create a commit message with the following format:
-
+**Commit message format:**
 ```
 <short descriptive summary>
 
@@ -47,16 +36,14 @@ Analyze the staged changes using `git diff --staged` and create a commit message
 - Line 4: Blank line
 - Line 5+: Detailed description explaining what changed and why
 
-### 5. Commit the changes
-
-Run:
+**Execute immediately** after generating the message:
 ```bash
-git commit -m "<your generated commit message>"
+git add -A && git commit -m "<your generated commit message>"
 ```
 
-Ensure the commit includes the plan file at `.lw_coder/tasks/{PLAN_ID}.md`.
+This stages all changes (including the plan file at `.lw_coder/tasks/{PLAN_ID}.md`) and commits them in one command.
 
-### 6. Rebase onto main
+### 3. Rebase onto main
 
 Run:
 ```bash
@@ -65,20 +52,17 @@ git rebase main
 
 If conflicts occur, work with the user to resolve them interactively, then continue the rebase with `git rebase --continue`.
 
-### 7. Switch to main repo and merge
+### 4. Switch to main repo and merge
 
-First, navigate to the main repository root (not the worktree):
+Navigate to the main repository root, checkout main, and merge in a single command chain:
 ```bash
-cd $(git rev-parse --git-common-dir)/..
+cd $(git rev-parse --git-common-dir)/.. && git checkout main && git merge --ff-only {PLAN_ID}
 ```
 
-Then checkout main and merge:
-```bash
-git checkout main
-git merge --ff-only {PLAN_ID}
-```
-
-The `--ff-only` flag ensures a fast-forward merge (linear history). If it fails, the rebase step may have issues.
+The `--ff-only` flag ensures a fast-forward merge (linear history). If any step in this chain fails:
+- `cd` failure: Could not determine main repository location
+- `checkout` failure: Main branch may have conflicts or other issues
+- `merge` failure: The rebase step may not have completed correctly
 
 **After successful merge**: Exit with success code. The Python wrapper will automatically clean up the worktree and delete the branch.
 
