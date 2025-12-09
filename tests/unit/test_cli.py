@@ -599,3 +599,75 @@ def test_no_hooks_help_text_code(capsys) -> None:
     help_text = captured.out + captured.err
     assert "--no-hooks" in help_text
 
+
+# =============================================================================
+# Subcommand Import Tests
+# =============================================================================
+
+
+@pytest.mark.parametrize("subcommand", [
+    "plan",
+    "code",
+    "init",
+    "finalize",
+    "recover-plan",
+    "abandon",
+    "completion",
+    "eval",
+])
+def test_subcommand_help_no_import_errors(subcommand: str) -> None:
+    """Test that all subcommands can show --help without import errors.
+
+    This catches UnboundLocalError and similar issues caused by shadowed
+    imports or incorrect lazy loading patterns in the CLI dispatch code.
+    """
+    with pytest.raises(SystemExit) as exc_info:
+        main([subcommand, "--help"])
+
+    # argparse exits with 0 when showing help
+    assert exc_info.value.code == 0
+
+
+def test_all_subcommands_dispatch_without_import_errors(monkeypatch, tmp_path) -> None:
+    """Test that all subcommand dispatch blocks execute without import errors.
+
+    This catches UnboundLocalError caused by local imports shadowing module-level
+    imports (e.g., lazy 'from .plan_resolver import PlanResolver' inside one
+    if-block shadows the top-level import for earlier if-blocks in the same function).
+
+    Each subcommand is tested by mocking its handler and verifying the dispatch
+    code reaches it without raising UnboundLocalError or similar import issues.
+    """
+    # Create a dummy plan file for commands that require one
+    plan_file = tmp_path / "test-plan.md"
+    plan_file.write_text("# Test Plan\n")
+
+    # Mock all command handlers to return 0
+    monkeypatch.setattr("lw_coder.plan_command.run_plan_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("lw_coder.cli.run_init_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("lw_coder.finalize_command.run_finalize_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("lw_coder.recover_command.run_recover_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("lw_coder.abandon_command.run_abandon_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("lw_coder.eval_command.run_eval_command", lambda *args, **kwargs: 0)
+
+    # Test each subcommand with minimal valid arguments
+    # These exercise the dispatch code paths where import errors would manifest
+    test_cases = [
+        (["plan", "--text", "test"], "plan"),
+        (["code", str(plan_file)], "code"),
+        (["init"], "init"),
+        (["finalize", str(plan_file)], "finalize"),
+        (["recover-plan"], "recover-plan"),
+        (["abandon", str(plan_file), "--yes"], "abandon"),
+        (["eval", "test-plan"], "eval"),
+    ]
+
+    for args, cmd_name in test_cases:
+        # If this raises UnboundLocalError, the test fails with a clear message
+        try:
+            exit_code = main(args)
+            assert exit_code == 0, f"{cmd_name} command failed with exit code {exit_code}"
+        except UnboundLocalError as e:
+            pytest.fail(f"{cmd_name} command raised UnboundLocalError: {e}")
+

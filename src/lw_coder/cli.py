@@ -303,7 +303,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "abandon":
         # Lazy import to avoid loading heavy dependencies during tab completion
         from .abandon_command import run_abandon_command
-        from .plan_resolver import PlanResolver
 
         # Resolve plan_path (could be ID or path)
         try:
@@ -338,7 +337,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "code":
         # Lazy import to avoid loading heavy dependencies during tab completion
         from .code_command import run_code_command
-        from .plan_resolver import PlanResolver
 
         # Check for mutual exclusivity of plan_path and --text
         if args.plan_path and args.text is not None:
