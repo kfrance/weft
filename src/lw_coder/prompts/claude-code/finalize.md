@@ -22,19 +22,18 @@ Generate a commit message based on the git status output, then stage and commit 
 
 **Commit message format:**
 ```
-<short descriptive summary>
+<short summary> (50-72 chars)
 
 @.lw_coder/tasks/{PLAN_ID}.md
 
-<detailed description of changes>
+[2-3 sentence overview of changes]
+
+[Optional: Key technical decisions or non-obvious aspects]
+
+[Optional: Dependencies/Breaking changes]
 ```
 
-**Requirements:**
-- Line 1: Short description (50-72 chars) summarizing the changes
-- Line 2: Blank line
-- Line 3: Plan reference `@.lw_coder/tasks/{PLAN_ID}.md`
-- Line 4: Blank line
-- Line 5+: Detailed description explaining what changed and why
+Aim for 10 lines total in body (maximum 15).
 
 **Execute immediately** after generating the message:
 ```bash
