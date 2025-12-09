@@ -16,6 +16,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from claude_agent_sdk import AgentDefinition
+
 from .executors import ExecutorRegistry, ExecutorError
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
@@ -51,6 +53,12 @@ from .cache_sync import (
 )
 
 logger = get_logger(__name__)
+
+# Agent descriptions - single source of truth for both filesystem and programmatic agents
+AGENT_DESCRIPTIONS = {
+    "code-review-auditor": "Reviews code changes for quality and compliance",
+    "plan-alignment-checker": "Verifies implementation aligns with the original plan",
+}
 
 
 def _filter_env_vars(patterns: list[str]) -> dict[str, str]:
@@ -100,7 +108,7 @@ def _write_sub_agents(
     code_review_agent = agents_dir / "code-review-auditor.md"
     code_review_frontmatter = f"""---
 name: code-review-auditor
-description: Reviews code changes for quality and compliance
+description: {AGENT_DESCRIPTIONS["code-review-auditor"]}
 model: {model}
 ---
 
@@ -114,7 +122,7 @@ model: {model}
     plan_alignment_agent = agents_dir / "plan-alignment-checker.md"
     plan_alignment_frontmatter = f"""---
 name: plan-alignment-checker
-description: Verifies implementation aligns with the original plan
+description: {AGENT_DESCRIPTIONS["plan-alignment-checker"]}
 model: {model}
 ---
 
@@ -122,6 +130,42 @@ model: {model}
 """
     plan_alignment_agent.write_text(plan_alignment_frontmatter, encoding="utf-8")
     logger.debug("Wrote plan-alignment-checker agent to %s", plan_alignment_agent)
+
+
+def _build_agent_definitions(
+    prompts: dict[str, str], model: str
+) -> dict[str, AgentDefinition]:
+    """Build programmatic agent definitions from prompts dictionary.
+
+    Creates AgentDefinition objects for SDK execution. These are built from
+    the same prompts used for filesystem agents, ensuring synchronization.
+
+    NOTE: Agents are registered in two ways due to SDK limitation:
+    1. Filesystem (.claude/agents/*.md) - for CLI resume sessions
+    2. Programmatic (agents parameter) - for SDK execution
+    Both are built from the same prompts source to ensure synchronization.
+    The SDK does not discover filesystem agents in .claude/agents/ directories.
+
+    Args:
+        prompts: Dictionary containing agent prompts.
+        model: Model variant being used.
+
+    Returns:
+        Dictionary mapping agent names to AgentDefinition objects.
+    """
+    agents = {
+        "code-review-auditor": AgentDefinition(
+            description=AGENT_DESCRIPTIONS["code-review-auditor"],
+            prompt=prompts["code_review_auditor"],
+            model=model,
+        ),
+        "plan-alignment-checker": AgentDefinition(
+            description=AGENT_DESCRIPTIONS["plan-alignment-checker"],
+            prompt=prompts["plan_alignment_checker"],
+            model=model,
+        ),
+    }
+    return agents
 
 
 def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: str | None = None) -> int:
@@ -383,12 +427,21 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
             return 1
 
         logger.info("Running initial SDK session...")
+
+        # Build agent definitions for SDK execution
+        # NOTE: Agents are registered in two ways due to SDK limitation:
+        # 1. Filesystem (.claude/agents/*.md) - for CLI resume sessions
+        # 2. Programmatic (agents parameter) - for SDK execution
+        # Both are built from the same prompts source to ensure synchronization.
+        agents = _build_agent_definitions(prompts, effective_model)
+
         try:
             session_id = run_sdk_session_sync(
                 worktree_path=worktree_path,
                 prompt_content=prompts["main_prompt"],
                 model=effective_model,
                 sdk_settings_path=sdk_settings_path,
+                agents=agents,
             )
             logger.info("SDK session completed. Session ID: %s", session_id)
         except SDKRunnerError as exc:

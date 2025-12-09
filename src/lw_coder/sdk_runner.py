@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import (
+    AgentDefinition,
     ClaudeSDKClient,
     ClaudeAgentOptions,
     ResultMessage,
@@ -77,6 +78,7 @@ async def run_sdk_session(
     prompt_content: str,
     model: str,
     sdk_settings_path: Path,
+    agents: dict[str, AgentDefinition] | None = None,
 ) -> str:
     """Run SDK session and capture session ID.
 
@@ -89,6 +91,10 @@ async def run_sdk_session(
         prompt_content: The main prompt content to execute.
         model: Model variant to use (e.g., "sonnet", "opus", "haiku").
         sdk_settings_path: Path to the SDK settings JSON file.
+        agents: Optional dict of agent definitions for programmatic registration.
+                If None, agents are only available via filesystem discovery.
+                Note: SDK does not discover filesystem agents in .claude/agents/,
+                so programmatic registration is required for SDK execution.
 
     Returns:
         Session ID from the ResultMessage.
@@ -110,12 +116,15 @@ async def run_sdk_session(
     logger.debug("Set NO_PROXY='*' for SDK session network access")
 
     # Build options for the SDK client
+    # NOTE: agents parameter provides programmatic agent registration since
+    # SDK does not discover filesystem agents in .claude/agents/ directories.
     options = ClaudeAgentOptions(
         cwd=worktree_path,
         model=model,
         settings=str(sdk_settings_path),
         permission_mode="default",
         can_use_tool=_can_use_tool_callback,
+        agents=agents,
     )
 
     session_id: str | None = None
@@ -179,6 +188,7 @@ def run_sdk_session_sync(
     prompt_content: str,
     model: str,
     sdk_settings_path: Path,
+    agents: dict[str, AgentDefinition] | None = None,
 ) -> str:
     """Synchronous wrapper for run_sdk_session.
 
@@ -189,6 +199,10 @@ def run_sdk_session_sync(
         prompt_content: The main prompt content to execute.
         model: Model variant to use (e.g., "sonnet", "opus", "haiku").
         sdk_settings_path: Path to the SDK settings JSON file.
+        agents: Optional dict of agent definitions for programmatic registration.
+                If None, agents are only available via filesystem discovery.
+                Note: SDK does not discover filesystem agents in .claude/agents/,
+                so programmatic registration is required for SDK execution.
 
     Returns:
         Session ID from the ResultMessage.
@@ -202,6 +216,7 @@ def run_sdk_session_sync(
             prompt_content=prompt_content,
             model=model,
             sdk_settings_path=sdk_settings_path,
+            agents=agents,
         )
     )
 
