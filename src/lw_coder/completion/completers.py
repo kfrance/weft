@@ -135,28 +135,42 @@ def complete_backup_plans(prefix: str, parsed_args, **kwargs) -> list[str]:
     Provides completions for plan IDs from backup references in the format:
     - "plan-id (exists)" for plans with existing files
     - "plan-id (missing)" for plans without existing files
+    - "plan-id (abandoned)" for abandoned plans (when --abandoned flag is set)
 
     Args:
         prefix: Current input prefix being completed.
-        parsed_args: Parsed arguments from argparse (unused).
+        parsed_args: Parsed arguments from argparse.
         **kwargs: Additional argcomplete arguments (unused).
 
     Returns:
         List of backup plan IDs with status indicators.
     """
     try:
-        from ..plan_backup import list_backups
+        from ..plan_backup import list_abandoned_plans, list_backups
         from ..repo_utils import find_repo_root
 
         repo_root = find_repo_root()
-        backups = list_backups(repo_root)
+
+        # Check if --abandoned flag is set
+        show_abandoned = getattr(parsed_args, "abandoned", False)
 
         completions = []
-        for plan_id, timestamp, file_exists in backups:
-            status = "exists" if file_exists else "missing"
-            completion = f"{plan_id} ({status})"
-            if completion.startswith(prefix):
-                completions.append(completion)
+
+        if show_abandoned:
+            # Show only abandoned plans
+            abandoned = list_abandoned_plans(repo_root)
+            for plan_id, timestamp, file_exists in abandoned:
+                completion = f"{plan_id} (abandoned)"
+                if completion.startswith(prefix):
+                    completions.append(completion)
+        else:
+            # Show only active backups
+            backups = list_backups(repo_root)
+            for plan_id, timestamp, file_exists in backups:
+                status = "exists" if file_exists else "missing"
+                completion = f"{plan_id} ({status})"
+                if completion.startswith(prefix):
+                    completions.append(completion)
 
         return completions
 

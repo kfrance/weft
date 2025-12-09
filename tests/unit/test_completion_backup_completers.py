@@ -135,3 +135,107 @@ def test_complete_backup_plans_handles_errors_gracefully(git_repo: GitRepo) -> N
 
     # Verify: Returns empty list on error
     assert completions == []
+
+
+class MockParsedArgs:
+    """Mock parsed_args for testing completer flag handling."""
+
+    def __init__(self, abandoned: bool = False):
+        self.abandoned = abandoned
+
+
+def test_complete_backup_plans_with_abandoned_flag(git_repo: GitRepo) -> None:
+    """Test that --abandoned flag shows abandoned plans instead of active."""
+    from lw_coder.plan_backup import move_backup_to_abandoned
+
+    # Setup: Create an active backup and an abandoned backup
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Active backup
+    active_plan = tasks_dir / "active-plan.md"
+    write_plan(
+        active_plan,
+        {
+            "plan_id": "active-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "active-plan")
+
+    # Abandoned backup
+    abandoned_plan = tasks_dir / "abandoned-plan.md"
+    write_plan(
+        abandoned_plan,
+        {
+            "plan_id": "abandoned-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "abandoned-plan")
+    move_backup_to_abandoned(git_repo.path, "abandoned-plan")
+
+    # Execute: Get completions WITHOUT --abandoned flag
+    with patch("lw_coder.repo_utils.find_repo_root", return_value=git_repo.path):
+        completions = complete_backup_plans(prefix="", parsed_args=MockParsedArgs(abandoned=False))
+
+    # Verify: Only active plans shown
+    assert len(completions) == 1
+    assert "active-plan (exists)" in completions
+    assert not any("abandoned-plan" in c for c in completions)
+
+    # Execute: Get completions WITH --abandoned flag
+    with patch("lw_coder.repo_utils.find_repo_root", return_value=git_repo.path):
+        completions = complete_backup_plans(prefix="", parsed_args=MockParsedArgs(abandoned=True))
+
+    # Verify: Only abandoned plans shown with (abandoned) suffix
+    assert len(completions) == 1
+    assert "abandoned-plan (abandoned)" in completions
+    assert not any("active-plan" in c for c in completions)
+
+
+def test_complete_backup_plans_abandoned_prefix_filtering(git_repo: GitRepo) -> None:
+    """Test that abandoned completions are filtered by prefix."""
+    from lw_coder.plan_backup import move_backup_to_abandoned
+
+    # Setup: Create multiple abandoned backups
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    for plan_id in ["feature-old", "feature-stale", "bugfix-abandoned"]:
+        plan_file = tasks_dir / f"{plan_id}.md"
+        write_plan(
+            plan_file,
+            {
+                "plan_id": plan_id,
+                "status": "draft",
+                "git_sha": "0" * 40,
+                "evaluation_notes": [],
+            },
+        )
+        create_backup(git_repo.path, plan_id)
+        move_backup_to_abandoned(git_repo.path, plan_id)
+
+    # Execute: Get completions with "feature" prefix and --abandoned flag
+    with patch("lw_coder.repo_utils.find_repo_root", return_value=git_repo.path):
+        completions = complete_backup_plans(prefix="feature", parsed_args=MockParsedArgs(abandoned=True))
+
+    # Verify: Only feature plans returned
+    assert len(completions) == 2
+    assert any("feature-old" in c for c in completions)
+    assert any("feature-stale" in c for c in completions)
+    assert not any("bugfix" in c for c in completions)
+
+
+def test_complete_backup_plans_abandoned_returns_empty_when_none(git_repo: GitRepo) -> None:
+    """Test that empty list is returned when no abandoned plans exist."""
+    # Execute: Get completions with --abandoned flag but no abandoned plans
+    with patch("lw_coder.repo_utils.find_repo_root", return_value=git_repo.path):
+        completions = complete_backup_plans(prefix="", parsed_args=MockParsedArgs(abandoned=True))
+
+    # Verify: Empty list
+    assert completions == []

@@ -10,9 +10,13 @@ from lw_coder.plan_backup import (
     BackupExistsError,
     BackupNotFoundError,
     PlanBackupError,
+    backup_exists_in_namespace,
     cleanup_backup,
     create_backup,
+    list_abandoned_plans,
     list_backups,
+    move_abandoned_to_backup,
+    move_backup_to_abandoned,
     recover_backup,
 )
 
@@ -306,3 +310,294 @@ def test_recover_backup_raises_error_when_ref_doesnt_exist(git_repo: GitRepo) ->
     """Test that recover_backup raises BackupNotFoundError for missing refs."""
     with pytest.raises(BackupNotFoundError, match="No backup found"):
         recover_backup(git_repo.path, "nonexistent-plan")
+
+
+# Tests for abandoned namespace functions
+
+
+def test_move_backup_to_abandoned(git_repo: GitRepo) -> None:
+    """Test moving backup from plan-backups to plan-abandoned namespace."""
+    # Setup: Create plan file and backup
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    plan_file = tasks_dir / "test-plan.md"
+    write_plan(
+        plan_file,
+        {
+            "plan_id": "test-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "test-plan")
+
+    # Verify backup exists in plan-backups
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-backups")
+    assert not backup_exists_in_namespace(git_repo.path, "test-plan", "plan-abandoned")
+
+    # Execute: Move to abandoned
+    move_backup_to_abandoned(git_repo.path, "test-plan")
+
+    # Verify: Backup moved to plan-abandoned
+    assert not backup_exists_in_namespace(git_repo.path, "test-plan", "plan-backups")
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-abandoned")
+
+
+def test_move_backup_to_abandoned_overwrites_existing(git_repo: GitRepo) -> None:
+    """Test that move_backup_to_abandoned overwrites existing abandoned ref."""
+    # Setup: Create plan file and backup
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    plan_file = tasks_dir / "test-plan.md"
+    write_plan(
+        plan_file,
+        {
+            "plan_id": "test-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+        body="# First version",
+    )
+    create_backup(git_repo.path, "test-plan")
+
+    # Move to abandoned first time
+    move_backup_to_abandoned(git_repo.path, "test-plan")
+
+    # Get first abandoned SHA
+    first_result = subprocess.run(
+        ["git", "show-ref", "--hash", "refs/plan-abandoned/test-plan"],
+        cwd=git_repo.path,
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    first_sha = first_result.stdout.strip()
+
+    # Create new backup with different content
+    write_plan(
+        plan_file,
+        {
+            "plan_id": "test-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+        body="# Second version",
+    )
+    create_backup(git_repo.path, "test-plan")
+
+    # Move to abandoned again (should overwrite)
+    move_backup_to_abandoned(git_repo.path, "test-plan")
+
+    # Verify: SHA changed
+    second_result = subprocess.run(
+        ["git", "show-ref", "--hash", "refs/plan-abandoned/test-plan"],
+        cwd=git_repo.path,
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    second_sha = second_result.stdout.strip()
+
+    assert first_sha != second_sha
+
+
+def test_move_abandoned_to_backup(git_repo: GitRepo) -> None:
+    """Test moving backup from plan-abandoned back to plan-backups namespace."""
+    # Setup: Create plan file, backup, and move to abandoned
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    plan_file = tasks_dir / "test-plan.md"
+    write_plan(
+        plan_file,
+        {
+            "plan_id": "test-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "test-plan")
+    move_backup_to_abandoned(git_repo.path, "test-plan")
+
+    # Verify initial state
+    assert not backup_exists_in_namespace(git_repo.path, "test-plan", "plan-backups")
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-abandoned")
+
+    # Execute: Move back to backup
+    move_abandoned_to_backup(git_repo.path, "test-plan")
+
+    # Verify: Backup restored to plan-backups
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-backups")
+    assert not backup_exists_in_namespace(git_repo.path, "test-plan", "plan-abandoned")
+
+
+def test_list_abandoned_plans_returns_correct_data(git_repo: GitRepo) -> None:
+    """Test that list_abandoned_plans returns correct metadata."""
+    # Setup: Create plans and move some to abandoned
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create and abandon first plan
+    plan1 = tasks_dir / "abandoned-one.md"
+    write_plan(
+        plan1,
+        {
+            "plan_id": "abandoned-one",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "abandoned-one")
+    move_backup_to_abandoned(git_repo.path, "abandoned-one")
+    plan1.unlink()  # Delete plan file
+
+    # Create and abandon second plan (keep file)
+    plan2 = tasks_dir / "abandoned-two.md"
+    write_plan(
+        plan2,
+        {
+            "plan_id": "abandoned-two",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "abandoned-two")
+    move_backup_to_abandoned(git_repo.path, "abandoned-two")
+
+    # Execute: List abandoned plans
+    abandoned = list_abandoned_plans(git_repo.path)
+
+    # Verify: Returns correct data
+    assert len(abandoned) == 2
+
+    abandoned_dict = {plan_id: (timestamp, exists) for plan_id, timestamp, exists in abandoned}
+
+    assert "abandoned-one" in abandoned_dict
+    assert "abandoned-two" in abandoned_dict
+
+    # Verify timestamps are integers
+    assert isinstance(abandoned_dict["abandoned-one"][0], int)
+    assert isinstance(abandoned_dict["abandoned-two"][0], int)
+
+    # Verify existence status
+    assert abandoned_dict["abandoned-one"][1] is False  # File deleted
+    assert abandoned_dict["abandoned-two"][1] is True  # File exists
+
+
+def test_list_abandoned_plans_returns_empty_when_none(git_repo: GitRepo) -> None:
+    """Test that list_abandoned_plans returns empty list when no abandoned plans exist."""
+    abandoned = list_abandoned_plans(git_repo.path)
+    assert abandoned == []
+
+
+def test_backup_exists_in_namespace(git_repo: GitRepo) -> None:
+    """Test backup_exists_in_namespace function."""
+    # Setup: Create plan file and backup
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    plan_file = tasks_dir / "test-plan.md"
+    write_plan(
+        plan_file,
+        {
+            "plan_id": "test-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "test-plan")
+
+    # Test: Exists in plan-backups
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-backups") is True
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-abandoned") is False
+
+    # Move to abandoned
+    move_backup_to_abandoned(git_repo.path, "test-plan")
+
+    # Test: Exists in plan-abandoned
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-backups") is False
+    assert backup_exists_in_namespace(git_repo.path, "test-plan", "plan-abandoned") is True
+
+
+def test_backup_exists_in_namespace_nonexistent(git_repo: GitRepo) -> None:
+    """Test backup_exists_in_namespace returns False for non-existent refs."""
+    assert backup_exists_in_namespace(git_repo.path, "nonexistent", "plan-backups") is False
+    assert backup_exists_in_namespace(git_repo.path, "nonexistent", "plan-abandoned") is False
+
+
+def test_recover_backup_from_abandoned_namespace(git_repo: GitRepo) -> None:
+    """Test recovering a backup from the abandoned namespace."""
+    # Setup: Create plan file, backup, and move to abandoned
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    plan_file = tasks_dir / "test-plan.md"
+    write_plan(
+        plan_file,
+        {
+            "plan_id": "test-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+        body="# Abandoned Plan Content",
+    )
+    original_content = plan_file.read_text(encoding="utf-8")
+    create_backup(git_repo.path, "test-plan")
+    move_backup_to_abandoned(git_repo.path, "test-plan")
+    plan_file.unlink()
+
+    # Execute: Recover from abandoned namespace
+    recovered_path = recover_backup(git_repo.path, "test-plan", namespace="plan-abandoned")
+
+    # Verify: File restored with correct content
+    assert recovered_path == plan_file
+    assert plan_file.exists()
+    assert plan_file.read_text(encoding="utf-8") == original_content
+
+
+def test_move_backup_to_abandoned_preserves_commit_sha(git_repo: GitRepo) -> None:
+    """Test that moving to abandoned preserves the commit SHA."""
+    # Setup: Create plan file and backup
+    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    plan_file = tasks_dir / "test-plan.md"
+    write_plan(
+        plan_file,
+        {
+            "plan_id": "test-plan",
+            "status": "draft",
+            "git_sha": "0" * 40,
+            "evaluation_notes": [],
+        },
+    )
+    create_backup(git_repo.path, "test-plan")
+
+    # Get original SHA
+    original_result = subprocess.run(
+        ["git", "show-ref", "--hash", "refs/plan-backups/test-plan"],
+        cwd=git_repo.path,
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    original_sha = original_result.stdout.strip()
+
+    # Move to abandoned
+    move_backup_to_abandoned(git_repo.path, "test-plan")
+
+    # Verify: SHA preserved
+    abandoned_result = subprocess.run(
+        ["git", "show-ref", "--hash", "refs/plan-abandoned/test-plan"],
+        cwd=git_repo.path,
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    abandoned_sha = abandoned_result.stdout.strip()
+
+    assert original_sha == abandoned_sha

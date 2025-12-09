@@ -244,22 +244,23 @@ def cleanup_backup(repo_root: Path, plan_id: str) -> None:
         )
 
 
-def list_backups(repo_root: Path) -> list[tuple[str, int, bool]]:
-    """List all plan backups with metadata.
+def _list_refs_in_namespace(repo_root: Path, namespace: str) -> list[tuple[str, int, bool]]:
+    """List all refs in a given namespace with metadata.
+
+    Args:
+        repo_root: Repository root directory.
+        namespace: Git refs namespace (e.g., "plan-backups", "plan-abandoned").
 
     Returns:
         List of (plan_id, timestamp, file_exists) tuples sorted by plan_id.
-        timestamp is Unix epoch seconds from commit timestamp.
-        file_exists indicates if .lw_coder/tasks/<plan_id>.md exists.
 
     Raises:
         PlanBackupError: If listing fails.
     """
     try:
-        # List all backup references with commit timestamp
-        # Format: <commit_sha> <ref_name>
+        # List all references in namespace with commit timestamp
         result = subprocess.run(
-            ["git", "for-each-ref", "refs/plan-backups/", "--format=%(objectname) %(refname)"],
+            ["git", "for-each-ref", f"refs/{namespace}/", "--format=%(objectname) %(refname)"],
             cwd=repo_root,
             check=True,
             stdout=subprocess.PIPE,
@@ -271,12 +272,12 @@ def list_backups(repo_root: Path) -> list[tuple[str, int, bool]]:
         if not result.stdout.strip():
             return []
 
-        backups = []
+        plans = []
         for line in result.stdout.strip().splitlines():
             commit_sha, ref_name = line.split(maxsplit=1)
 
             # Extract plan_id from ref name
-            # refs/plan-backups/<plan_id> -> <plan_id>
+            # refs/<namespace>/<plan_id> -> <plan_id>
             plan_id = ref_name.split("/", 2)[2]
 
             # Get commit timestamp
@@ -295,29 +296,46 @@ def list_backups(repo_root: Path) -> list[tuple[str, int, bool]]:
             plan_file = repo_root / ".lw_coder" / "tasks" / f"{plan_id}.md"
             file_exists = plan_file.exists()
 
-            backups.append((plan_id, timestamp, file_exists))
+            plans.append((plan_id, timestamp, file_exists))
 
         # Sort by plan_id
-        backups.sort(key=lambda x: x[0])
-        return backups
+        plans.sort(key=lambda x: x[0])
+        return plans
 
     except subprocess.CalledProcessError as exc:
         raise PlanBackupError(
-            f"Failed to list backups: {exc.stderr}"
+            f"Failed to list refs in namespace '{namespace}': {exc.stderr}"
         ) from exc
     except (ValueError, IndexError) as exc:
         raise PlanBackupError(
-            f"Failed to parse backup list output: {exc}"
+            f"Failed to parse ref list output for namespace '{namespace}': {exc}"
         ) from exc
 
 
-def recover_backup(repo_root: Path, plan_id: str, force: bool = False) -> Path:
+def list_backups(repo_root: Path) -> list[tuple[str, int, bool]]:
+    """List all plan backups with metadata.
+
+    Returns:
+        List of (plan_id, timestamp, file_exists) tuples sorted by plan_id.
+        timestamp is Unix epoch seconds from commit timestamp.
+        file_exists indicates if .lw_coder/tasks/<plan_id>.md exists.
+
+    Raises:
+        PlanBackupError: If listing fails.
+    """
+    return _list_refs_in_namespace(repo_root, "plan-backups")
+
+
+def recover_backup(
+    repo_root: Path, plan_id: str, force: bool = False, namespace: str = "plan-backups"
+) -> Path:
     """Recover a plan file from backup.
 
     Args:
         repo_root: Repository root directory.
         plan_id: Plan identifier.
         force: If True, overwrite existing file. If False, raise error if file exists.
+        namespace: Git refs namespace to recover from (default: "plan-backups").
 
     Returns:
         Path to the recovered plan file.
@@ -328,7 +346,7 @@ def recover_backup(repo_root: Path, plan_id: str, force: bool = False) -> Path:
         PlanBackupError: If recovery fails for other reasons.
     """
     _validate_plan_id(plan_id)
-    ref_name = f"refs/plan-backups/{plan_id}"
+    ref_name = f"refs/{namespace}/{plan_id}"
     plan_file = repo_root / ".lw_coder" / "tasks" / f"{plan_id}.md"
 
     # Verify backup reference exists
@@ -385,3 +403,135 @@ def recover_backup(repo_root: Path, plan_id: str, force: bool = False) -> Path:
         raise PlanBackupError(
             f"Failed to write recovered plan file to {plan_file}: {exc}"
         ) from exc
+
+
+def _move_ref_between_namespaces(
+    repo_root: Path,
+    plan_id: str,
+    source_namespace: str,
+    dest_namespace: str,
+) -> None:
+    """Move a backup reference from one namespace to another.
+
+    Args:
+        repo_root: Repository root directory.
+        plan_id: Plan identifier.
+        source_namespace: Source namespace (e.g., "plan-backups").
+        dest_namespace: Destination namespace (e.g., "plan-abandoned").
+
+    Raises:
+        PlanBackupError: If move operation fails.
+    """
+    _validate_plan_id(plan_id)
+    source_ref = f"refs/{source_namespace}/{plan_id}"
+    dest_ref = f"refs/{dest_namespace}/{plan_id}"
+
+    try:
+        # Get the commit SHA from source ref
+        result = subprocess.run(
+            ["git", "show-ref", "--hash", source_ref],
+            cwd=repo_root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+        commit_sha = result.stdout.strip()
+
+        # Create/update the dest ref (force-update if exists)
+        subprocess.run(
+            ["git", "update-ref", dest_ref, commit_sha],
+            cwd=repo_root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+        logger.info("Created reference: %s", dest_ref)
+
+        # Delete the source ref
+        subprocess.run(
+            ["git", "update-ref", "-d", source_ref],
+            cwd=repo_root,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+        logger.info("Deleted reference: %s", source_ref)
+
+    except subprocess.CalledProcessError as exc:
+        raise PlanBackupError(
+            f"Failed to move ref from '{source_namespace}' to '{dest_namespace}' for plan '{plan_id}': {exc.stderr}"
+        ) from exc
+
+
+def move_backup_to_abandoned(repo_root: Path, plan_id: str) -> None:
+    """Move backup reference from plan-backups to plan-abandoned namespace.
+
+    Args:
+        repo_root: Repository root directory.
+        plan_id: Plan identifier.
+
+    Raises:
+        PlanBackupError: If move operation fails.
+    """
+    _move_ref_between_namespaces(repo_root, plan_id, "plan-backups", "plan-abandoned")
+
+
+def move_abandoned_to_backup(repo_root: Path, plan_id: str) -> None:
+    """Move reference from plan-abandoned back to plan-backups namespace.
+
+    Used when recovering an abandoned plan.
+
+    Args:
+        repo_root: Repository root directory.
+        plan_id: Plan identifier.
+
+    Raises:
+        PlanBackupError: If move operation fails.
+    """
+    _move_ref_between_namespaces(repo_root, plan_id, "plan-abandoned", "plan-backups")
+
+
+def list_abandoned_plans(repo_root: Path) -> list[tuple[str, int, bool]]:
+    """List all abandoned plans with metadata.
+
+    Returns:
+        List of (plan_id, timestamp, file_exists) tuples sorted by plan_id.
+        timestamp is Unix epoch seconds from commit timestamp.
+        file_exists indicates if .lw_coder/tasks/<plan_id>.md exists.
+
+    Raises:
+        PlanBackupError: If listing fails.
+    """
+    return _list_refs_in_namespace(repo_root, "plan-abandoned")
+
+
+def backup_exists_in_namespace(repo_root: Path, plan_id: str, namespace: str) -> bool:
+    """Check if a backup reference exists in the specified namespace.
+
+    Args:
+        repo_root: Repository root directory.
+        plan_id: Plan identifier.
+        namespace: Git refs namespace (e.g., "plan-backups", "plan-abandoned").
+
+    Returns:
+        True if backup reference exists in the namespace.
+    """
+    _validate_plan_id(plan_id)
+    ref_name = f"refs/{namespace}/{plan_id}"
+
+    result = subprocess.run(
+        ["git", "show-ref", "--verify", ref_name],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    return result.returncode == 0

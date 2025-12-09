@@ -163,6 +163,40 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Overwrite existing plan file if it exists",
     )
+    recover_parser.add_argument(
+        "--abandoned",
+        dest="abandoned",
+        action="store_true",
+        help="Show only abandoned plans (from refs/plan-abandoned/)",
+    )
+    recover_parser.add_argument(
+        "--all",
+        dest="all",
+        action="store_true",
+        help="Show both active backups and abandoned plans",
+    )
+
+    # Abandon command
+    abandon_parser = subparsers.add_parser(
+        "abandon",
+        help="Abandon a plan by cleaning up worktree, branch, and plan file",
+    )
+    abandon_plan_path_arg = abandon_parser.add_argument(
+        "plan_path",
+        help="Path to plan file or plan ID",
+    )
+    abandon_plan_path_arg.completer = complete_plan_files
+    abandon_parser.add_argument(
+        "--reason",
+        dest="reason",
+        help="Reason for abandoning the plan",
+    )
+    abandon_parser.add_argument(
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Skip confirmation prompt",
+    )
 
     # Completion command
     completion_parser = subparsers.add_parser(
@@ -261,7 +295,27 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         plan_id = args.plan_id
         force = args.force
-        return run_recover_command(plan_id, force)
+        show_abandoned = args.abandoned
+        show_all = args.all
+        return run_recover_command(plan_id, force, show_abandoned, show_all)
+
+    # Abandon command
+    if args.command == "abandon":
+        # Lazy import to avoid loading heavy dependencies during tab completion
+        from .abandon_command import run_abandon_command
+        from .plan_resolver import PlanResolver
+
+        # Resolve plan_path (could be ID or path)
+        try:
+            plan_path = PlanResolver.resolve(args.plan_path)
+        except FileNotFoundError:
+            # Plan file may not exist, but other artifacts might
+            # Pass the input directly for abandon to handle
+            plan_path = args.plan_path
+
+        reason = args.reason
+        skip_confirmation = args.yes
+        return run_abandon_command(plan_path, reason=reason, skip_confirmation=skip_confirmation)
 
     # Completion command
     if args.command == "completion":
@@ -284,6 +338,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "code":
         # Lazy import to avoid loading heavy dependencies during tab completion
         from .code_command import run_code_command
+        from .plan_resolver import PlanResolver
 
         # Check for mutual exclusivity of plan_path and --text
         if args.plan_path and args.text is not None:

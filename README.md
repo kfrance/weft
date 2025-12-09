@@ -322,6 +322,78 @@ Required frontmatter fields:
 
 The judge instructions in the markdown body are loaded dynamically into DSPy using the `.with_instructions()` pattern.
 
+## Abandon Command
+
+The `lw_coder abandon` command cleans up failed or unwanted plans by removing the worktree, branch, and plan file while preserving the backup reference in a separate "abandoned" namespace for potential future recovery.
+
+### What It Does
+
+Running `lw_coder abandon <plan>` will:
+1. Force-delete the worktree (regardless of uncommitted changes)
+2. Force-delete the branch (regardless of unmerged commits)
+3. Delete the plan file
+4. Move backup reference to `refs/plan-abandoned/` namespace
+5. Optionally log the abandonment reason
+
+### Basic Usage
+
+```bash
+# Abandon a plan with confirmation prompt
+lw_coder abandon my-feature
+
+# Abandon with a reason (logged to abandoned-plans.log)
+lw_coder abandon my-feature --reason "Decided on different approach"
+
+# Skip confirmation prompt (for automation)
+lw_coder abandon quick-fix-001 --yes
+```
+
+### Parameters
+
+- `<plan_path>`: Path to plan file or plan ID (required)
+- `--reason "text"`: Record why the plan was abandoned
+- `--yes`: Skip confirmation prompt (useful for automation)
+
+### Confirmation Prompt
+
+When run interactively, the command shows what will be cleaned up:
+
+```
+Plan 'my-feature' will be abandoned:
+  - Worktree will be force-deleted (has uncommitted changes)
+  - Branch will be force-deleted (has 3 unmerged commits)
+  - Plan file will be deleted
+  - Backup moved to refs/plan-abandoned/my-feature
+
+Continue? (y/n)
+```
+
+### Abandoned Plans Log
+
+When using the `--reason` flag, the reason is appended to `.lw_coder/abandoned-plans.log`:
+
+```markdown
+## my-feature - 2025-12-08 15:30:45 -0800
+Decided on different approach.
+
+## another-plan - 2025-12-08 16:22:10 -0800
+Bug was already fixed in another PR
+```
+
+### Recovering Abandoned Plans
+
+Abandoned plans can be recovered using the recover-plan command:
+
+```bash
+# List abandoned plans
+lw_coder recover-plan --abandoned
+
+# Recover an abandoned plan
+lw_coder recover-plan --abandoned my-feature
+```
+
+When recovered, the backup reference is moved back to `refs/plan-backups/`.
+
 ## Recover Plan Command
 
 The `lw_coder recover-plan` command provides backup and recovery of plan files. Plan files are automatically backed up when created or modified during the `plan` command, and backups are automatically cleaned up when plans are finalized.
@@ -331,6 +403,7 @@ The `lw_coder recover-plan` command provides backup and recovery of plan files. 
 - **Automatic creation**: Backups are created automatically when you run `lw_coder plan`
 - **Durable storage**: Backups are stored as git orphan commits at `refs/plan-backups/<plan_id>`
 - **Automatic cleanup**: Backups are automatically deleted when you run `lw_coder finalize`
+- **Abandoned storage**: When plans are abandoned, backups move to `refs/plan-abandoned/<plan_id>`
 - **Recovery**: Backups allow you to restore accidentally deleted plan files
 
 ### Basic Usage
@@ -339,8 +412,17 @@ The `lw_coder recover-plan` command provides backup and recovery of plan files. 
 # List all backed-up plans
 lw_coder recover-plan
 
+# List only abandoned plans
+lw_coder recover-plan --abandoned
+
+# List all plans (both active and abandoned)
+lw_coder recover-plan --all
+
 # Recover a specific plan
 lw_coder recover-plan my-feature
+
+# Recover an abandoned plan
+lw_coder recover-plan --abandoned my-feature
 
 # Force overwrite if plan file already exists
 lw_coder recover-plan my-feature --force
@@ -350,6 +432,8 @@ lw_coder recover-plan my-feature --force
 
 - `<plan_id>`: Optional plan identifier to recover. If omitted, lists all backups
 - `--force`: Overwrite existing plan file during recovery
+- `--abandoned`: Show or recover from abandoned plans (refs/plan-abandoned/)
+- `--all`: Show both active backups and abandoned plans
 
 ### Examples
 
