@@ -8,6 +8,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+import lw_coder.hooks as hooks_module
+
 
 @dataclass
 class GitRepo:
@@ -102,3 +104,33 @@ def mock_sdk_runner(request, monkeypatch):
         "run_sdk_session_sync",
         lambda *args, **kwargs: "mock-session-id-12345"
     )
+
+
+@pytest.fixture(autouse=True)
+def reset_hooks_global_state(request, monkeypatch, tmp_path):
+    """Reset hooks module global state before each test.
+
+    This fixture:
+    1. Resets _global_manager to None
+    2. Monkeypatches Path.home to use tmp_path for non-integration tests
+
+    This prevents tests from reading the user's real ~/.lw_coder/config.toml
+    which might have hooks configured that open GUI applications (e.g., code-oss).
+
+    Tests marked with @pytest.mark.integration will skip the Path.home mock
+    but will still reset global state.
+    """
+    # Always reset global state before each test
+    monkeypatch.setattr(hooks_module, "_global_manager", None)
+
+    # For non-integration tests, also mock Path.home to prevent reading real config
+    if not request.node.get_closest_marker("integration"):
+        # Create a fake home directory with empty config
+        fake_home = tmp_path / "fake_home"
+        fake_home.mkdir(exist_ok=True)
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    yield
+
+    # Clean up after test - reset global state again
+    hooks_module._global_manager = None

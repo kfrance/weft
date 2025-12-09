@@ -19,6 +19,7 @@ from pathlib import Path
 from claude_agent_sdk import AgentDefinition
 
 from .executors import ExecutorRegistry, ExecutorError
+from .hooks import trigger_hook
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
 from .sdk_runner import SDKRunnerError, run_sdk_session_sync
@@ -168,7 +169,12 @@ def _build_agent_definitions(
     return agents
 
 
-def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: str | None = None) -> int:
+def run_code_command(
+    plan_path: Path | str,
+    tool: str = "claude-code",
+    model: str | None = None,
+    no_hooks: bool = False,
+) -> int:
     """Execute the code command: end-to-end coding workflow.
 
     This function orchestrates:
@@ -184,10 +190,13 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
         tool: Coding tool to use (default: "claude-code"). Valid: "claude-code", "droid".
         model: Model variant to use. Valid: "sonnet", "opus", "haiku" for claude-code.
                Defaults to "sonnet" for claude-code. Not used for droid.
+        no_hooks: If True, disable execution of configured hooks.
 
     Returns:
         Exit code: 0 for success, 1 for failure.
     """
+    if no_hooks:
+        logger.info("Hooks disabled via --no-hooks flag")
     # Resolve plan path
     if isinstance(plan_path, str):
         plan_path = Path(plan_path)
@@ -447,6 +456,18 @@ def run_code_command(plan_path: Path | str, tool: str = "claude-code", model: st
         except SDKRunnerError as exc:
             logger.error("SDK session failed: %s", exc)
             return 1
+
+        # Trigger code_sdk_complete hook after SDK session completes
+        if not no_hooks:
+            trigger_hook(
+                "code_sdk_complete",
+                {
+                    "worktree_path": worktree_path,
+                    "plan_path": plan_path,
+                    "plan_id": metadata.plan_id,
+                    "repo_root": metadata.repo_root,
+                },
+            )
 
         # Build CLI resume command: claude -r <session_id> --model <model>
         command = f"claude -r {shlex.quote(session_id)} --model {shlex.quote(effective_model)}"

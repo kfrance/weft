@@ -415,6 +415,65 @@ lw_coder recover-plan <TAB>
 2. **View backup history**: Use `recover-plan` without arguments to see which plans have backups
 3. **Revert plan changes**: If you modified a plan and want to go back to the backed-up version, use `--force` to overwrite
 
+## Configurable Hooks
+
+You can configure commands to run automatically at key workflow points by creating `~/.lw_coder/config.toml` in your home directory.
+
+### Quick Start
+
+Create `~/.lw_coder/config.toml`:
+
+```toml
+[hooks.plan_file_created]
+command = "code-oss ${worktree_path}"
+enabled = true
+
+[hooks.code_sdk_complete]
+command = "notify-send 'Code Complete' 'Ready for review'"
+enabled = true
+```
+
+### Hook Points
+
+- **plan_file_created**: Triggered when plan file is created during interactive session
+- **code_sdk_complete**: Triggered after SDK session completes, before CLI resume
+- **eval_complete**: Triggered after evaluation completes (requires round-out-eval-command)
+
+### Available Variables
+
+Use `${variable}` syntax in commands:
+- All hooks: `${worktree_path}`, `${plan_path}`, `${plan_id}`, `${repo_root}`
+- eval_complete also has: `${training_data_dir}`
+
+### Common Examples
+
+```toml
+# Open editor when plan is created
+[hooks.plan_file_created]
+command = "code-oss ${worktree_path} --new-window"
+enabled = true
+
+# Desktop notification when code completes
+[hooks.code_sdk_complete]
+command = "notify-send 'lw_coder' 'Code generation complete for ${plan_id}'"
+enabled = true
+
+# Open file manager to training data
+[hooks.eval_complete]
+command = "nautilus ${training_data_dir}"
+enabled = true
+```
+
+### Disabling Hooks
+
+Use the `--no-hooks` flag to disable all hooks for a single command:
+
+```bash
+lw_coder code plan.md --no-hooks
+```
+
+For complete documentation, see [docs/HOOKS.md](docs/HOOKS.md).
+
 ## Logging
 
 The CLI uses Python's built-in `logging` module for all output:

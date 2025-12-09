@@ -19,23 +19,19 @@ try:
     from tests.conftest import write_plan, GitRepo
 except ImportError:
     # Fallback if conftest is not available
-    def write_plan(path, *args, **kwargs):
-        """Write a test plan file."""
-        plan_text = kwargs.get("body", "# Test Plan")
-        git_sha = kwargs.get("git_sha", "a" * 40)
-        plan_id = kwargs.get("plan_id", "test-plan")
-        status = kwargs.get("status", "draft")
+    import yaml
 
-        content = f"""---
-plan_id: {plan_id}
-git_sha: {git_sha}
-status: {status}
-evaluation_notes: []
----
+    def write_plan(path, data, body="# Plan Body"):
+        """Write a test plan file with YAML front matter.
 
-{plan_text}
-"""
-        path.write_text(content)
+        Args:
+            path: Path where the plan file will be written.
+            data: Dictionary containing the YAML front matter data.
+            body: Markdown body content for the plan. Defaults to "# Plan Body".
+        """
+        yaml_block = yaml.safe_dump(data, sort_keys=False).strip()
+        content = f"---\n{yaml_block}\n---\n\n{body}\n"
+        path.write_text(content, encoding="utf-8")
 
     class GitRepo:
         """Simple GitRepo mock."""

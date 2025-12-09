@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 
 from .executors import ExecutorError, ExecutorRegistry
+from .file_watcher import PlanFileWatcher
+from .hooks import get_hook_manager, trigger_hook
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
 from .plan_backup import PlanBackupError, create_backup
@@ -149,13 +151,19 @@ def _write_maintainability_agent(worktree_path: Path) -> None:
         ) from exc
 
 
-def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) -> int:
+def run_plan_command(
+    plan_path: Path | None,
+    text_input: str | None,
+    tool: str,
+    no_hooks: bool = False,
+) -> int:
     """Execute the plan command.
 
     Args:
         plan_path: Optional path to a markdown file with plan idea.
         text_input: Optional direct text input for the plan idea.
         tool: Name of the coding tool to use (default: "claude-code").
+        no_hooks: If True, disable execution of configured hooks.
 
     Returns:
         Exit code (0 for success, non-zero for failure).
@@ -163,6 +171,10 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
     temp_worktree = None
     repo_root = None
     prompt_file = None
+    file_watcher = None
+
+    if no_hooks:
+        logger.info("Hooks disabled via --no-hooks flag")
 
     try:
         # Get the executor for the specified tool
@@ -271,6 +283,34 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         # Capture execution start time for trace capture
         execution_start = time.time()
 
+        # Set up file watcher for plan_file_created hook (if hooks are enabled)
+        if not no_hooks:
+            hook_manager = get_hook_manager()
+
+            def on_plan_file_created(file_path: Path) -> None:
+                """Callback when a plan file is created."""
+                logger.debug("File watcher detected plan file: %s", file_path)
+                plan_id = file_path.stem
+                # Map worktree path to main repo path for the plan
+                final_plan_path = main_tasks_dir / file_path.name
+                trigger_hook(
+                    "plan_file_created",
+                    {
+                        "worktree_path": temp_worktree,
+                        "plan_path": final_plan_path,
+                        "plan_id": plan_id,
+                        "repo_root": repo_root,
+                    },
+                    manager=hook_manager,
+                )
+
+            file_watcher = PlanFileWatcher(
+                watch_dir=worktree_tasks_dir,
+                on_file_created=on_plan_file_created,
+            )
+            file_watcher.start()
+            logger.debug("Started file watcher for plan_file_created hook on %s", worktree_tasks_dir)
+
         # Run executor interactively on the host
         try:
             result = subprocess.run(
@@ -360,6 +400,14 @@ def run_plan_command(plan_path: Path | None, text_input: str | None, tool: str) 
         return 1
 
     finally:
+        # Stop file watcher
+        if file_watcher:
+            try:
+                file_watcher.stop()
+                logger.debug("Stopped file watcher")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to stop file watcher: %s", exc)
+
         # Clean up prompt file
         if prompt_file:
             try:

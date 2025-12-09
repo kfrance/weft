@@ -17,10 +17,11 @@ def test_code_command_explicit_tool(monkeypatch, tmp_path) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -39,10 +40,11 @@ def test_code_command_explicit_model(monkeypatch, tmp_path) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -61,10 +63,11 @@ def test_code_command_tool_and_model(monkeypatch, tmp_path) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -119,10 +122,11 @@ def test_plan_command_tool_parameter(monkeypatch, tmp_path) -> None:
     """Test plan command accepts --tool parameter."""
     captured_args = {}
 
-    def mock_run_plan_command(path, text, tool):
+    def mock_run_plan_command(path, text, tool, no_hooks=False):
         captured_args["path"] = path
         captured_args["text"] = text
         captured_args["tool"] = tool
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.plan_command.run_plan_command", mock_run_plan_command)
@@ -145,7 +149,7 @@ def test_code_command_debug_flag(monkeypatch, tmp_path) -> None:
     def mock_configure_logging(debug=False):
         captured_debug["value"] = debug
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         return 0
 
     monkeypatch.setattr("lw_coder.cli.configure_logging", mock_configure_logging)
@@ -174,10 +178,11 @@ def test_code_command_parameter_order(monkeypatch, tmp_path) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -224,10 +229,11 @@ def test_code_command_with_text_flag(monkeypatch, tmp_path, git_repo) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -289,10 +295,11 @@ def test_code_command_text_with_tool_flag(monkeypatch, git_repo) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -311,10 +318,11 @@ def test_code_command_text_with_model_flag(monkeypatch, git_repo) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -349,10 +357,11 @@ def test_code_command_text_multiline(monkeypatch, git_repo) -> None:
 
     captured_args = {}
 
-    def mock_run_code_command(path, tool="claude-code", model=None):
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["tool"] = tool
         captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
         return 0
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
@@ -459,4 +468,134 @@ def test_init_command_help_text(capsys) -> None:
     assert "--force" in help_text
     assert "--yes" in help_text
     assert "init" in help_text
+
+
+# =============================================================================
+# --no-hooks Flag CLI Tests
+# =============================================================================
+
+
+def test_plan_command_no_hooks_flag(monkeypatch) -> None:
+    """Test plan command accepts --no-hooks flag."""
+    captured_args = {}
+
+    def mock_run_plan_command(path, text, tool, no_hooks=False):
+        captured_args["path"] = path
+        captured_args["text"] = text
+        captured_args["tool"] = tool
+        captured_args["no_hooks"] = no_hooks
+        return 0
+
+    monkeypatch.setattr("lw_coder.plan_command.run_plan_command", mock_run_plan_command)
+
+    # Run plan command with --no-hooks
+    exit_code = main(["plan", "--text", "Test idea", "--no-hooks"])
+
+    assert exit_code == 0
+    assert captured_args["no_hooks"] is True
+
+
+def test_plan_command_no_hooks_default_false(monkeypatch) -> None:
+    """Test plan command --no-hooks defaults to False."""
+    captured_args = {}
+
+    def mock_run_plan_command(path, text, tool, no_hooks=False):
+        captured_args["no_hooks"] = no_hooks
+        return 0
+
+    monkeypatch.setattr("lw_coder.plan_command.run_plan_command", mock_run_plan_command)
+
+    # Run plan command without --no-hooks
+    exit_code = main(["plan", "--text", "Test idea"])
+
+    assert exit_code == 0
+    assert captured_args["no_hooks"] is False
+
+
+def test_code_command_no_hooks_flag(monkeypatch, tmp_path) -> None:
+    """Test code command accepts --no-hooks flag."""
+    plan_path = tmp_path / "test.md"
+    plan_path.write_text("# Test Plan\n")
+
+    captured_args = {}
+
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
+        captured_args["path"] = path
+        captured_args["tool"] = tool
+        captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
+        return 0
+
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
+
+    # Run code command with --no-hooks
+    exit_code = main(["code", str(plan_path), "--no-hooks"])
+
+    assert exit_code == 0
+    assert captured_args["no_hooks"] is True
+
+
+def test_code_command_no_hooks_default_false(monkeypatch, tmp_path) -> None:
+    """Test code command --no-hooks defaults to False."""
+    plan_path = tmp_path / "test.md"
+    plan_path.write_text("# Test Plan\n")
+
+    captured_args = {}
+
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
+        captured_args["no_hooks"] = no_hooks
+        return 0
+
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
+
+    # Run code command without --no-hooks
+    exit_code = main(["code", str(plan_path)])
+
+    assert exit_code == 0
+    assert captured_args["no_hooks"] is False
+
+
+def test_code_command_no_hooks_with_other_flags(monkeypatch, tmp_path) -> None:
+    """Test code command --no-hooks works with other flags."""
+    plan_path = tmp_path / "test.md"
+    plan_path.write_text("# Test Plan\n")
+
+    captured_args = {}
+
+    def mock_run_code_command(path, tool="claude-code", model=None, no_hooks=False):
+        captured_args["tool"] = tool
+        captured_args["model"] = model
+        captured_args["no_hooks"] = no_hooks
+        return 0
+
+    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
+
+    # Run code command with multiple flags
+    exit_code = main(["code", str(plan_path), "--model", "opus", "--no-hooks"])
+
+    assert exit_code == 0
+    assert captured_args["model"] == "opus"
+    assert captured_args["no_hooks"] is True
+
+
+def test_no_hooks_help_text_plan(capsys) -> None:
+    """Test --no-hooks appears in plan command help."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["plan", "--help"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    help_text = captured.out + captured.err
+    assert "--no-hooks" in help_text
+
+
+def test_no_hooks_help_text_code(capsys) -> None:
+    """Test --no-hooks appears in code command help."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["code", "--help"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    help_text = captured.out + captured.err
+    assert "--no-hooks" in help_text
 

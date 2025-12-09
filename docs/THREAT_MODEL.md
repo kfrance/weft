@@ -13,6 +13,7 @@ This document describes the threat model, trust boundaries, and security design 
 2. **Local Environment** - The developer's machine and user account are trusted
 3. **Local Filesystem** - Files within the repository and home directory are under user control
 4. **Dependencies** - We trust dependencies from PyPI (DSPy, python-dotenv, etc.)
+5. **Home Directory Configuration** - `~/.lw_coder/config.toml` is developer-controlled
 
 ### Threat Model Scope
 
@@ -105,6 +106,26 @@ This document describes the threat model, trust boundaries, and security design 
 - **Mitigation:** Environment variable is scoped to SDK session only (restored after completion)
 - **Reference:** NO_PROXY documented at https://code.claude.com/docs/en/settings
 
+### Hook Execution Security
+
+**Decision: Trust developer-controlled hook configurations**
+- **Rationale:** Hooks configured in `~/.lw_coder/config.toml` by developer on their own machine
+- **Risk Accepted:** Hooks execute arbitrary commands with developer's permissions
+- **Justification:** Developer creates their own config on their own machine
+  - Similar trust model to git hooks, shell aliases, npm scripts
+  - No untrusted input - developer would be attacking themselves
+  - Standard pattern for CLI developer tools
+- **Implementation:** Use `shell=True` with `string.Template` substitution
+- **Mitigation:**
+  - Global config only (no project-level to prevent malicious repos)
+  - `--no-hooks` flag to disable if needed
+  - Logs show exactly what commands execute
+- **Future Consideration:** If project-level config added, would require:
+  - Explicit user approval workflow
+  - Whitelist/review mechanism
+  - Clear warnings about executing project-provided hooks
+- **Reference:** See [ADR 002: Hook Command Injection Trust Model](adr/002-hook-injection-trust.md)
+
 ## Non-Security Quality Decisions
 
 These aren't security issues but are documented for completeness:
@@ -141,6 +162,7 @@ These aren't security issues but are documented for completeness:
 │  ┌──────────────────────────────────────────────┐  │
 │  │ TRUSTED: User's home directory               │  │
 │  │  - ~/.lw_coder/.env (secrets)                │  │
+│  │  - ~/.lw_coder/config.toml (hook config)     │  │
 │  │  - ~/.lw_coder/dspy_cache                    │  │
 │  └──────────────────────────────────────────────┘  │
 │                                                     │

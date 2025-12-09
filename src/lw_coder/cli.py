@@ -66,6 +66,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Coding tool to use (default: claude-code)",
     )
     plan_tool_arg.completer = complete_tools
+    plan_parser.add_argument(
+        "--no-hooks",
+        dest="no_hooks",
+        action="store_true",
+        help="Disable execution of configured hooks",
+    )
 
     # Code command
     code_parser = subparsers.add_parser(
@@ -97,6 +103,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Model variant for Claude Code CLI (default: sonnet)",
     )
     code_model_arg.completer = complete_models
+    code_parser.add_argument(
+        "--no-hooks",
+        dest="no_hooks",
+        action="store_true",
+        help="Disable execution of configured hooks",
+    )
 
     # Init command
     init_parser = subparsers.add_parser(
@@ -225,7 +237,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             plan_path = None
         text_input = args.text
         tool = args.tool
-        return run_plan_command(plan_path, text_input, tool)
+        no_hooks = args.no_hooks
+        return run_plan_command(plan_path, text_input, tool, no_hooks=no_hooks)
 
     # Finalize command
     if args.command == "finalize":
@@ -328,7 +341,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             logger.error("%s", exc)
             return 1
 
-        return run_code_command(plan_path, tool=tool, model=model)
+        no_hooks = args.no_hooks
+        return run_code_command(plan_path, tool=tool, model=model, no_hooks=no_hooks)
 
     # Should not reach here
     parser.print_help()

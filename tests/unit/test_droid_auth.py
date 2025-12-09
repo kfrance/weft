@@ -15,7 +15,7 @@ def test_check_droid_auth_missing_file(tmp_path: Path, monkeypatch: pytest.Monke
     # Create a fake home directory without auth.json
     fake_home = tmp_path / "home"
     fake_home.mkdir()
-    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     with pytest.raises(DroidAuthError, match="Droid authentication required"):
         check_droid_auth()
@@ -31,7 +31,7 @@ def test_check_droid_auth_missing_keys(tmp_path: Path, monkeypatch: pytest.Monke
 
     # Missing refresh_token
     auth_file.write_text(json.dumps({"access_token": "test_token"}))
-    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     with pytest.raises(DroidAuthError, match="missing required keys: refresh_token"):
         check_droid_auth()
@@ -46,7 +46,7 @@ def test_check_droid_auth_invalid_json(tmp_path: Path, monkeypatch: pytest.Monke
 
     # Write invalid JSON
     auth_file.write_text("not valid json {")
-    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     with pytest.raises(DroidAuthError, match="Failed to read Droid authentication file"):
         check_droid_auth()
@@ -65,7 +65,7 @@ def test_check_droid_auth_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         "refresh_token": "test_refresh_token",
     }
     auth_file.write_text(json.dumps(auth_data))
-    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     result = check_droid_auth()
     assert result == auth_file
