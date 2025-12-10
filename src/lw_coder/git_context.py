@@ -19,7 +19,7 @@ class GitContextError(Exception):
     pass
 
 
-def gather_git_context(worktree_path: Path) -> tuple[str, str]:
+def gather_git_context(worktree_path: Path, plan_id: str | None = None) -> tuple[str, str]:
     """Gather evaluation context from a worktree.
 
     Reads the plan.md file and collects git changes including:
@@ -29,6 +29,7 @@ def gather_git_context(worktree_path: Path) -> tuple[str, str]:
 
     Args:
         worktree_path: Path to the worktree directory
+        plan_id: Optional plan ID for fallback lookup in .lw_coder/tasks/
 
     Returns:
         Tuple of (plan_content, git_changes) where:
@@ -45,17 +46,30 @@ def gather_git_context(worktree_path: Path) -> tuple[str, str]:
     if not worktree_path.is_dir():
         raise GitContextError(f"Worktree path is not a directory: {worktree_path}")
 
-    # Read plan.md
+    # Read plan content - try worktree first, then fall back to tasks directory
     plan_file = worktree_path / "plan.md"
-    if not plan_file.exists():
+    plan_content = None
+
+    if plan_file.exists():
+        try:
+            plan_content = plan_file.read_text()
+            logger.debug("Read plan.md from worktree: %s", plan_file)
+        except (PermissionError, OSError) as e:
+            raise GitContextError(f"Cannot read plan.md: {e}") from e
+    elif plan_id:
+        # Fall back to .lw_coder/tasks/<plan_id>.md in repo root
+        # Worktree path is .lw_coder/worktrees/<plan_id>, so repo root is 3 levels up
+        repo_root = worktree_path.parent.parent.parent
+        tasks_plan_file = repo_root / ".lw_coder" / "tasks" / f"{plan_id}.md"
+        if tasks_plan_file.exists():
+            try:
+                plan_content = tasks_plan_file.read_text()
+                logger.debug("Read plan from tasks directory: %s", tasks_plan_file)
+            except (PermissionError, OSError) as e:
+                raise GitContextError(f"Cannot read plan from tasks: {e}") from e
+
+    if plan_content is None:
         raise GitContextError(f"plan.md not found in worktree: {plan_file}")
-
-    try:
-        plan_content = plan_file.read_text()
-    except (PermissionError, OSError) as e:
-        raise GitContextError(f"Cannot read plan.md: {e}") from e
-
-    logger.debug("Read plan.md from %s", plan_file)
 
     # Gather git changes
     try:

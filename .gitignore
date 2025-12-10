@@ -44,5 +44,10 @@ Thumbs.db
 .lw_coder/worktrees/
 .lw_coder/runs/
 .lw_coder/plan-traces/
+.lw_coder/sessions/
+.lw_coder/temp-worktrees/
 plan.md
 .claude/agents/
+
+# Cleanup script (user-specific, not committed)
+cleanup_old_storage.py

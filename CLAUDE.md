@@ -8,9 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is an AI coding platform that orchestrates self-optimizing multi-agent coding assistants through containerized executors. The system uses DSPy signatures and the GEPA optimizer to coordinate specialized subagents (coders, reviewers, testers) for improved code quality and delivery efficiency.
 
-## Commands
+## Development Commands
 
-### Development Commands
 - **Install dependencies**: `uv sync`
 - **Run tests**: `uv run pytest` (runs unit tests only by default)
 - **Run unit tests**: `uv run pytest tests/unit/`

@@ -24,11 +24,14 @@ from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, extract_front_matter
 from .repo_utils import RepoUtilsError, find_repo_root, load_prompt_template
 from .temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
+from .session_manager import (
+    SessionManagerError,
+    create_session_directory,
+    prune_old_sessions,
+)
 from .trace_capture import (
     TraceCaptureError,
     capture_session_trace,
-    create_plan_trace_directory,
-    prune_old_plan_traces,
 )
 
 logger = get_logger(__name__)
@@ -269,21 +272,12 @@ def run_plan_command(
         # Build host command
         host_cmd, host_env = build_host_command(runner_config)
 
-        # Create plan trace directory
-        plan_trace_dir = None
+        # Prune old session directories (non-fatal if it fails)
         if tool == "claude-code":
             try:
-                plan_trace_dir = create_plan_trace_directory(repo_root)
-                logger.debug("Created plan trace directory: %s", plan_trace_dir)
-            except TraceCaptureError as exc:
-                logger.warning("Failed to create plan trace directory: %s", exc)
-
-        # Prune old plan traces (non-fatal if it fails)
-        if tool == "claude-code":
-            try:
-                prune_old_plan_traces(repo_root)
-            except Exception as exc:
-                logger.debug("Failed to prune old plan traces: %s", exc)
+                prune_old_sessions(repo_root)
+            except SessionManagerError as exc:
+                logger.debug("Failed to prune old session directories: %s", exc)
 
         # Capture execution start time for trace capture
         execution_start = time.time()
@@ -328,22 +322,6 @@ def run_plan_command(
             # Capture execution end time for trace capture
             execution_end = time.time()
 
-            # Capture conversation trace (non-fatal if it fails)
-            if tool == "claude-code" and plan_trace_dir:
-                try:
-                    trace_file = capture_session_trace(
-                        worktree_path=temp_worktree,
-                        command="plan",
-                        run_dir=plan_trace_dir,
-                        execution_start=execution_start,
-                        execution_end=execution_end,
-                    )
-                    if trace_file:
-                        logger.debug("Trace captured at: %s", trace_file)
-                except TraceCaptureError as exc:
-                    logger.warning("Warning: Trace capture failed")
-                    logger.debug("Trace capture error details: %s", exc)
-
             # Copy newly created plan files from worktree to main repository
             try:
                 file_mapping = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
@@ -356,7 +334,7 @@ def run_plan_command(
             except PlanLifecycleError as exc:
                 logger.warning("Failed to normalize plan git_sha placeholder: %s", exc)
 
-            # Create backups for all copied plan files (non-fatal)
+            # Create backups and capture trace for all copied plan files (non-fatal)
             failed_backups = []
             for final_filename in file_mapping.values():
                 try:
@@ -364,6 +342,26 @@ def run_plan_command(
                     plan_id = Path(final_filename).stem
                     create_backup(repo_root, plan_id)
                     logger.info("Created backup for plan: %s", plan_id)
+
+                    # Capture conversation trace to session directory (non-fatal if it fails)
+                    # Now we know the plan_id, so we can create the session directory
+                    if tool == "claude-code":
+                        try:
+                            plan_session_dir = create_session_directory(
+                                repo_root, plan_id, "plan"
+                            )
+                            trace_file = capture_session_trace(
+                                worktree_path=temp_worktree,
+                                command="plan",
+                                run_dir=plan_session_dir,
+                                execution_start=execution_start,
+                                execution_end=execution_end,
+                            )
+                            if trace_file:
+                                logger.debug("Trace captured at: %s", trace_file)
+                        except (SessionManagerError, TraceCaptureError) as exc:
+                            logger.warning("Warning: Trace capture failed")
+                            logger.debug("Trace capture error details: %s", exc)
                 except PlanBackupError as exc:
                     failed_backups.append((plan_id, str(exc)))
                     logger.error("Failed to create backup for plan '%s': %s", plan_id, exc)
@@ -382,21 +380,31 @@ def run_plan_command(
             execution_end = time.time()
             logger.info("Session interrupted by user.")
 
-            # Capture conversation trace even for interrupted sessions (non-fatal if it fails)
-            if tool == "claude-code" and plan_trace_dir:
+            # For interrupted sessions, we can still capture trace if any plan files were created
+            # Try to copy any plan files first to get the plan_id
+            if tool == "claude-code":
                 try:
-                    trace_file = capture_session_trace(
-                        worktree_path=temp_worktree,
-                        command="plan",
-                        run_dir=plan_trace_dir,
-                        execution_start=execution_start,
-                        execution_end=execution_end,
-                    )
-                    if trace_file:
-                        logger.debug("Trace captured at: %s", trace_file)
-                except TraceCaptureError as exc:
-                    logger.warning("Warning: Trace capture failed")
-                    logger.debug("Trace capture error details: %s", exc)
+                    file_mapping = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
+                    for final_filename in file_mapping.values():
+                        plan_id = Path(final_filename).stem
+                        try:
+                            plan_session_dir = create_session_directory(
+                                repo_root, plan_id, "plan"
+                            )
+                            trace_file = capture_session_trace(
+                                worktree_path=temp_worktree,
+                                command="plan",
+                                run_dir=plan_session_dir,
+                                execution_start=execution_start,
+                                execution_end=execution_end,
+                            )
+                            if trace_file:
+                                logger.debug("Trace captured at: %s", trace_file)
+                        except (SessionManagerError, TraceCaptureError) as exc:
+                            logger.warning("Warning: Trace capture failed")
+                            logger.debug("Trace capture error details: %s", exc)
+                except PlanFileCopyError:
+                    logger.debug("No plan files to copy on interrupt")
 
             return 0
 

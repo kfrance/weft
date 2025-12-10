@@ -557,9 +557,9 @@ def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr("lw_coder.plan_command._write_maintainability_agent", Mock())
     monkeypatch.setattr("lw_coder.plan_command._copy_droids_for_plan", Mock())
 
-    # Mock trace capture functions
-    monkeypatch.setattr("lw_coder.plan_command.create_plan_trace_directory", Mock(return_value=tmp_path / "traces"))
-    monkeypatch.setattr("lw_coder.plan_command.prune_old_plan_traces", Mock())
+    # Mock trace capture functions (now using session_manager)
+    monkeypatch.setattr("lw_coder.plan_command.prune_old_sessions", Mock())
+    monkeypatch.setattr("lw_coder.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
     monkeypatch.setattr("lw_coder.plan_command.capture_session_trace", Mock(return_value=None))
 
     # Mock copy_plan_files to return a file mapping indicating a plan was copied
@@ -637,9 +637,9 @@ def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatc
     monkeypatch.setattr("lw_coder.plan_command._write_maintainability_agent", Mock())
     monkeypatch.setattr("lw_coder.plan_command._copy_droids_for_plan", Mock())
 
-    # Mock trace capture functions
-    monkeypatch.setattr("lw_coder.plan_command.create_plan_trace_directory", Mock(return_value=tmp_path / "traces"))
-    monkeypatch.setattr("lw_coder.plan_command.prune_old_plan_traces", Mock())
+    # Mock trace capture functions (now using session_manager)
+    monkeypatch.setattr("lw_coder.plan_command.prune_old_sessions", Mock())
+    monkeypatch.setattr("lw_coder.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
     monkeypatch.setattr("lw_coder.plan_command.capture_session_trace", Mock(return_value=None))
 
     # Mock copy_plan_files to return a file mapping indicating a plan was copied

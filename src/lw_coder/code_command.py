@@ -37,11 +37,11 @@ from .plan_validator import (
 )
 from .repo_utils import RepoUtilsError, find_repo_root
 from .prompt_loader import PromptLoadingError, load_prompts
-from .run_manager import (
-    RunManagerError,
+from .session_manager import (
+    SessionManagerError,
     copy_coding_droids,
-    create_run_directory,
-    prune_old_runs,
+    create_session_directory,
+    prune_old_sessions,
 )
 from .trace_capture import TraceCaptureError, capture_session_trace
 from .worktree_utils import WorktreeError, ensure_worktree
@@ -293,17 +293,17 @@ def run_code_command(
     # Use sensible defaults for environment configuration
     forward_env_patterns: list[str] = ["OPENROUTER_*"]
 
-    # Create run directory
+    # Create session directory for code command
     try:
-        run_dir = create_run_directory(metadata.repo_root, metadata.plan_id)
-    except RunManagerError as exc:
-        logger.error("Failed to create run directory: %s", exc)
+        session_dir = create_session_directory(metadata.repo_root, metadata.plan_id, "code")
+    except SessionManagerError as exc:
+        logger.error("Failed to create session directory: %s", exc)
         return 1
 
-    # Copy coding droids to run directory (for backward compatibility)
+    # Copy coding droids to session directory (for backward compatibility)
     try:
-        droids_dir = copy_coding_droids(run_dir)
-    except RunManagerError as exc:
+        droids_dir = copy_coding_droids(session_dir)
+    except SessionManagerError as exc:
         logger.error("Failed to copy coding droids: %s", exc)
         return 1
 
@@ -322,11 +322,11 @@ def run_code_command(
             logger.error("Prompt loading failed: %s", exc)
             return 1
 
-    # Prune old run directories (non-fatal if it fails)
+    # Prune old session directories (non-fatal if it fails)
     try:
-        prune_old_runs(metadata.repo_root, active_run_dir=run_dir)
-    except RunManagerError as exc:
-        logger.warning("Failed to prune old run directories: %s", exc)
+        prune_old_sessions(metadata.repo_root, active_session_dir=session_dir)
+    except SessionManagerError as exc:
+        logger.warning("Failed to prune old session directories: %s", exc)
 
     # Prepare worktree
     try:
@@ -363,7 +363,7 @@ def run_code_command(
     logger.info("Using tool: %s", tool)
     if effective_model:
         logger.info("Using model: %s", effective_model)
-    logger.info("Run artifacts available at: %s", run_dir)
+    logger.info("Session artifacts available at: %s", session_dir)
     logger.info("  Coding droids: %s", droids_dir)
     if tool == "claude-code":
         logger.info("  Sub-agents: %s/.claude/agents/", worktree_path)
@@ -376,18 +376,18 @@ def run_code_command(
         logger.error("Executor error: %s", exc)
         return 1
 
-    # Create main prompt file in run directory for reference
+    # Create main prompt file in session directory for reference
     if tool == "claude-code" and prompts:
-        main_prompt_path = run_dir / "prompts" / "main.md"
+        main_prompt_path = session_dir / "prompts" / "main.md"
         main_prompt_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             main_prompt_path.write_text(prompts["main_prompt"], encoding="utf-8")
             logger.debug("Wrote main prompt to %s", main_prompt_path)
         except (OSError, IOError) as exc:
-            logger.warning("Failed to write main prompt to run directory: %s", exc)
+            logger.warning("Failed to write main prompt to session directory: %s", exc)
     elif tool == "droid":
         # For droid, we need to create a simple prompt file
-        main_prompt_path = run_dir / "prompts" / "droid_prompt.md"
+        main_prompt_path = session_dir / "prompts" / "droid_prompt.md"
         main_prompt_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             # Load the droid prompt from template
@@ -528,7 +528,7 @@ def run_code_command(
                 trace_file = capture_session_trace(
                     worktree_path=worktree_path,
                     command="code",
-                    run_dir=run_dir,
+                    run_dir=session_dir,
                     execution_start=execution_start,
                     execution_end=execution_end,
                     session_id=session_id,
@@ -548,9 +548,9 @@ def run_code_command(
         logger.info(
             "\nSession complete. Worktree remains at: %s\n"
             "To resume, cd to the worktree and continue working.\n"
-            "Run artifacts saved to: %s",
+            "Session artifacts saved to: %s",
             worktree_path,
-            run_dir,
+            session_dir,
         )
 
         # Return the session's exit code
@@ -566,7 +566,7 @@ def run_code_command(
                 trace_file = capture_session_trace(
                     worktree_path=worktree_path,
                     command="code",
-                    run_dir=run_dir,
+                    run_dir=session_dir,
                     execution_start=execution_start,
                     execution_end=execution_end,
                     session_id=session_id,

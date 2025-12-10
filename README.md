@@ -209,7 +209,7 @@ lw_coder code .lw_coder/tasks/my-feature.md --debug
 
 ## Eval Command
 
-The `lw_coder eval` command evaluates code changes using LLM judges. After implementing a plan with the `code` command, use `eval` to get automated feedback on code quality and plan compliance.
+The `lw_coder eval` command evaluates code changes and creates training data for DSPy prompt optimization. After implementing a plan with the `code` command, use `eval` to get automated feedback on code quality, run tests, and collect human feedback.
 
 ### Basic Usage
 
@@ -217,19 +217,96 @@ The `lw_coder eval` command evaluates code changes using LLM judges. After imple
 # Evaluate changes for a plan
 lw_coder eval <plan_id>
 
+# Use a specific model for test execution and feedback
+lw_coder eval <plan_id> --model opus
+
+# Force re-run all steps (skip idempotency checks)
+lw_coder eval <plan_id> --force
+
 # Examples
 lw_coder eval my-feature
 lw_coder eval quick-fix-2025.01-001
 ```
 
-### How It Works
+### What It Does
 
-The eval command:
-1. Discovers all judge files in `.lw_coder/judges/` directory
-2. Gathers the plan content and git changes from the worktree
-3. Executes all judges in parallel using DSPy and OpenRouter
-4. Displays each judge's score (0.0-1.0) and detailed feedback
-5. Shows an overall weighted score combining all judge results
+The eval command runs a comprehensive evaluation workflow:
+
+1. **Run LLM Judges**: Executes all judges in `.lw_coder/judges/` to evaluate code quality and plan compliance
+2. **Run Before Tests**: Uses Claude Code SDK to run tests at the plan's original git commit (baseline)
+3. **Run After Tests**: Uses Claude Code SDK to run tests in the current worktree (after implementation)
+4. **Collect Human Feedback**: Opens an interactive Claude Code session to gather your feedback
+5. **Create Training Data**: Saves all evaluation artifacts to `.lw_coder/training_data/<plan_id>/`
+
+### Parameters
+
+- `<plan_id>`: Plan identifier (from `.lw_coder/tasks/<plan_id>.md`)
+- `--model <model>`: Model for test execution and feedback. Options: `sonnet` (default), `opus`, `haiku`
+- `--force`: Re-run all steps and overwrite existing results (skips idempotency checks)
+- `--debug`: Enable debug-level logging
+
+### Idempotency
+
+The eval command is idempotent and can be safely re-run:
+- Judges: Only runs judges whose output files don't exist
+- Tests: Skips if `test_results_before.json` or `test_results_after.json` exist
+- Feedback: Skips if `human_feedback.md` exists
+- Training Data: Skips if `training_data/<plan_id>/` exists
+
+Use `--force` to re-run all steps and overwrite existing results.
+
+### Test Execution
+
+Tests are run using the Claude Code SDK in headless mode. Claude Code reads your project's CLAUDE.md file to understand how to run tests for your specific project.
+
+**Requirements for test execution:**
+- Your project's CLAUDE.md must contain test instructions
+- The plan file should have a `git_sha` field for before-tests
+
+Test results are saved as JSON with this structure:
+```json
+{
+  "command": "uv run pytest",
+  "exit_code": 0,
+  "total_tests": 45,
+  "passed_tests": 45,
+  "failed_tests": 0,
+  "summary": "All tests passed",
+  "analysis": "Test analysis..."
+}
+```
+
+**Note**: Test failures are DATA, not errors. The eval command succeeds even if tests fail.
+
+### Human Feedback Collection
+
+After judges and tests complete, an interactive Claude Code session opens to help you compose feedback. This feedback is used as training data for prompt optimization.
+
+The session presents:
+- Judge scores and detailed feedback
+- Test results (before and after)
+- Prompts to help you articulate your feedback
+
+Your feedback is saved to `human_feedback.md` and can be free-form (no required structure).
+
+### Training Data
+
+After all steps complete, training data is created at `.lw_coder/training_data/<plan_id>/`:
+
+```
+.lw_coder/training_data/<plan_id>/
+├── plan.md                     # Copy of the plan
+├── code_trace.md               # Trace from code session
+├── test_results_before.json    # Baseline test results
+├── test_results_after.json     # Post-implementation test results
+├── human_feedback.md           # Your feedback
+├── judge_code-reuse.json       # Per-judge JSON results
+├── judge_code-reuse.md         # Per-judge markdown feedback
+├── judge_plan-compliance.json
+└── judge_plan-compliance.md
+```
+
+**Important**: Training data is PERMANENT and expected to be committed to git. It is never pruned.
 
 ### Built-in Judges
 
@@ -255,31 +332,17 @@ Evaluation Results for: my-feature
 Worktree: .lw_coder/worktrees/my-feature
 ================================================================================
 
-Judge: code-reuse
-Weight: 0.40
+Judge: code-reuse (weight: 0.40)
 Score: 0.85 / 1.00
---------------------------------------------------------------------------------
-Feedback:
-Good code reuse overall. The implementation properly uses existing utility
-functions in most cases. Minor issue: function validate_input() at line 42
-reimplements logic similar to validation.check_format()...
 
-================================================================================
-
-Judge: plan-compliance
-Weight: 0.60
+Judge: plan-compliance (weight: 0.60)
 Score: 0.92 / 1.00
---------------------------------------------------------------------------------
-Feedback:
-Excellent plan compliance. All requirements from the plan are implemented:
-✓ User authentication module
-✓ Session management
-✓ Password reset flow...
 
 ================================================================================
-
 Overall Weighted Score: 0.89 / 1.00
 ================================================================================
+
+Judge result files saved to: .lw_coder/sessions/my-feature/eval/
 ```
 
 ### Requirements
@@ -287,12 +350,13 @@ Overall Weighted Score: 0.89 / 1.00
 - `OPENROUTER_API_KEY` must be set in `~/.lw_coder/.env`
 - Worktree must exist (run `lw_coder code <plan_id>` first)
 - At least one judge file in `.lw_coder/judges/`
+- CLAUDE.md with test instructions (for test execution)
 
 ### When to Use
 
-- **During development**: Run eval while coding to get early feedback
-- **Before finalize**: Run eval before `lw_coder finalize` to ensure quality
-- **After changes**: Run eval after making fixes to verify improvements
+- **After code command**: Run eval immediately after implementing a plan
+- **Before finalize**: Always run eval before `lw_coder finalize` to generate training data
+- **After fixes**: Re-run with `--force` after making improvements
 - **Code review**: Use eval output to supplement manual code review
 
 ### Creating Custom Judges

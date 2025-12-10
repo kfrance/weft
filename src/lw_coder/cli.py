@@ -229,13 +229,26 @@ def create_parser() -> argparse.ArgumentParser:
     # Eval command
     eval_parser = subparsers.add_parser(
         "eval",
-        help="Evaluate code changes using LLM judges",
+        help="Evaluate code changes using LLM judges, run tests, collect feedback, and create training data",
     )
     eval_plan_id_arg = eval_parser.add_argument(
         "plan_id",
         help="Plan ID to evaluate",
     )
     eval_plan_id_arg.completer = complete_plan_files
+    eval_model_arg = eval_parser.add_argument(
+        "--model",
+        dest="model",
+        default="sonnet",
+        help="Model to use for Claude Code SDK test execution (default: sonnet)",
+    )
+    eval_model_arg.completer = complete_models
+    eval_parser.add_argument(
+        "--force",
+        dest="force",
+        action="store_true",
+        help="Re-run all evaluation steps and overwrite existing results",
+    )
 
     return parser
 
@@ -391,7 +404,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .eval_command import run_eval_command
 
         plan_id = args.plan_id
-        return run_eval_command(plan_id)
+        model = args.model
+        force = args.force
+        return run_eval_command(plan_id, model=model, force=force)
 
     # Code command
     if args.command == "code":
