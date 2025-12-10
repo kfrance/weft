@@ -201,8 +201,12 @@ def run_code_command(
     if isinstance(plan_path, str):
         plan_path = Path(plan_path)
 
-    # Get effective model based on tool
-    effective_model = get_effective_model(tool, model)
+    # Get effective model using 3-tier precedence: CLI flag > config.toml > hardcoded default
+    # For droid tool, always use None (droid doesn't support model selection)
+    if tool == "droid":
+        effective_model = None
+    else:
+        effective_model = get_effective_model(model, "code")
 
     head_sha: str | None = None
     front_matter: dict[str, object] | None = None

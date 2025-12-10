@@ -19,16 +19,11 @@ from pathlib import Path
 from string import Template
 from typing import TYPE_CHECKING, Protocol
 
+from .config import load_config as load_config_from_module
 from .logging_config import get_logger
 
 if TYPE_CHECKING:
     from typing import Any
-
-# Try to import tomllib (Python 3.11+) or tomli (fallback)
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib  # type: ignore[import-not-found]
 
 
 logger = get_logger(__name__)
@@ -134,6 +129,9 @@ class HookManager:
     def load_config(self, force_reload: bool = False) -> dict[str, Any]:
         """Load hook configuration from ~/.lw_coder/config.toml.
 
+        Delegates to the config module for TOML parsing, then validates
+        the hooks section.
+
         Args:
             force_reload: Force reloading config even if cached.
 
@@ -146,18 +144,15 @@ class HookManager:
         if self._config is not None and not force_reload:
             return self._config
 
-        config_path = Path.home() / ".lw_coder" / "config.toml"
+        # Delegate TOML parsing to config module
+        # Note: config module handles missing file, I/O errors, and TOML parse errors
+        # gracefully by returning empty dict and logging appropriately
+        full_config = load_config_from_module()
 
-        if not config_path.exists():
-            logger.debug("No config file at %s, hooks disabled", config_path)
+        if not full_config:
+            logger.debug("No config loaded, hooks disabled")
             self._config = {}
             return self._config
-
-        try:
-            content = config_path.read_bytes()
-            full_config = tomllib.loads(content.decode("utf-8"))
-        except (OSError, tomllib.TOMLDecodeError) as exc:
-            raise HookConfigError(f"Failed to load config from {config_path}: {exc}") from exc
 
         # Extract hooks section
         hooks_config = full_config.get("hooks", {})
@@ -183,7 +178,7 @@ class HookManager:
             if not isinstance(enabled, bool):
                 raise HookConfigError(f"Hook '{hook_name}' enabled must be a boolean, got {type(enabled).__name__}")
 
-        logger.info("Loaded hook config from %s", config_path)
+        logger.debug("Loaded hook config with %d hooks", len(hooks_config))
         self._config = {"hooks": hooks_config}
         return self._config
 

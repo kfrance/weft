@@ -418,7 +418,7 @@ The completion system has comprehensive test coverage:
 - Mock filesystem for plan files
 
 **Best practices:**
-- Use `pytest.fail()` for missing dependencies (not `pytest.skip()`) per `docs/BEST_PRACTICES.md`
+- Use `pytest.fail()` for missing dependencies (not `pytest.skip()`) per `CLAUDE.md` best practices section
 - Avoid excessive mocking - use real git repos and filesystem when possible
 - Test error paths - completion must never break the shell
 
@@ -466,5 +466,5 @@ The completion system has comprehensive test coverage:
 
 - **argcomplete documentation**: https://github.com/kislyuk/argcomplete
 - **argparse documentation**: https://docs.python.org/3/library/argparse.html
-- **Project best practices**: `docs/BEST_PRACTICES.md`
+- **Project best practices**: `CLAUDE.md` (best practices section)
 - **Inline code documentation**: Comments in source files provide implementation details

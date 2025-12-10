@@ -92,6 +92,9 @@ lw_coder plan idea.md
 
 # Or provide the idea directly
 lw_coder plan --text "Create a feature to export user metrics"
+
+# Use a specific model
+lw_coder plan --text "Create a feature" --model opus
 ```
 
 #### Using Droid CLI (Optional)
@@ -557,6 +560,31 @@ lw_coder code plan.md --no-hooks
 ```
 
 For complete documentation, see [docs/HOOKS.md](docs/HOOKS.md).
+
+### Model Defaults
+
+Configure default models for commands in the same config file:
+
+```toml
+[defaults]
+plan_model = "opus"      # Most capable for planning
+code_model = "sonnet"    # Balanced for implementation
+finalize_model = "haiku" # Fast for finalization
+
+[hooks.plan_file_created]
+command = "code-oss ${worktree_path}"
+enabled = true
+```
+
+Available models:
+- `sonnet`: Balanced capability and speed (default for plan and code)
+- `opus`: Most capable, slower, more expensive
+- `haiku`: Fast and economical (default for finalize)
+
+**Precedence**: CLI flags override config defaults. For example:
+```bash
+lw_coder code plan.md --model opus
+```
 
 ## Logging
 

@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Note**: For user-facing documentation on how to use lw_coder commands, see [README.md](README.md).
+
 ## Project Overview
 
 This is an AI coding platform that orchestrates self-optimizing multi-agent coding assistants through containerized executors. The system uses DSPy signatures and the GEPA optimizer to coordinate specialized subagents (coders, reviewers, testers) for improved code quality and delivery efficiency.
@@ -17,74 +19,120 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 - **Run CLI**: `uv run lw_coder <command>`
 - **Run specific test**: `uv run pytest tests/unit/test_<module>.py`
 
-### CLI Usage
-- **Initialize project**: `uv run lw_coder init` - Initialize lw_coder in git repository with baseline templates
-- **Create/edit plan**: `uv run lw_coder plan --text "plan idea"` or `uv run lw_coder plan <plan_path>`
-- **Validate plan file**: `uv run lw_coder code <plan_path>`
-- **Quick fix mode**: `uv run lw_coder code --text "description"` - Bypasses interactive planning for simple fixes
-- **Evaluate code changes**: `uv run lw_coder eval <plan_id>` - Run LLM judges on implemented changes
-- **Finalize plan**: `uv run lw_coder finalize <plan_path>`
-- **Install bash completion**: `uv run lw_coder completion install` (see `docs/COMPLETION.md` for setup)
+## Best Practices
 
-#### Init Command
-The `init` command bootstraps a new project with frozen baseline templates:
-- **Command**: `uv run lw_coder init`
-- **What it creates**:
-  - `.lw_coder/judges/` - LLM judges for code evaluation (code-reuse, plan-compliance)
-  - `.lw_coder/optimized_prompts/` - Optimized prompts for Claude Code CLI
-  - `.lw_coder/VERSION` - Template version tracking file
-- **Flags**:
-  - `--force` - Reinitialize when `.lw_coder/` already exists (with confirmation)
-  - `--yes` - Skip interactive prompts (for CI/CD automation)
-- **Examples**:
-  - `uv run lw_coder init` - Initialize new project
-  - `uv run lw_coder init --force` - Reinitialize with prompts
-  - `uv run lw_coder init --force --yes` - Reinitialize without prompts (CI/CD)
+### Testing Guidelines
 
-#### Quick Fix Mode
-The `--text` flag allows you to quickly execute simple fixes without creating a full plan file:
-- Creates plan files with pattern `quick-fix-YYYY.MM-NNN.md` in `.lw_coder/tasks/`
-- Counter (NNN) resets monthly and increments from 001-999
-- On overflow (>999 fixes/month), automatically falls back to timestamp format: `quick-fix-YYYY.MM.DD-HHMMSS`
-- Works with `--tool` (claude-code, droid) and `--model` (sonnet, opus, haiku) flags
-- Examples:
-  - `uv run lw_coder code --text "Fix login button styling"`
-  - `uv run lw_coder code --text "Update API endpoint" --tool droid`
-  - `uv run lw_coder code --text "Refactor auth module" --model opus`
+- **Keep tests in the default run**: Avoid adding `pytest` markers whose only purpose is to skip tests because a dependency might be missing or the test could be slow. Keep those tests in the normal `pytest` run instead.
 
-#### Eval Command
-The `eval` command evaluates code changes using LLM judges:
-- **Command**: `uv run lw_coder eval <plan_id>`
-- **When to use**: After running `lw_coder code` to evaluate the implementation
-- **What it does**: Runs all judges in `.lw_coder/judges/` against the code changes
-- **Output**: Shows each judge's score (0.0-1.0) and detailed feedback
-- **Judges included**:
-  - `code-reuse`: Evaluates whether code properly reuses existing functionality
-  - `plan-compliance`: Verifies implementation matches plan requirements
-- **Requirements**: `OPENROUTER_API_KEY` in `~/.lw_coder/.env`
+- **Use pytest.fail() for missing dependencies, not pytest.skip()**: When a test requires an external dependency that might not be available, use `pytest.fail()` with a clear error message instead of `pytest.skip()`. This ensures developers are notified of missing dependencies rather than silently skipping tests. Example: `pytest.fail("Required dependency 'droid' not found. Install it first with: pip install droid-cli")`.
 
-## Testing
+- **Avoid mocking DSPy and LLMs**: Use real DSPy components with real LLM API calls in tests. Configure tests with actual LLM providers (e.g., OpenRouter) rather than creating mock LLM objects or stub responses. DSPy's caching ensures the first test run hits the API while subsequent runs retrieve cached results, making tests both fast and representative of production behavior.
 
-Test files are organized in `tests/` with pytest configuration in `pyproject.toml`:
+- **Documentation is verified manually**: Avoid writing tests whose only purpose is to check for the existence of documentation pages or sections—keep effort focused on code behavior.
+
+- **Don't test interactive commands**: Avoid writing automated tests that run `lw_coder code` or `lw_coder plan` commands, as these launch interactive Claude Code sessions. Instead, test the underlying modules and functions directly with mock data or controlled inputs.
 
 ### Test Organization
+
+Tests are organized into two directories based on whether they make external API calls:
+
+#### Directory Structure
 - `tests/unit/` - Fast tests with mocked dependencies, no external API calls
 - `tests/integration/` - Tests that make real external API calls (Claude SDK, OpenRouter, etc.)
-- `tests/conftest.py` - Shared fixtures available to both unit and integration tests
+- `tests/conftest.py` - Shared fixtures available to both directories
 
-### Test Commands
-- `pytest` - Runs unit tests only (default, excludes integration tests via marker)
+#### Test Categorization Rules
+- **Unit Test**: Tests internal logic using mocks, no external network calls
+  - Place in `tests/unit/`
+  - No special marker needed
+- **Integration Test**: Makes real API calls to Claude SDK, OpenRouter, or other external services
+  - Place in `tests/integration/`
+  - MUST have `@pytest.mark.integration` decorator
+
+#### Marker Requirement
+All tests in `tests/integration/` MUST have the `@pytest.mark.integration` decorator:
+
+```python
+import pytest
+
+@pytest.mark.integration
+def test_real_api_call():
+    """This test makes real API calls."""
+    ...
+
+@pytest.mark.integration
+class TestRealAPIIntegration:
+    """All methods in this class make real API calls."""
+    def test_method(self):
+        ...
+```
+
+This requirement is enforced by `tests/unit/test_marker_consistency.py`.
+
+#### Running Tests
+- `pytest` - Runs unit tests only (default behavior)
 - `pytest tests/unit/` - Runs unit tests by directory
 - `pytest tests/integration/` - Runs integration tests by directory
 - `pytest -m integration` - Runs integration tests by marker
-- `pytest -m ''` - Runs all tests (removes marker filter)
+- `pytest -m ''` - Runs all tests (removes the default marker filter)
 
-### Adding New Tests
-- **Unit tests**: Add to `tests/unit/`, no marker needed
-- **Integration tests**: Add to `tests/integration/` AND mark with `@pytest.mark.integration`
+### Test Optimization
 
-### Configuration
-- `pythonpath = ["src"]` allows importing from source without installation
-- `addopts = "-m 'not integration'"` excludes integration tests by default
-- **See `docs/BEST_PRACTICES.md` for testing guidelines** (pytest.fail vs skip, DSPy/LLM usage, etc.)
-- **See `tests/README.md` for detailed test organization documentation**
+- **Avoid redundant tests**: Before adding a new test, check if similar test coverage already exists. Duplicate tests increase maintenance burden without adding value.
+- **Use parametrization for similar test cases**: When testing the same code path with different inputs, use `@pytest.mark.parametrize` instead of writing separate test functions. This keeps tests DRY and makes it easier to add new test cases.
+- **Keep parametrized tests focused**: Each parametrized test should verify a single concern or behavior. Don't mix unrelated test scenarios in one parametrized function—this makes failures harder to diagnose.
+- **Write descriptive test names**: Test function names should clearly document the behavior being tested. For parametrized tests, use the `ids` parameter to provide clear labels for each test case.
+- **Integrate related assertions**: When multiple tests check different aspects of the same error condition, consider combining them into a single parametrized test that verifies all relevant properties (e.g., error type, message content, and paths).
+
+## Architecture Decision Records (ADRs)
+
+Architecture Decision Records document significant architectural choices, trade-offs, and technical decisions. They provide context for future maintainers and help evaluate whether past decisions still make sense.
+
+### When to Create an ADR
+
+Create an ADR for:
+- **Significant architectural choices**: Design patterns, system structure, technology selection
+- **External dependencies on undocumented APIs**: Relying on internal implementation details of third-party tools
+- **Trade-off decisions**: Choosing between competing approaches with clear pros/cons
+- **Breaking changes**: Changes that affect how components interact or how the system is used
+- **Security decisions**: Authentication, authorization, data handling choices
+- **Performance trade-offs**: Accepting reduced performance for other benefits (or vice versa)
+
+Do NOT create ADRs for:
+- Routine code changes or refactoring
+- Bug fixes (unless they reveal a design flaw worth documenting)
+- Trivial dependency additions
+- Configuration changes
+
+### ADR Format and Location
+
+- **Location**: `docs/adr/NNN-title-with-dashes.md`
+- **Numbering**: Sequential starting from 001
+- **Template**:
+
+```markdown
+# ADR NNN: Title
+
+## Status
+[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
+
+## Context
+What is the issue that we're seeing? What factors are influencing this decision?
+
+## Decision
+What decision have we made? Be specific and concrete.
+
+## Consequences
+What becomes easier or harder as a result? Include positive, negative, and neutral consequences.
+
+## Alternatives Considered
+What other options were evaluated? Why were they rejected?
+
+## References
+Links to related documents, tickets, or discussions.
+```
+
+### Example ADR
+
+See `docs/adr/001-trace-capture-claude-dependency.md` for a complete example documenting the decision to rely on Claude Code's undocumented internal file format for conversation trace capture.

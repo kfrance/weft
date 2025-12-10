@@ -20,6 +20,7 @@ from pathlib import Path
 from .executors import ExecutorError, ExecutorRegistry
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
+from .param_validation import get_effective_model
 from .plan_backup import cleanup_backup
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PlanValidationError, extract_front_matter, load_plan_id
@@ -135,12 +136,18 @@ def _cleanup_worktree_and_branch(
         ) from exc
 
 
-def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> int:
+def run_finalize_command(
+    plan_path: Path | str,
+    tool: str = "claude-code",
+    model: str | None = None,
+) -> int:
     """Execute the finalize command.
 
     Args:
         plan_path: Path to the plan file.
         tool: Name of the coding tool to use (default: "claude-code").
+        model: Model variant to use (e.g., "sonnet", "opus", "haiku").
+               If None, uses config.toml default or hardcoded default (haiku).
 
     Returns:
         Exit code (0 for success, non-zero for failure).
@@ -236,8 +243,9 @@ def run_finalize_command(plan_path: Path | str, tool: str = "claude-code") -> in
         )
 
         # Build command using the executor
-        # Use default model "haiku" for finalize command (fast execution)
-        command = executor.build_command(prompt_file, model="haiku")
+        # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (haiku)
+        effective_model = get_effective_model(model, "finalize")
+        command = executor.build_command(prompt_file, model=effective_model)
 
         # Get executor-specific environment variables
         executor_env_vars = executor.get_env_vars(host_factory_dir)

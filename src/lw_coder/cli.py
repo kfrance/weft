@@ -66,6 +66,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="Coding tool to use (default: claude-code)",
     )
     plan_tool_arg.completer = complete_tools
+    plan_model_arg = plan_parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Model variant for Claude Code CLI (default: sonnet)",
+    )
+    plan_model_arg.completer = complete_models
     plan_parser.add_argument(
         "--no-hooks",
         dest="no_hooks",
@@ -145,6 +152,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="Coding tool to use (default: claude-code)",
     )
     finalize_tool_arg.completer = complete_tools
+    finalize_model_arg = finalize_parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Model variant for Claude Code CLI (default: haiku)",
+    )
+    finalize_model_arg.completer = complete_models
 
     # Recover-plan command
     recover_parser = subparsers.add_parser(
@@ -271,8 +285,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             plan_path = None
         text_input = args.text
         tool = args.tool
+        model = args.model
         no_hooks = args.no_hooks
-        return run_plan_command(plan_path, text_input, tool, no_hooks=no_hooks)
+
+        # Check if model was explicitly provided in command line
+        actual_argv = argv if argv is not None else sys.argv[1:]
+        model_explicitly_provided = "--model" in actual_argv
+
+        # Validate tool/model parameter compatibility
+        if tool == "droid" and model_explicitly_provided:
+            logger.error("The --model parameter cannot be used with --tool droid. "
+                        "Droid does not support model selection.")
+            return 1
+
+        # For droid, ignore the model parameter entirely
+        if tool == "droid":
+            model = None
+
+        # Validate other combinations
+        try:
+            validate_tool_model_compatibility(tool, model)
+        except ParameterValidationError as exc:
+            logger.error("%s", exc)
+            return 1
+
+        return run_plan_command(plan_path, text_input, tool, model=model, no_hooks=no_hooks)
 
     # Finalize command
     if args.command == "finalize":
@@ -286,7 +323,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             logger.error("%s", exc)
             return 1
         tool = args.tool
-        return run_finalize_command(plan_path, tool=tool)
+        model = args.model
+
+        # Check if model was explicitly provided in command line
+        actual_argv = argv if argv is not None else sys.argv[1:]
+        model_explicitly_provided = "--model" in actual_argv
+
+        # Validate tool/model parameter compatibility
+        if tool == "droid" and model_explicitly_provided:
+            logger.error("The --model parameter cannot be used with --tool droid. "
+                        "Droid does not support model selection.")
+            return 1
+
+        # For droid, ignore the model parameter entirely
+        if tool == "droid":
+            model = None
+
+        # Validate other combinations
+        try:
+            validate_tool_model_compatibility(tool, model)
+        except ParameterValidationError as exc:
+            logger.error("%s", exc)
+            return 1
+
+        return run_finalize_command(plan_path, tool=tool, model=model)
 
     # Recover-plan command
     if args.command == "recover-plan":

@@ -17,6 +17,7 @@ from .file_watcher import PlanFileWatcher
 from .hooks import get_hook_manager, trigger_hook
 from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
 from .logging_config import get_logger
+from .param_validation import get_effective_model
 from .plan_backup import PlanBackupError, create_backup
 from .plan_file_copier import PlanFileCopyError, copy_plan_files, get_existing_files
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
@@ -155,6 +156,7 @@ def run_plan_command(
     plan_path: Path | None,
     text_input: str | None,
     tool: str,
+    model: str | None = None,
     no_hooks: bool = False,
 ) -> int:
     """Execute the plan command.
@@ -163,6 +165,8 @@ def run_plan_command(
         plan_path: Optional path to a markdown file with plan idea.
         text_input: Optional direct text input for the plan idea.
         tool: Name of the coding tool to use (default: "claude-code").
+        model: Model variant to use (e.g., "sonnet", "opus", "haiku").
+               If None, uses config.toml default or hardcoded default (sonnet).
         no_hooks: If True, disable execution of configured hooks.
 
     Returns:
@@ -245,8 +249,9 @@ def run_plan_command(
             raise PlanCommandError(f"Failed to set up agents/droids: {exc}") from exc
 
         # Build command using the executor
-        # Use default model "sonnet" for plan command
-        command = executor.build_command(prompt_file, model="sonnet")
+        # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (sonnet)
+        effective_model = get_effective_model(model, "plan")
+        command = executor.build_command(prompt_file, model=effective_model)
 
         # Get executor-specific environment variables
         executor_env_vars = executor.get_env_vars(host_factory_dir)

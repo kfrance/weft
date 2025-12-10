@@ -122,10 +122,11 @@ def test_plan_command_tool_parameter(monkeypatch, tmp_path) -> None:
     """Test plan command accepts --tool parameter."""
     captured_args = {}
 
-    def mock_run_plan_command(path, text, tool, no_hooks=False):
+    def mock_run_plan_command(path, text, tool, model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["text"] = text
         captured_args["tool"] = tool
+        captured_args["model"] = model
         captured_args["no_hooks"] = no_hooks
         return 0
 
@@ -137,6 +138,7 @@ def test_plan_command_tool_parameter(monkeypatch, tmp_path) -> None:
     assert exit_code == 0
     assert captured_args["tool"] == "droid"
     assert captured_args["text"] == "Test idea"
+    assert captured_args["model"] is None  # droid doesn't support model
 
 
 def test_code_command_debug_flag(monkeypatch, tmp_path) -> None:
@@ -479,10 +481,11 @@ def test_plan_command_no_hooks_flag(monkeypatch) -> None:
     """Test plan command accepts --no-hooks flag."""
     captured_args = {}
 
-    def mock_run_plan_command(path, text, tool, no_hooks=False):
+    def mock_run_plan_command(path, text, tool, model=None, no_hooks=False):
         captured_args["path"] = path
         captured_args["text"] = text
         captured_args["tool"] = tool
+        captured_args["model"] = model
         captured_args["no_hooks"] = no_hooks
         return 0
 
@@ -499,7 +502,7 @@ def test_plan_command_no_hooks_default_false(monkeypatch) -> None:
     """Test plan command --no-hooks defaults to False."""
     captured_args = {}
 
-    def mock_run_plan_command(path, text, tool, no_hooks=False):
+    def mock_run_plan_command(path, text, tool, model=None, no_hooks=False):
         captured_args["no_hooks"] = no_hooks
         return 0
 
