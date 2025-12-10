@@ -6,7 +6,6 @@ Now runs directly on the host environment instead of in Docker containers.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import tempfile
 import time
@@ -83,76 +82,94 @@ def _extract_idea_text(plan_path: Path | None, text_input: str | None) -> str:
         return content.strip()
 
 
-def _copy_droids_for_plan(worktree_path: Path) -> None:
-    """Copy maintainability-reviewer droid to worktree for Droid CLI.
-
-    Copies the droid from src/lw_coder/droids/ to <worktree>/.factory/droids/
-    so it's discoverable as a project droid.
+def _write_plan_subagents(worktree_path: Path, tool: str, model: str) -> None:
+    """Write plan subagents with appropriate YAML front matter for the tool.
 
     Args:
         worktree_path: Path to the temporary worktree.
+        tool: Tool name ("droid" or "claude-code").
+        model: Model to use (for Claude Code; ignored for Droid which uses gpt-5-codex).
 
     Raises:
-        PlanCommandError: If droid copying fails.
+        PlanCommandError: If subagent writing fails.
     """
     try:
         src_dir = get_lw_coder_src_dir()
     except RuntimeError as exc:
         raise PlanCommandError(str(exc)) from exc
 
-    source_droid = src_dir / "droids" / "maintainability-reviewer.md"
-    if not source_droid.exists():
-        raise PlanCommandError(
-            f"Maintainability reviewer droid not found at {source_droid}"
-        )
+    # Define subagent configurations (single source of truth)
+    subagent_configs = {
+        "maintainability-reviewer": "Evaluates plans from a long-term maintenance perspective",
+        "test-planner": "Plans comprehensive test coverage (only adds tests when appropriate)"
+    }
 
-    dest_droids_dir = worktree_path / ".factory" / "droids"
-    dest_droids_dir.mkdir(parents=True, exist_ok=True)
+    # Determine destination directory and model based on tool
+    if tool == "droid":
+        dest_dir = worktree_path / ".factory" / "droids"
+        effective_model = "gpt-5-codex"
+        include_tools_field = True
+    elif tool == "claude-code":
+        dest_dir = worktree_path / ".claude" / "agents"
+        effective_model = model
+        include_tools_field = False
+    else:
+        raise PlanCommandError(f"Unknown tool: {tool}")
 
-    dest_droid = dest_droids_dir / "maintainability-reviewer.md"
-    try:
-        shutil.copy2(source_droid, dest_droid)
-        logger.info("Copied maintainability-reviewer droid to %s", dest_droids_dir)
-    except (OSError, IOError) as exc:
-        raise PlanCommandError(
-            f"Failed to copy droid to {dest_droid}: {exc}"
-        ) from exc
+    # Create destination directory
+    dest_dir.mkdir(parents=True, exist_ok=True)
 
+    # Write each subagent
+    for subagent_name, description in subagent_configs.items():
+        # Load plain markdown prompt
+        prompt_path = src_dir / "prompts" / "plan-subagents" / f"{subagent_name}.md"
+        if not prompt_path.exists():
+            raise PlanCommandError(
+                f"Subagent prompt not found at {prompt_path}"
+            )
 
-def _write_maintainability_agent(worktree_path: Path) -> None:
-    """Write maintainability-reviewer agent for Claude Code CLI.
+        try:
+            prompt_content = prompt_path.read_text(encoding="utf-8")
+        except (OSError, IOError) as exc:
+            raise PlanCommandError(
+                f"Failed to read subagent prompt from {prompt_path}: {exc}"
+            ) from exc
 
-    Writes the agent from src/lw_coder/droids/ to <worktree>/.claude/agents/
-    so it's discoverable by Claude Code CLI.
+        # Generate YAML front matter based on tool
+        if include_tools_field:
+            # Droid format: includes tools field
+            front_matter = f"""---
+name: {subagent_name}
+description: {description}
+model: {effective_model}
+tools: read-only
+---
 
-    Args:
-        worktree_path: Path to the temporary worktree.
+"""
+        else:
+            # Claude Code format: omits tools field for inheritance
+            front_matter = f"""---
+name: {subagent_name}
+description: {description}
+model: {effective_model}
+---
 
-    Raises:
-        PlanCommandError: If agent writing fails.
-    """
-    try:
-        src_dir = get_lw_coder_src_dir()
-    except RuntimeError as exc:
-        raise PlanCommandError(str(exc)) from exc
+"""
 
-    source_agent = src_dir / "droids" / "maintainability-reviewer.md"
-    if not source_agent.exists():
-        raise PlanCommandError(
-            f"Maintainability reviewer agent not found at {source_agent}"
-        )
+        # Combine front matter and prompt content
+        full_content = front_matter + prompt_content
 
-    dest_agents_dir = worktree_path / ".claude" / "agents"
-    dest_agents_dir.mkdir(parents=True, exist_ok=True)
+        # Write to destination
+        dest_file = dest_dir / f"{subagent_name}.md"
+        try:
+            dest_file.write_text(full_content, encoding="utf-8")
+            logger.debug("Wrote %s subagent to %s", subagent_name, dest_file)
+        except (OSError, IOError) as exc:
+            raise PlanCommandError(
+                f"Failed to write subagent to {dest_file}: {exc}"
+            ) from exc
 
-    dest_agent = dest_agents_dir / "maintainability-reviewer.md"
-    try:
-        shutil.copy2(source_agent, dest_agent)
-        logger.info("Wrote maintainability-reviewer agent to %s", dest_agents_dir)
-    except (OSError, IOError) as exc:
-        raise PlanCommandError(
-            f"Failed to write agent to {dest_agent}: {exc}"
-        ) from exc
+    logger.info("Configured %s plan subagents in %s", len(subagent_configs), dest_dir)
 
 
 def run_plan_command(
@@ -241,15 +258,11 @@ def run_plan_command(
         logger.info("Plans will be saved to .lw_coder/tasks/<plan_id>.md")
         logger.info("Processing plan with %s...", tool)
 
-        # Set up agents/droids based on executor type
+        # Set up plan subagents (maintainability-reviewer and test-planner)
         try:
-            if tool == "droid":
-                _copy_droids_for_plan(temp_worktree)
-            elif tool == "claude-code":
-                _write_maintainability_agent(temp_worktree)
-            logger.info("Sub-agents/droids configured for %s", tool)
+            _write_plan_subagents(temp_worktree, tool, "sonnet")
         except PlanCommandError as exc:
-            raise PlanCommandError(f"Failed to set up agents/droids: {exc}") from exc
+            raise PlanCommandError(f"Failed to set up plan subagents: {exc}") from exc
 
         # Build command using the executor
         # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (sonnet)

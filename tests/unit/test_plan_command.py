@@ -9,10 +9,9 @@ import pytest
 
 from lw_coder.plan_command import (
     PlanCommandError,
-    _copy_droids_for_plan,
     _ensure_placeholder_git_sha,
     _extract_idea_text,
-    _write_maintainability_agent,
+    _write_plan_subagents,
 )
 from lw_coder.plan_file_copier import (
     PlanFileCopyError,
@@ -22,7 +21,7 @@ from lw_coder.plan_file_copier import (
     get_existing_files,
 )
 from lw_coder.plan_validator import PLACEHOLDER_SHA, extract_front_matter
-from tests.conftest import write_plan
+from conftest import write_plan
 import lw_coder.plan_command
 
 
@@ -372,19 +371,24 @@ def test_copy_plan_files_destination_is_file(tmp_path: Path) -> None:
         copy_plan_files(source_dir, dest_file, existing_files)
 
 
-# Tests for agent/droid setup functions
+# Tests for plan subagent setup functions
 
 
-def test_copy_droids_for_plan_success(tmp_path: Path, monkeypatch) -> None:
-    """Test _copy_droids_for_plan creates correct directory structure and copies file."""
-    # Create a fake source droid file
+def test_write_plan_subagents_droid(tmp_path: Path, monkeypatch) -> None:
+    """Test _write_plan_subagents for Droid creates correct directory structure and files."""
+    # Create fake source directory with prompt files
     fake_src_dir = tmp_path / "fake_src"
-    droids_dir = fake_src_dir / "droids"
-    droids_dir.mkdir(parents=True)
-    source_droid = droids_dir / "maintainability-reviewer.md"
-    source_droid.write_text("---\nname: maintainability-reviewer\n---\nTest content")
+    prompts_dir = fake_src_dir / "prompts" / "plan-subagents"
+    prompts_dir.mkdir(parents=True)
 
-    # Mock get_lw_coder_src_dir to return our fake directory
+    # Create prompt files (plain markdown, no YAML)
+    maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
+    maintainability_prompt.write_text("Maintainability review guidance")
+
+    test_planner_prompt = prompts_dir / "test-planner.md"
+    test_planner_prompt.write_text("Test planning guidance")
+
+    # Mock get_lw_coder_src_dir
     monkeypatch.setattr(
         lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
     )
@@ -393,69 +397,44 @@ def test_copy_droids_for_plan_success(tmp_path: Path, monkeypatch) -> None:
     worktree_path = tmp_path / "worktree"
     worktree_path.mkdir()
 
-    # Call the function
-    _copy_droids_for_plan(worktree_path)
+    # Call the function for Droid
+    _write_plan_subagents(worktree_path, "droid", "sonnet")
 
     # Verify directory structure was created
     dest_droids_dir = worktree_path / ".factory" / "droids"
     assert dest_droids_dir.exists()
     assert dest_droids_dir.is_dir()
 
-    # Verify file was copied
-    dest_droid = dest_droids_dir / "maintainability-reviewer.md"
-    assert dest_droid.exists()
-    assert dest_droid.read_text() == "---\nname: maintainability-reviewer\n---\nTest content"
+    # Verify maintainability-reviewer file
+    dest_maintainability = dest_droids_dir / "maintainability-reviewer.md"
+    assert dest_maintainability.exists()
+    content = dest_maintainability.read_text()
+    assert "model: gpt-5-codex" in content
+    assert "tools: read-only" in content
+    assert "Maintainability review guidance" in content
+
+    # Verify test-planner file
+    dest_test_planner = dest_droids_dir / "test-planner.md"
+    assert dest_test_planner.exists()
+    content = dest_test_planner.read_text()
+    assert "model: gpt-5-codex" in content
+    assert "tools: read-only" in content
+    assert "Test planning guidance" in content
 
 
-@pytest.mark.parametrize(
-    "error_type,expected_match",
-    [
-        ("missing_source", "Maintainability reviewer droid not found"),
-        ("permission_error", "Failed to copy droid"),
-    ],
-    ids=["missing_source", "permission_error"]
-)
-def test_copy_droids_for_plan_errors(tmp_path: Path, monkeypatch, error_type: str, expected_match: str) -> None:
-    """Test _copy_droids_for_plan error handling for missing source and permission errors."""
-    # Create fake source directory
+def test_write_plan_subagents_claude_code(tmp_path: Path, monkeypatch) -> None:
+    """Test _write_plan_subagents for Claude Code creates correct directory structure and files."""
+    # Create fake source directory with prompt files
     fake_src_dir = tmp_path / "fake_src"
-    droids_dir = fake_src_dir / "droids"
-    droids_dir.mkdir(parents=True)
+    prompts_dir = fake_src_dir / "prompts" / "plan-subagents"
+    prompts_dir.mkdir(parents=True)
 
-    if error_type == "permission_error":
-        # Create source file for permission error test
-        source_droid = droids_dir / "maintainability-reviewer.md"
-        source_droid.write_text("Test content")
+    # Create prompt files (plain markdown, no YAML)
+    maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
+    maintainability_prompt.write_text("Maintainability review guidance")
 
-        # Mock shutil.copy2 to raise permission error
-        import shutil
-
-        def mock_copy2(src, dst):
-            raise OSError("Permission denied")
-
-        monkeypatch.setattr("shutil.copy2", mock_copy2)
-
-    # Mock get_lw_coder_src_dir
-    monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
-    )
-
-    worktree_path = tmp_path / "worktree"
-    worktree_path.mkdir()
-
-    # Should raise appropriate error
-    with pytest.raises(PlanCommandError, match=expected_match):
-        _copy_droids_for_plan(worktree_path)
-
-
-def test_write_maintainability_agent_success(tmp_path: Path, monkeypatch) -> None:
-    """Test _write_maintainability_agent creates correct directory structure and writes file."""
-    # Create a fake source agent file
-    fake_src_dir = tmp_path / "fake_src"
-    droids_dir = fake_src_dir / "droids"
-    droids_dir.mkdir(parents=True)
-    source_agent = droids_dir / "maintainability-reviewer.md"
-    source_agent.write_text("---\nname: maintainability-reviewer\n---\nAgent content")
+    test_planner_prompt = prompts_dir / "test-planner.md"
+    test_planner_prompt.write_text("Test planning guidance")
 
     # Mock get_lw_coder_src_dir
     monkeypatch.setattr(
@@ -466,47 +445,154 @@ def test_write_maintainability_agent_success(tmp_path: Path, monkeypatch) -> Non
     worktree_path = tmp_path / "worktree"
     worktree_path.mkdir()
 
-    # Call the function
-    _write_maintainability_agent(worktree_path)
+    # Call the function for Claude Code
+    _write_plan_subagents(worktree_path, "claude-code", "sonnet")
 
     # Verify directory structure was created
     dest_agents_dir = worktree_path / ".claude" / "agents"
     assert dest_agents_dir.exists()
     assert dest_agents_dir.is_dir()
 
-    # Verify file was written
-    dest_agent = dest_agents_dir / "maintainability-reviewer.md"
-    assert dest_agent.exists()
-    assert dest_agent.read_text() == "---\nname: maintainability-reviewer\n---\nAgent content"
+    # Verify maintainability-reviewer file
+    dest_maintainability = dest_agents_dir / "maintainability-reviewer.md"
+    assert dest_maintainability.exists()
+    content = dest_maintainability.read_text()
+    assert "model: sonnet" in content
+    assert "tools:" not in content  # Should omit tools field for Claude Code
+    assert "Maintainability review guidance" in content
+
+    # Verify test-planner file
+    dest_test_planner = dest_agents_dir / "test-planner.md"
+    assert dest_test_planner.exists()
+    content = dest_test_planner.read_text()
+    assert "model: sonnet" in content
+    assert "tools:" not in content  # Should omit tools field for Claude Code
+    assert "Test planning guidance" in content
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["sonnet", "opus", "haiku"],
+    ids=["sonnet", "opus", "haiku"]
+)
+def test_write_plan_subagents_different_models(tmp_path: Path, monkeypatch, model: str) -> None:
+    """Test _write_plan_subagents with different models for Claude Code."""
+    # Create fake source directory with prompt files
+    fake_src_dir = tmp_path / "fake_src"
+    prompts_dir = fake_src_dir / "prompts" / "plan-subagents"
+    prompts_dir.mkdir(parents=True)
+
+    maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
+    maintainability_prompt.write_text("Test content")
+
+    test_planner_prompt = prompts_dir / "test-planner.md"
+    test_planner_prompt.write_text("Test content")
+
+    # Mock get_lw_coder_src_dir
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    # Create worktree path
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Call the function for Claude Code with specified model
+    _write_plan_subagents(worktree_path, "claude-code", model)
+
+    # Verify model is correctly set in both files
+    dest_agents_dir = worktree_path / ".claude" / "agents"
+
+    maintainability_content = (dest_agents_dir / "maintainability-reviewer.md").read_text()
+    assert f"model: {model}" in maintainability_content
+
+    test_planner_content = (dest_agents_dir / "test-planner.md").read_text()
+    assert f"model: {model}" in test_planner_content
+
+    # Verify Droid always uses gpt-5-codex regardless of model parameter
+    worktree_path_droid = tmp_path / "worktree_droid"
+    worktree_path_droid.mkdir()
+
+    _write_plan_subagents(worktree_path_droid, "droid", model)
+
+    dest_droids_dir = worktree_path_droid / ".factory" / "droids"
+    maintainability_content = (dest_droids_dir / "maintainability-reviewer.md").read_text()
+    assert "model: gpt-5-codex" in maintainability_content
+
+    test_planner_content = (dest_droids_dir / "test-planner.md").read_text()
+    assert "model: gpt-5-codex" in test_planner_content
+
+
+def test_write_plan_subagents_unknown_tool(tmp_path: Path, monkeypatch) -> None:
+    """Test _write_plan_subagents raises error for unknown tool."""
+    fake_src_dir = tmp_path / "fake_src"
+    fake_src_dir.mkdir()
+    monkeypatch.setattr(
+        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+    )
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    with pytest.raises(PlanCommandError, match="Unknown tool"):
+        _write_plan_subagents(worktree_path, "invalid-tool", "sonnet")
 
 
 @pytest.mark.parametrize(
     "error_type,expected_match",
     [
-        ("missing_source", "Maintainability reviewer agent not found"),
-        ("permission_error", "Failed to write agent"),
+        ("missing_source", "Subagent prompt not found"),
+        ("permission_error", "Failed to write subagent"),
+        ("read_error", "Failed to read subagent prompt"),
     ],
-    ids=["missing_source", "permission_error"]
+    ids=["missing_source", "permission_error", "read_error"]
 )
-def test_write_maintainability_agent_errors(tmp_path: Path, monkeypatch, error_type: str, expected_match: str) -> None:
-    """Test _write_maintainability_agent error handling for missing source and permission errors."""
+def test_write_plan_subagents_errors(tmp_path: Path, monkeypatch, error_type: str, expected_match: str) -> None:
+    """Test _write_plan_subagents error handling for missing source, permission, and read errors."""
     # Create fake source directory
     fake_src_dir = tmp_path / "fake_src"
-    droids_dir = fake_src_dir / "droids"
-    droids_dir.mkdir(parents=True)
+    prompts_dir = fake_src_dir / "prompts" / "plan-subagents"
+    prompts_dir.mkdir(parents=True)
 
     if error_type == "permission_error":
-        # Create source file for permission error test
-        source_agent = droids_dir / "maintainability-reviewer.md"
-        source_agent.write_text("Agent content")
+        # Create source files for permission error test
+        maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
+        maintainability_prompt.write_text("Test content")
 
-        # Mock shutil.copy2 to raise permission error
-        import shutil
+        test_planner_prompt = prompts_dir / "test-planner.md"
+        test_planner_prompt.write_text("Test content")
 
-        def mock_copy2(src, dst):
-            raise OSError("Permission denied")
+        # Mock Path.write_text to raise permission error
+        from pathlib import Path as PathLib
+        original_write_text = PathLib.write_text
 
-        monkeypatch.setattr("shutil.copy2", mock_copy2)
+        def mock_write_text(self, *args, **kwargs):
+            # Only raise error for destination files, not source setup
+            if ".claude" in str(self) or ".factory" in str(self):
+                raise OSError("Permission denied")
+            return original_write_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(PathLib, "write_text", mock_write_text)
+
+    elif error_type == "read_error":
+        # Create source files for read error test
+        maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
+        maintainability_prompt.write_text("Test content")
+
+        test_planner_prompt = prompts_dir / "test-planner.md"
+        test_planner_prompt.write_text("Test content")
+
+        # Mock Path.read_text to raise read error
+        from pathlib import Path as PathLib
+        original_read_text = PathLib.read_text
+
+        def mock_read_text(self, *args, **kwargs):
+            # Only raise error for prompt files
+            if "plan-subagents" in str(self):
+                raise OSError("Permission denied reading file")
+            return original_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(PathLib, "read_text", mock_read_text)
 
     # Mock get_lw_coder_src_dir
     monkeypatch.setattr(
@@ -518,7 +604,7 @@ def test_write_maintainability_agent_errors(tmp_path: Path, monkeypatch, error_t
 
     # Should raise appropriate error
     with pytest.raises(PlanCommandError, match=expected_match):
-        _write_maintainability_agent(worktree_path)
+        _write_plan_subagents(worktree_path, "claude-code", "sonnet")
 
 # Integration tests for backup functionality
 
@@ -553,9 +639,8 @@ def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr("lw_coder.plan_command.remove_temp_worktree", Mock())
     monkeypatch.setattr("lw_coder.plan_command.get_lw_coder_src_dir", Mock(return_value=tmp_path / "src"))
 
-    # Mock agent/droid setup
-    monkeypatch.setattr("lw_coder.plan_command._write_maintainability_agent", Mock())
-    monkeypatch.setattr("lw_coder.plan_command._copy_droids_for_plan", Mock())
+    # Mock subagent setup
+    monkeypatch.setattr("lw_coder.plan_command._write_plan_subagents", Mock())
 
     # Mock trace capture functions (now using session_manager)
     monkeypatch.setattr("lw_coder.plan_command.prune_old_sessions", Mock())
@@ -633,9 +718,8 @@ def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatc
     monkeypatch.setattr("lw_coder.plan_command.remove_temp_worktree", Mock())
     monkeypatch.setattr("lw_coder.plan_command.get_lw_coder_src_dir", Mock(return_value=tmp_path / "src"))
 
-    # Mock agent/droid setup
-    monkeypatch.setattr("lw_coder.plan_command._write_maintainability_agent", Mock())
-    monkeypatch.setattr("lw_coder.plan_command._copy_droids_for_plan", Mock())
+    # Mock subagent setup
+    monkeypatch.setattr("lw_coder.plan_command._write_plan_subagents", Mock())
 
     # Mock trace capture functions (now using session_manager)
     monkeypatch.setattr("lw_coder.plan_command.prune_old_sessions", Mock())
