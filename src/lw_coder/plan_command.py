@@ -242,15 +242,8 @@ def run_plan_command(
         main_tasks_dir = repo_root / ".lw_coder" / "tasks"
         existing_files = get_existing_files(worktree_tasks_dir)
 
-        # Get lw_coder source directory
-        try:
-            lw_coder_src = get_lw_coder_src_dir()
-        except RuntimeError as exc:
-            raise PlanCommandError(str(exc)) from exc
-
         # Prepare paths for host configuration
         tasks_dir = repo_root / ".lw_coder" / "tasks"
-        droids_dir = lw_coder_src / "droids"
         host_factory_dir = Path.home() / ".factory"
         git_dir = repo_root / ".git"
 
@@ -276,7 +269,6 @@ def run_plan_command(
             worktree_path=temp_worktree,
             repo_git_dir=git_dir,
             tasks_dir=tasks_dir,
-            droids_dir=droids_dir,
             command=command,
             host_factory_dir=host_factory_dir,
             env_vars=executor_env_vars,

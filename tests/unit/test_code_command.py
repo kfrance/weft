@@ -86,7 +86,6 @@ def test_run_code_command_worktree_failure(monkeypatch, caplog, tmp_path: Path) 
 
     monkeypatch.setattr(code_command, "load_plan_metadata", lambda path: mock_metadata)
     monkeypatch.setattr(code_command, "create_session_directory", lambda repo_root, plan_id, session_type: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda run_dir: run_dir / "droids")
     monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda repo_root, active_session_dir: 0)
     monkeypatch.setattr(code_command, "ensure_worktree", mock_ensure_worktree)
@@ -163,7 +162,6 @@ def test_code_command_replaces_placeholder_git_sha(monkeypatch, git_repo, tmp_pa
         return run_dir
 
     monkeypatch.setattr(code_command, "create_session_directory", fake_create_session_directory)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "_write_sub_agents", lambda *_args, **_kwargs: None)
@@ -239,7 +237,6 @@ def test_code_command_status_implemented_on_success(monkeypatch, git_repo, tmp_p
     }
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
 
@@ -309,7 +306,6 @@ def test_code_command_status_stays_coding_on_failure(
     }
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
 
@@ -446,7 +442,6 @@ def test_code_command_warning_on_final_update_failure(
     }
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -515,7 +510,6 @@ def test_code_command_interrupted_by_user(monkeypatch, git_repo, tmp_path: Path,
     }
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -603,7 +597,6 @@ def test_code_command_worktree_uses_updated_sha(monkeypatch, git_repo, tmp_path:
     }
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
 
@@ -671,7 +664,6 @@ def test_code_command_real_sha_matches_head_no_error(
     }
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _run_dir: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -738,7 +730,6 @@ def test_code_command_agents_cleanup(monkeypatch, git_repo, tmp_path: Path, mock
     }
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
 
@@ -819,7 +810,6 @@ def test_code_command_with_droid_tool(monkeypatch, git_repo, tmp_path: Path) -> 
         )
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
 
@@ -894,7 +884,6 @@ def test_code_command_with_claude_code_tool_explicit_model(monkeypatch, git_repo
         )
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
@@ -970,7 +959,6 @@ def test_code_command_default_tool_and_model(monkeypatch, git_repo, tmp_path: Pa
         )
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)
@@ -1033,7 +1021,6 @@ def test_code_command_sdk_session_failure(monkeypatch, git_repo, tmp_path: Path,
         raise SDKRunnerError("SDK connection failed")
 
     monkeypatch.setattr(code_command, "create_session_directory", lambda *_args, **_kwargs: run_dir)
-    monkeypatch.setattr(code_command, "copy_coding_droids", lambda _: droids_dir)
     monkeypatch.setattr(code_command, "load_prompts", lambda repo_root, tool, model: mock_prompts)
     monkeypatch.setattr(code_command, "prune_old_sessions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(code_command, "ensure_worktree", lambda _metadata: worktree_path)

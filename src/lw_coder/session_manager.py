@@ -4,15 +4,13 @@ This module handles:
 - Creating session directories for plan, code, and eval commands
 - Organizing all artifacts by plan_id
 - Pruning old session directories (30-day retention)
-- Copying droid definitions (excluding plan-only droids)
 
-Replaces the old run_manager.py with a unified session-based structure:
+Directory structure:
 .lw_coder/sessions/<plan_id>/
 ├── plan/
 │   └── trace.md                    # Plan session trace
 ├── code/                            # Code session
 │   ├── trace.md
-│   ├── droids/
 │   └── prompts/
 └── eval/                            # Eval outputs
     ├── test_results_before.json
@@ -30,7 +28,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from .host_runner import get_lw_coder_src_dir
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -101,57 +98,6 @@ def get_session_directory(
     return repo_root / ".lw_coder" / "sessions" / plan_id / session_type
 
 
-def copy_coding_droids(session_dir: Path) -> Path:
-    """Copy coding droid definitions to the session directory.
-
-    Copies droids from src/lw_coder/droids/ but excludes the plan/ subdirectory
-    since those droids are plan-specific.
-
-    Args:
-        session_dir: Session directory where droids should be copied
-
-    Returns:
-        Path to the droids directory in the session directory
-
-    Raises:
-        SessionManagerError: If copying fails
-    """
-    # Get source droids directory from lw_coder package
-    src_dir = get_lw_coder_src_dir()
-    source_droids_dir = src_dir / "droids"
-
-    if not source_droids_dir.exists():
-        raise SessionManagerError(
-            f"Source droids directory not found: {source_droids_dir}"
-        )
-
-    # Create destination droids directory
-    dest_droids_dir = session_dir / "droids"
-    dest_droids_dir.mkdir(parents=True, exist_ok=True)
-
-    # Copy all .md files except those in plan/ subdirectory
-    copied_count = 0
-    for source_file in source_droids_dir.rglob("*.md"):
-        # Skip files in plan/ subdirectory
-        try:
-            relative_path = source_file.relative_to(source_droids_dir)
-            if relative_path.parts[0] == "plan":
-                logger.debug("Skipping plan-specific droid: %s", source_file.name)
-                continue
-        except (ValueError, IndexError):
-            continue
-
-        # Copy file, preserving relative directory structure
-        dest_file = dest_droids_dir / relative_path
-        dest_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_file, dest_file)
-        copied_count += 1
-        logger.debug("Copied droid: %s", relative_path)
-
-    logger.info("Copied %d coding droid(s) to %s", copied_count, dest_droids_dir)
-    return dest_droids_dir
-
-
 def prune_old_sessions(
     repo_root: Path, active_session_dir: Path | None = None
 ) -> int:
@@ -220,39 +166,3 @@ def prune_old_sessions(
         raise SessionManagerError(f"Pruning failed: {'; '.join(errors)}")
 
     return pruned_count
-
-
-# Backward compatibility aliases for migration period
-# These maintain the old run_manager API while using the new structure
-def create_run_directory(repo_root: Path, plan_id: str) -> Path:
-    """Create a code session directory (backward-compatible wrapper).
-
-    DEPRECATED: Use create_session_directory(repo_root, plan_id, "code") instead.
-
-    Args:
-        repo_root: Repository root directory
-        plan_id: Plan identifier
-
-    Returns:
-        Path to the created code session directory
-    """
-    return create_session_directory(repo_root, plan_id, "code")
-
-
-def prune_old_runs(repo_root: Path, active_run_dir: Path | None = None) -> int:
-    """Prune old session directories (backward-compatible wrapper).
-
-    DEPRECATED: Use prune_old_sessions() instead.
-
-    Args:
-        repo_root: Repository root directory
-        active_run_dir: Currently active session directory (will not be deleted)
-
-    Returns:
-        Number of directories pruned
-    """
-    return prune_old_sessions(repo_root, active_session_dir=active_run_dir)
-
-
-# Re-export the error class for backward compatibility
-RunManagerError = SessionManagerError

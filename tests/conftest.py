@@ -107,6 +107,27 @@ def mock_sdk_runner(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_config(request, monkeypatch, tmp_path):
+    """Isolate config file access to prevent tests from reading user's config.
+
+    This fixture mocks CONFIG_PATH in the config module to use a non-existent
+    path in tmp_path. This ensures tests use hardcoded defaults rather than
+    reading from ~/.lw_coder/config.toml.
+
+    Tests marked with @pytest.mark.integration will skip this mock.
+    """
+    if request.node.get_closest_marker("integration"):
+        return
+
+    import lw_coder.config as config_module
+    monkeypatch.setattr(
+        config_module,
+        "CONFIG_PATH",
+        tmp_path / "nonexistent_config" / "config.toml"
+    )
+
+
+@pytest.fixture(autouse=True)
 def reset_hooks_global_state(request, monkeypatch, tmp_path):
     """Reset hooks module global state before each test.
 

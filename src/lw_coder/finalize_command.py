@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 from .executors import ExecutorError, ExecutorRegistry
-from .host_runner import build_host_command, get_lw_coder_src_dir, host_runner_config
+from .host_runner import build_host_command, host_runner_config
 from .logging_config import get_logger
 from .param_validation import get_effective_model
 from .plan_backup import cleanup_backup
@@ -224,15 +224,8 @@ def run_finalize_command(
         # Set secure file permissions (user read/write only, not world-readable)
         os.chmod(prompt_file, 0o600)
 
-        # Get lw_coder source directory
-        try:
-            lw_coder_src = get_lw_coder_src_dir()
-        except RuntimeError as exc:
-            raise FinalizeCommandError(str(exc)) from exc
-
         # Prepare paths for host configuration
         tasks_dir = repo_root / ".lw_coder" / "tasks"
-        droids_dir = lw_coder_src / "droids"
         host_factory_dir = Path.home() / ".factory"
         git_dir = repo_root / ".git"
 
@@ -254,7 +247,6 @@ def run_finalize_command(
             worktree_path=worktree_path,
             repo_git_dir=git_dir,
             tasks_dir=tasks_dir,
-            droids_dir=droids_dir,
             command=command,
             host_factory_dir=host_factory_dir,
             env_vars=executor_env_vars,

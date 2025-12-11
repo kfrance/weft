@@ -292,7 +292,7 @@ class TestCreateTrainingData:
         assert result == training_dir
         assert "Existing" in (result / "plan.md").read_text()
 
-    def test_atomic_operation_on_failure(self, tmp_path: Path) -> None:
+    def test_atomic_operation_on_failure(self, tmp_path: Path, monkeypatch) -> None:
         """Does not create training_data directory if any copy fails."""
         # Set up only plan file (missing everything else)
         tasks_dir = tmp_path / ".lw_coder" / "tasks"
@@ -301,13 +301,16 @@ class TestCreateTrainingData:
 
         training_dir = tmp_path / ".lw_coder" / "training_data" / "test-plan"
 
+        # Mock input to continue past missing code trace prompt
+        monkeypatch.setattr("builtins.input", lambda _: "y")
+
         with pytest.raises(TrainingDataExportError):
             create_training_data("test-plan", tmp_path)
 
         # Training data directory should not exist
         assert not training_dir.exists()
 
-    def test_warns_on_missing_code_trace(self, tmp_path: Path) -> None:
+    def test_warns_on_missing_code_trace(self, tmp_path: Path, monkeypatch) -> None:
         """Warns but continues when code trace is missing."""
         # Set up required files except code trace
         tasks_dir = tmp_path / ".lw_coder" / "tasks"
@@ -320,6 +323,9 @@ class TestCreateTrainingData:
         (eval_dir / "judge_test.json").write_text('{"score": 0.85}')
         (eval_dir / "human_feedback.md").write_text("# Feedback")
         # No code trace
+
+        # Mock input to continue past missing code trace prompt
+        monkeypatch.setattr("builtins.input", lambda _: "y")
 
         result = create_training_data("test-plan", tmp_path)
 

@@ -61,7 +61,7 @@ def check_os_support() -> None:
 
 
 def get_lw_coder_src_dir() -> Path:
-    """Get the lw_coder source directory (where prompts and droids are located).
+    """Get the lw_coder source directory (where prompts are located).
 
     Returns:
         Path to the lw_coder source directory.
@@ -101,7 +101,6 @@ class HostRunnerConfig:
         worktree_path: Path to the Git worktree to use.
         repo_git_dir: Path to the repository's .git directory.
         tasks_dir: Path to the .lw_coder/tasks directory.
-        droids_dir: Path to the droids directory.
         command: Command string to run on the host.
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
@@ -111,7 +110,6 @@ class HostRunnerConfig:
     worktree_path: Path
     repo_git_dir: Path
     tasks_dir: Path
-    droids_dir: Path
     command: str
     host_factory_dir: Path
     env_vars: dict[str, str] | None = None
@@ -122,7 +120,6 @@ def host_runner_config(
     worktree_path: Path,
     repo_git_dir: Path,
     tasks_dir: Path,
-    droids_dir: Path,
     command: str,
     host_factory_dir: Path,
     env_vars: dict[str, str] | None = None,
@@ -134,7 +131,6 @@ def host_runner_config(
         worktree_path: Path to the Git worktree to use.
         repo_git_dir: Path to the repository's .git directory.
         tasks_dir: Path to the .lw_coder/tasks directory.
-        droids_dir: Path to the droids directory.
         command: Command string to run on the host.
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
@@ -152,7 +148,6 @@ def host_runner_config(
         worktree_path=worktree_path,
         repo_git_dir=repo_git_dir,
         tasks_dir=tasks_dir,
-        droids_dir=droids_dir,
         command=command,
         host_factory_dir=host_factory_dir,
         env_vars=env_vars,
@@ -168,18 +163,12 @@ def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, s
 
     Returns:
         Tuple of (command_list, environment_dict) for subprocess.run.
-
-    Raises:
-        RuntimeError: If required files or directories don't exist.
     """
     # Ensure tasks directory exists
     config.tasks_dir.mkdir(parents=True, exist_ok=True)
 
     # Ensure host factory directory exists
     config.host_factory_dir.mkdir(parents=True, exist_ok=True)
-
-    # Validate that required files/directories exist
-    _validate_path_exists(config.droids_dir, "Droids directory")
 
     # Build environment for the command
     env = os.environ.copy()

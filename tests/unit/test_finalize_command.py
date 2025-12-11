@@ -166,7 +166,6 @@ evaluation_notes: []
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
     # Mock other dependencies
-    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
@@ -243,7 +242,6 @@ evaluation_notes: []
         finalize_command, "load_prompt_template",
         lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
     )
-    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
@@ -317,7 +315,6 @@ evaluation_notes: []
         finalize_command, "load_prompt_template",
         lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
     )
-    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
@@ -377,7 +374,6 @@ evaluation_notes: []
         finalize_command, "load_prompt_template",
         lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
     )
-    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
@@ -449,7 +445,6 @@ evaluation_notes: []
         finalize_command, "load_prompt_template",
         lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
     )
-    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
@@ -518,7 +513,6 @@ evaluation_notes: []
         finalize_command, "load_prompt_template",
         lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
     )
-    monkeypatch.setattr(finalize_command, "get_lw_coder_src_dir", lambda: tmp_path / "src")
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 

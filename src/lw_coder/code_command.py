@@ -39,7 +39,6 @@ from .repo_utils import RepoUtilsError, find_repo_root
 from .prompt_loader import PromptLoadingError, load_prompts
 from .session_manager import (
     SessionManagerError,
-    copy_coding_droids,
     create_session_directory,
     prune_old_sessions,
 )
@@ -300,13 +299,6 @@ def run_code_command(
         logger.error("Failed to create session directory: %s", exc)
         return 1
 
-    # Copy coding droids to session directory (for backward compatibility)
-    try:
-        droids_dir = copy_coding_droids(session_dir)
-    except SessionManagerError as exc:
-        logger.error("Failed to copy coding droids: %s", exc)
-        return 1
-
     # Load optimized prompts from disk (project-relative) if using Claude Code
     prompts = None
     if tool == "claude-code":
@@ -364,7 +356,6 @@ def run_code_command(
     if effective_model:
         logger.info("Using model: %s", effective_model)
     logger.info("Session artifacts available at: %s", session_dir)
-    logger.info("  Coding droids: %s", droids_dir)
     if tool == "claude-code":
         logger.info("  Sub-agents: %s/.claude/agents/", worktree_path)
 
@@ -489,7 +480,6 @@ def run_code_command(
         worktree_path=worktree_path,
         repo_git_dir=metadata.repo_root / ".git",
         tasks_dir=metadata.repo_root / ".lw_coder" / "tasks",
-        droids_dir=droids_dir,
         auth_file=auth_file,
         command=command,
         host_factory_dir=Path.home() / ".factory",

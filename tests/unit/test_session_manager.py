@@ -4,21 +4,15 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from lw_coder.session_manager import (
     SESSION_RETENTION_DAYS,
     SessionManagerError,
-    copy_coding_droids,
     create_session_directory,
     get_session_directory,
     prune_old_sessions,
-    # Backward compatibility aliases
-    create_run_directory,
-    prune_old_runs,
-    RunManagerError,
 )
 
 
@@ -111,70 +105,6 @@ class TestGetSessionDirectory:
         assert path == repo_root / ".lw_coder" / "sessions" / "my-plan" / "eval"
         # Note: doesn't create the directory
         assert not path.exists()
-
-
-class TestCopyCodingDroids:
-    """Tests for copy_coding_droids function."""
-
-    def test_copies_droids_successfully(self, tmp_path: Path) -> None:
-        """Test successful copying of coding droids."""
-        # Create mock source droids directory
-        mock_src_dir = tmp_path / "src"
-        mock_droids_dir = mock_src_dir / "droids"
-        mock_droids_dir.mkdir(parents=True)
-
-        # Create some droid files
-        (mock_droids_dir / "code-reviewer.md").write_text("# Code Reviewer")
-        (mock_droids_dir / "test-writer.md").write_text("# Test Writer")
-
-        # Create plan subdirectory with a droid (should be skipped)
-        plan_dir = mock_droids_dir / "plan"
-        plan_dir.mkdir()
-        (plan_dir / "plan-droid.md").write_text("# Plan Droid")
-
-        # Create session directory
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-
-        with patch("lw_coder.session_manager.get_lw_coder_src_dir", return_value=mock_src_dir):
-            result_dir = copy_coding_droids(session_dir)
-
-        # Verify droids were copied
-        assert result_dir == session_dir / "droids"
-        assert (result_dir / "code-reviewer.md").exists()
-        assert (result_dir / "test-writer.md").exists()
-
-        # Verify plan droid was skipped
-        assert not (result_dir / "plan" / "plan-droid.md").exists()
-
-    def test_copies_nested_structure(self, tmp_path: Path) -> None:
-        """Test copying droids with nested directory structure."""
-        mock_src_dir = tmp_path / "src"
-        mock_droids_dir = mock_src_dir / "droids"
-        nested_dir = mock_droids_dir / "specialized"
-        nested_dir.mkdir(parents=True)
-
-        (nested_dir / "security-auditor.md").write_text("# Security Auditor")
-
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-
-        with patch("lw_coder.session_manager.get_lw_coder_src_dir", return_value=mock_src_dir):
-            result_dir = copy_coding_droids(session_dir)
-
-        assert (result_dir / "specialized" / "security-auditor.md").exists()
-
-    def test_source_not_found_raises_error(self, tmp_path: Path) -> None:
-        """Test that missing source directory raises SessionManagerError."""
-        mock_src_dir = tmp_path / "src"
-        mock_src_dir.mkdir()
-
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-
-        with patch("lw_coder.session_manager.get_lw_coder_src_dir", return_value=mock_src_dir):
-            with pytest.raises(SessionManagerError, match="Source droids directory not found"):
-                copy_coding_droids(session_dir)
 
 
 class TestPruneOldSessions:
@@ -288,31 +218,3 @@ class TestPruneOldSessions:
 
         with pytest.raises(SessionManagerError, match="Pruning failed"):
             prune_old_sessions(repo_root)
-
-
-class TestBackwardCompatibility:
-    """Tests for backward compatibility aliases."""
-
-    def test_create_run_directory_alias(self, tmp_path: Path) -> None:
-        """Test that create_run_directory is aliased to create_session_directory(code)."""
-        repo_root = tmp_path
-        plan_id = "test-plan"
-
-        run_dir = create_run_directory(repo_root, plan_id)
-
-        assert run_dir.exists()
-        assert run_dir.name == "code"
-        assert plan_id in str(run_dir)
-
-    def test_prune_old_runs_alias(self, tmp_path: Path) -> None:
-        """Test that prune_old_runs is aliased to prune_old_sessions."""
-        repo_root = tmp_path
-
-        # Should work even with no sessions directory
-        count = prune_old_runs(repo_root)
-
-        assert count == 0
-
-    def test_run_manager_error_alias(self) -> None:
-        """Test that RunManagerError is aliased to SessionManagerError."""
-        assert RunManagerError is SessionManagerError

@@ -36,7 +36,6 @@ from pathlib import Path
 
 from .logging_config import get_logger
 from .plan_validator import _PLAN_ID_PATTERN
-from .repo_utils import RepoUtilsError, find_repo_root
 
 logger = get_logger(__name__)
 
