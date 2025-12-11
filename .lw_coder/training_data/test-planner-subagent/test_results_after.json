@@ -1,0 +1,12 @@
+{
+  "command": "uv run --no-cache pytest -m ''",
+  "exit_code": 0,
+  "total_tests": 573,
+  "passed_tests": 573,
+  "failed_tests": 0,
+  "failed_test_details": [],
+  "summary": "All 573 tests passed successfully across both unit and integration test suites",
+  "analysis": "The test execution shows excellent code quality with 100% test pass rate. The test suite is comprehensive, covering 573 test cases organized into two main categories: unit tests (546 tests) and integration tests (27 tests). The unit tests provide fast feedback with mocked dependencies, while integration tests validate real-world scenarios with actual API calls to Claude SDK and OpenRouter. There were 14 deprecation/serialization warnings from third-party dependencies (httpx and pydantic), but these are non-critical and don't affect test outcomes. The test execution completed in approximately 48 seconds, indicating good test performance.",
+  "possible_solutions": [],
+  "recommended_fix": "No fixes needed - all tests are passing. The warnings from third-party libraries (httpx deprecation warning about content encoding, and pydantic serialization warnings) are informational and should be monitored for future library updates but do not require immediate action."
+}

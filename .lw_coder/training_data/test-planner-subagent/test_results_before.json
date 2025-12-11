@@ -1,0 +1,14 @@
+{
+  "command": "uv run --no-cache pytest -m ''",
+  "exit_code": 0,
+  "total_tests": 570,
+  "passed_tests": 570,
+  "failed_tests": 0,
+  "failed_test_details": [],
+  "summary": "All 570 tests passed successfully across both unit and integration test suites. The test execution completed in 46.93 seconds with 14 minor warnings related to deprecated HTTP content encoding and Pydantic serialization mismatches.",
+  "analysis": "The test suite demonstrates excellent code quality and comprehensive test coverage. The codebase includes:\n\n1. **Unit Tests (543 tests)**: Cover core functionality with mocked dependencies, including:\n   - CLI command parsing and validation\n   - Git worktree management and operations\n   - Plan lifecycle management (create, code, finalize, abandon, recover)\n   - Judge system for code evaluation\n   - Bash completion infrastructure\n   - Hook system for extensibility\n   - Template initialization and versioning\n   - Cache synchronization\n   - Parameter validation and security\n\n2. **Integration Tests (27 tests)**: Validate real-world scenarios with actual API calls:\n   - DSPy cache operations\n   - SDK session management and network access\n   - Claude API integration\n   - Hook execution with subprocess management\n   - Judge executor with LLM calls\n   - End-to-end workflows for plan abandonment and recovery\n\n3. **Warnings**: The 14 warnings are non-critical:\n   - HTTP content encoding deprecation in httpx library (external dependency)\n   - Pydantic serialization mismatches in DSPy responses (library compatibility issue)\n   - These do not affect functionality and are likely to be resolved in future library updates\n\nThe test suite validates all major features documented in CLAUDE.md, including plan management, code execution, evaluation with LLM judges, git integration, and CLI tooling.",
+  "possible_solutions": [
+    "No solutions needed - all tests are passing"
+  ],
+  "recommended_fix": "No fixes required. The codebase is in excellent condition with all 570 tests passing. The warnings are informational and relate to external dependencies (httpx, Pydantic) rather than application code. Consider monitoring for library updates that address the deprecation warnings, but no immediate action is necessary."
+}

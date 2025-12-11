@@ -1,0 +1,42 @@
+# Judge: code-reuse
+
+**Weight**: 0.40
+**Score**: 1.00 / 1.00
+
+## Feedback
+
+### Overall Assessment
+Excellent code reuse practices throughout the changes. The implementation consistently leverages existing codebase patterns, utilities, and abstractions without reimplementing any duplicate logic. New functionality is genuinely novel (dynamic YAML generation for plan subagents, unification of tool-specific agent writing) and extends established patterns from the code command's `_write_sub_agents()` (as explicitly planned). No instances of reimplemented functionality were found—logic is consolidated, existing helpers are called, and tests adapt prior patterns.
+
+### Positive Examples of Good Code Reuse
+1. **Pattern Reuse from Code Command**:
+   - `_write_plan_subagents()` (plan_command.py:~80-170) mirrors the string-based template assembly from `code_command.py:_write_sub_agents()` (per plan instructions). Uses identical f-string YAML generation, tool-specific dest dirs (`.factory/droids` vs `.claude/agents`), model handling, and `tools:` field logic (explicit for Droid, omitted for Claude Code inheritance). No duplication; follows convention without copying code verbatim.
+
+2. **Existing Utility Calls**:
+   - Reuses `get_lw_coder_src_dir()` (plan_command.py:~90) for src path resolution.
+   - Leverages `logger.info/debug` (plan_command.py:~170, ~165) for consistent logging.
+   - Calls `Path.mkdir(parents=True, exist_ok=True)` and `Path.read_text/write_text()` standard library patterns, consistent with prior file ops.
+   - In `run_plan_command()` (~250), replaces two conditional calls (`_copy_droids_for_plan()`, `_write_maintainability_agent()`) with single `_write_plan_subagents()`—reduces duplication.
+
+3. **Test Reuse and Adaptation**:
+   - Updates existing tests in `test_plan_command.py` (~370-700) per plan: renames `test_copy_droids_for_plan_*` → `test_write_plan_subagents_droid()`, `test_write_maintainability_agent_*` → `test_write_plan_subagents_claude_code()`.
+   - Reuses patterns from `test_write_sub_agents.py` (e.g., parametrized models `test_write_plan_subagents_different_models` ~500-550, monkeypatching `get_lw_coder_src_dir`, fake src/prompt files).
+   - Adds coverage for new behaviors (unknown tool, read errors) while preserving error handling tests.
+   - Integration tests (~630-750) mock `_write_plan_subagents()` directly, reusing prior mocks.
+
+4. **Abstraction and Consolidation**:
+   - `subagent_configs` dict (plan_command.py:~95) as single source of truth—extends without replacing patterns.
+   - Deletes redundant `src/lw_coder/droids/maintainability-reviewer.md` (~1-18), moves to plain `prompts/plan-subagents/`—avoids YAML duplication.
+   - Plan templates (`prompts/claude-code/plan.md` ~7-10, `prompts/droid/plan.md` ~7-10) updated minimally, reusing structure.
+
+### No Reimplemented Functionality Found
+- No logic duplicates existing functions (e.g., no rewriting of `shutil.copy2`—removed entirely).
+- New YAML templating is feature-specific (plan subagents only), not generic reimplementation.
+- No missed opportunities: dynamic generation replaces static copies, aligning with refactor goal.
+- Git changes show clean unification—no pattern inconsistencies.
+
+### Recommendations
+- None required; changes fully adhere to plan's "maintain consistency with existing code command patterns" directive.
+- Future: If more subagents added, consider extracting shared YAML templater (low priority, as current dict-based loop scales well).
+
+This change exemplifies proper reuse: delegates to patterns/abstractions, adds only necessary new code.
