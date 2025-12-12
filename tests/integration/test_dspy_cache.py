@@ -29,7 +29,6 @@ from lw_coder.judge_executor import (
 from lw_coder.judge_loader import JudgeConfig
 
 
-@pytest.mark.integration
 def test_dspy_cache_creates_files(tmp_path: Path) -> None:
     """Verify DSPy cache actually writes files to disk.
 
@@ -88,7 +87,6 @@ def test_dspy_cache_creates_files(tmp_path: Path) -> None:
     assert len(cache_files) > 0, "Cache should contain files after execution"
 
 
-@pytest.mark.integration
 def test_cache_sync_workflow(tmp_path: Path) -> None:
     """Test bidirectional cache sync workflow.
 
@@ -143,7 +141,6 @@ def test_cache_sync_workflow(tmp_path: Path) -> None:
     assert (global_cache / "global_file2.db").exists()
 
 
-@pytest.mark.integration
 def test_sync_to_worktree_mirrors_with_delete(tmp_path: Path) -> None:
     """Test that sync_cache_to_worktree uses --delete to mirror source."""
     if not check_rsync_available():
@@ -172,7 +169,6 @@ def test_sync_to_worktree_mirrors_with_delete(tmp_path: Path) -> None:
     assert not (worktree_cache / "extra.db").exists()
 
 
-@pytest.mark.integration
 def test_sync_from_worktree_preserves_global(tmp_path: Path) -> None:
     """Test that sync_cache_from_worktree preserves existing global files."""
     if not check_rsync_available():

@@ -21,7 +21,6 @@ import pytest
 from claude_agent_sdk import AgentDefinition
 
 
-@pytest.mark.integration
 class TestSDKProgrammaticAgents:
     """Integration tests for programmatic agent registration in SDK.
 

@@ -20,7 +20,6 @@ from lw_coder.judge_executor import (
 from lw_coder.judge_loader import JudgeConfig
 
 
-@pytest.mark.integration
 def test_execute_judge_with_real_llm(tmp_path: Path) -> None:
     """Test executing a judge with real DSPy LLM call.
 
@@ -96,3 +95,26 @@ def add(a, b):
     # The fact that we got a valid score and meaningful feedback proves
     # that the judge instructions were successfully loaded and passed to the LLM
     # via the .with_instructions() pattern
+
+
+def test_execute_judge_invalid_api_key(tmp_path: Path) -> None:
+    """Test judge execution with invalid API key.
+
+    This test makes a real API call to OpenRouter (with invalid credentials)
+    to verify error handling.
+    """
+    judge = JudgeConfig(
+        name="test-judge",
+        weight=0.5,
+        model="x-ai/grok-4.1-fast",
+        instructions="Test instructions",
+        file_path=tmp_path / "test-judge.md",
+    )
+
+    plan_content = "# Test Plan"
+    git_changes = "=== Git Status ===\n(no changes)"
+    cache_dir = tmp_path / "cache"
+
+    # Use clearly invalid API key
+    with pytest.raises(JudgeExecutionError, match="Failed to execute judge"):
+        execute_judge(judge, plan_content, git_changes, "invalid_key", cache_dir)

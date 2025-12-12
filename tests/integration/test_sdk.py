@@ -20,7 +20,6 @@ from lw_coder.trace_capture import (
 )
 
 
-@pytest.mark.integration
 class TestRealSDKSession:
     """Real integration tests that make actual SDK calls."""
 

@@ -141,5 +141,3 @@ def test_argcomplete_integration():
         argcomplete.autocomplete(parser, exit_method=lambda code: None)
     except Exception as exc:
         pytest.fail(f"argcomplete.autocomplete() raised {type(exc).__name__}: {exc}")
-
-

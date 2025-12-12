@@ -11,10 +11,9 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 ## Development Commands
 
 - **Install dependencies**: `uv sync`
-- **Run tests**: `uv run pytest` (runs unit tests only by default)
-- **Run unit tests**: `uv run pytest tests/unit/`
-- **Run integration tests**: `uv run pytest tests/integration/` or `uv run pytest -m integration` (makes real API calls)
-- **Run all tests**: `uv run pytest -m ''`
+- **Run tests**: `uv run pytest` (runs unit tests only by default via testpaths)
+- **Run integration tests**: `uv run pytest tests/integration/` (makes real API calls)
+- **Run all tests**: `uv run pytest tests/`
 - **Run CLI**: `uv run lw_coder <command>`
 - **Run specific test**: `uv run pytest tests/unit/test_<module>.py`
 
@@ -44,37 +43,15 @@ Tests are organized into two directories based on whether they make external API
 #### Test Categorization Rules
 - **Unit Test**: Tests internal logic using mocks, no external network calls
   - Place in `tests/unit/`
-  - No special marker needed
 - **Integration Test**: Makes real API calls to Claude SDK, OpenRouter, or other external services
   - Place in `tests/integration/`
-  - MUST have `@pytest.mark.integration` decorator
-
-#### Marker Requirement
-All tests in `tests/integration/` MUST have the `@pytest.mark.integration` decorator:
-
-```python
-import pytest
-
-@pytest.mark.integration
-def test_real_api_call():
-    """This test makes real API calls."""
-    ...
-
-@pytest.mark.integration
-class TestRealAPIIntegration:
-    """All methods in this class make real API calls."""
-    def test_method(self):
-        ...
-```
-
-This requirement is enforced by `tests/unit/test_marker_consistency.py`.
 
 #### Running Tests
-- `pytest` - Runs unit tests only (default behavior)
-- `pytest tests/unit/` - Runs unit tests by directory
-- `pytest tests/integration/` - Runs integration tests by directory
-- `pytest -m integration` - Runs integration tests by marker
-- `pytest -m ''` - Runs all tests (removes the default marker filter)
+- `pytest` - Runs unit tests only (default via testpaths)
+- `pytest tests/integration/` - Runs integration tests
+- `pytest tests/` - Runs all tests (unit + integration)
+
+> **When to run integration tests**: Only run integration tests relevant to the code you changed. For example, if you modified `judge_executor.py`, run `pytest tests/integration/test_judge_executor_api.py` rather than all integration tests.
 
 ### DSPy and OpenRouter
 

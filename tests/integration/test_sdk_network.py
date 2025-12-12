@@ -19,7 +19,6 @@ from lw_coder.sdk_runner import (
 )
 
 
-@pytest.mark.integration
 class TestSDKNetworkAccess:
     """Integration tests for SDK network access via NO_PROXY."""
 

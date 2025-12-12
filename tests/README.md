@@ -7,24 +7,13 @@
 
 ## Adding New Tests
 1. **Does your test make external API calls?**
-   - Yes -> Add to `tests/integration/` AND mark with `@pytest.mark.integration`
+   - Yes -> Add to `tests/integration/`
    - No -> Add to `tests/unit/`
 
-2. **Marker Requirement**: All tests in `tests/integration/` MUST have the decorator:
-   ```python
-   import pytest
-
-   @pytest.mark.integration
-   def test_something():
-       ...
-   ```
-
-   This is enforced by `tests/unit/test_marker_consistency.py`.
-
 ## Running Tests
-- **Fast unit tests only**: `pytest tests/unit/` OR `pytest` (default)
-- **Integration tests only**: `pytest tests/integration/` OR `pytest -m integration`
-- **All tests**: `pytest -m ''`
+- **Unit tests only**: `pytest` (default via testpaths)
+- **Integration tests only**: `pytest tests/integration/`
+- **All tests**: `pytest tests/`
 
 ## Test Categories
 - **Unit Test**: Tests internal logic, uses mocks, no network calls
@@ -47,9 +36,7 @@ def test_some_function():
 ### Integration Test (tests/integration/)
 ```python
 """Tests that make real API calls."""
-import pytest
 
-@pytest.mark.integration
 def test_real_api():
     """This test calls the actual external API."""
     result = call_real_api()

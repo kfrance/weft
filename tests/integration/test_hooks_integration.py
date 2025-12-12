@@ -20,7 +20,6 @@ from lw_coder.file_watcher import PlanFileWatcher
 from lw_coder.hooks import HookManager, RealProcessExecutor
 
 
-@pytest.mark.integration
 def test_hook_executes_real_subprocess_creates_marker_file(tmp_path: Path) -> None:
     """Verify hook actually executes a command that creates a file.
 
@@ -79,7 +78,6 @@ enabled = true
     assert marker_file.exists(), f"Marker file was not created at {marker_file}"
 
 
-@pytest.mark.integration
 def test_hook_with_variable_substitution_creates_file(tmp_path: Path) -> None:
     """Verify variable substitution works with real execution.
 
@@ -117,7 +115,6 @@ def test_hook_with_variable_substitution_creates_file(tmp_path: Path) -> None:
     assert expected_file.exists(), f"Variable substitution failed - file not at {expected_file}"
 
 
-@pytest.mark.integration
 def test_file_watcher_detects_real_file_creation(tmp_path: Path) -> None:
     """Verify file watcher detects when a .md file is created.
 
@@ -166,7 +163,6 @@ def test_file_watcher_detects_real_file_creation(tmp_path: Path) -> None:
         watcher.stop()
 
 
-@pytest.mark.integration
 def test_file_watcher_ignores_non_md_files(tmp_path: Path) -> None:
     """Verify file watcher only triggers for .md files.
 
@@ -219,7 +215,6 @@ def test_file_watcher_ignores_non_md_files(tmp_path: Path) -> None:
         watcher.stop()
 
 
-@pytest.mark.integration
 def test_file_watcher_context_manager(tmp_path: Path) -> None:
     """Verify file watcher works correctly as context manager.
 

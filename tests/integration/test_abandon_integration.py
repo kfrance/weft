@@ -20,7 +20,6 @@ from lw_coder.recover_command import run_recover_command
 from conftest import GitRepo, write_plan
 
 
-@pytest.mark.integration
 def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:
     """Test complete abandon workflow with real git repository."""
     # Setup: Create plan file, backup, worktree, and branch
@@ -87,7 +86,6 @@ def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:
     assert "Integration test abandonment" in log_content
 
 
-@pytest.mark.integration
 def test_recover_abandoned_plan_workflow(git_repo: GitRepo) -> None:
     """Test recovering an abandoned plan and verifying ref moves back."""
     # Setup: Create plan file and backup
@@ -136,7 +134,6 @@ def test_recover_abandoned_plan_workflow(git_repo: GitRepo) -> None:
     assert not backup_exists_in_namespace(git_repo.path, "recoverable-plan", "plan-abandoned")
 
 
-@pytest.mark.integration
 def test_multiple_abandon_recover_cycles(git_repo: GitRepo) -> None:
     """Test multiple abandon/recover cycles on the same plan."""
     # Setup: Create plan file and backup
@@ -179,7 +176,6 @@ def test_multiple_abandon_recover_cycles(git_repo: GitRepo) -> None:
     assert "Cycle 2" in log_content
 
 
-@pytest.mark.integration
 def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
     """Test --abandoned flag shows only abandoned plans."""
     # Setup: Create active backup and abandoned backup
@@ -233,7 +229,6 @@ def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
     assert "abandoned plan(s)" in captured.out
 
 
-@pytest.mark.integration
 def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
     """Test --all flag shows both active and abandoned plans."""
     # Setup: Create active backup and abandoned backup
@@ -288,7 +283,6 @@ def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
     assert "abandoned" in captured.out.lower()
 
 
-@pytest.mark.integration
 def test_git_refs_integrity_after_operations(git_repo: GitRepo) -> None:
     """Test git refs remain valid after abandon/recover operations."""
     # Setup: Create plan file and backup
@@ -346,7 +340,6 @@ def test_git_refs_integrity_after_operations(git_repo: GitRepo) -> None:
     assert restored_ref.stdout.strip() == original_sha
 
 
-@pytest.mark.integration
 def test_log_file_format_and_content(git_repo: GitRepo) -> None:
     """Test abandoned plans log file format."""
     # Setup: Create and abandon multiple plans
@@ -389,7 +382,6 @@ def test_log_file_format_and_content(git_repo: GitRepo) -> None:
     assert re.search(timestamp_pattern, content)
 
 
-@pytest.mark.integration
 def test_list_abandoned_shows_reason(git_repo: GitRepo, capsys) -> None:
     """Test that listing abandoned plans shows the abandonment reason."""
     # Setup: Create plan file and backup
@@ -432,7 +424,6 @@ def test_list_abandoned_shows_reason(git_repo: GitRepo, capsys) -> None:
     assert "The reason for abandoning this plan" in captured.out
 
 
-@pytest.mark.integration
 def test_plan_backup_create_and_list(git_repo: GitRepo) -> None:
     """Test plan_backup module create_backup and list_backups functions directly."""
     from lw_coder.plan_backup import create_backup, list_backups
@@ -472,7 +463,6 @@ def test_plan_backup_create_and_list(git_repo: GitRepo) -> None:
             assert file_exists is True
 
 
-@pytest.mark.integration
 def test_plan_backup_recover(git_repo: GitRepo) -> None:
     """Test plan_backup module recover_backup function directly."""
     from lw_coder.plan_backup import create_backup, recover_backup
@@ -515,7 +505,6 @@ def test_plan_backup_recover(git_repo: GitRepo) -> None:
     assert "# Modified Content" not in plan_file.read_text(encoding="utf-8")
 
 
-@pytest.mark.integration
 def test_recover_command_error_cases(git_repo: GitRepo, capsys) -> None:
     """Test recover_command error handling for edge cases."""
     # Setup: Create an abandoned plan (no active backup)
