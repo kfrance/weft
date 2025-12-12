@@ -212,6 +212,54 @@ def update_gitignore(project_root: Path) -> None:
             logger.warning("Failed to create .gitignore: %s", exc)
 
 
+# Template content for .lw_coder/config.toml
+_CONFIG_TEMPLATE = '''# lw_coder repository configuration
+# See docs/configuration.md for detailed documentation
+schema_version = "1.0"
+
+# Worktree file synchronization
+# Copies untracked files (e.g., .env, config files) from the main repository
+# to temporary worktrees when the `code` command runs.
+#
+# [worktree.file_sync]
+# enabled = true
+# patterns = [
+#     ".env",           # Environment variables file
+#     ".env.*",         # Environment-specific files (.env.local, .env.test)
+#     "config/*.json",  # Configuration files in config directory
+# ]
+# max_file_size_mb = 100   # Maximum size per file (default: 100MB)
+# max_total_size_mb = 500  # Maximum total size (default: 500MB)
+'''
+
+
+def create_config_template(lw_coder_dir: Path) -> None:
+    """Create template .lw_coder/config.toml if it doesn't exist.
+
+    Args:
+        lw_coder_dir: Path to the .lw_coder directory.
+
+    Note:
+        - If config.toml already exists, no changes are made.
+        - Creates parent directories if needed.
+        - Logs info on creation, debug if already exists.
+    """
+    config_path = lw_coder_dir / "config.toml"
+
+    if config_path.exists():
+        logger.debug("config.toml already exists at %s", config_path)
+        return
+
+    try:
+        # Ensure .lw_coder directory exists
+        lw_coder_dir.mkdir(parents=True, exist_ok=True)
+
+        config_path.write_text(_CONFIG_TEMPLATE, encoding="utf-8")
+        logger.info("Created config template at %s", config_path)
+    except OSError as exc:
+        logger.warning("Failed to create config template: %s", exc)
+
+
 class AtomicInitializer:
     """Context manager for atomic initialization with rollback on failure.
 
@@ -501,6 +549,9 @@ def run_init_command(force: bool = False, yes: bool = False) -> int:
 
         # Update .gitignore with lw_coder cache entries
         update_gitignore(repo_root)
+
+        # Create config.toml template if it doesn't exist
+        create_config_template(lw_coder_dir)
 
         # Display appropriate message based on what was done
         if not overwrite_judges and not overwrite_prompts:

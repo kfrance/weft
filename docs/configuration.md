@@ -2,11 +2,12 @@
 
 This document describes the configuration for lw_coder.
 
-## Configuration Location
+## Configuration Locations
 
-lw_coder loads secrets and credentials from `~/.lw_coder/.env` in your home directory.
+lw_coder uses two types of configuration:
 
-**This is the only configuration location.** There is no repository-level configuration file.
+1. **User-level secrets**: `~/.lw_coder/.env` - API keys and credentials
+2. **Repository-level config**: `.lw_coder/config.toml` - Per-repository settings like worktree file sync
 
 ## Setup
 
@@ -192,3 +193,106 @@ Run directories are automatically pruned after **30 days**. The pruning logic:
 - Removes empty plan directories after all runs are pruned
 
 **Note**: If you need to preserve run artifacts long-term, copy them outside the `.lw_coder/runs/` directory.
+
+## Repository-Level Configuration
+
+Repository-level settings are stored in `.lw_coder/config.toml` at the root of your repository. This file is created automatically when you run `lw_coder init`.
+
+### Configuration Schema
+
+```toml
+# Required: Schema version for forward compatibility
+schema_version = "1.0"
+
+# Worktree file synchronization (optional)
+[worktree.file_sync]
+enabled = true                    # Enable/disable file sync (default: true)
+patterns = [                      # Glob patterns for files to sync
+    ".env",
+    ".env.*",
+    "config/*.json",
+]
+max_file_size_mb = 100           # Max size per file in MB (default: 100)
+max_total_size_mb = 500          # Max total size in MB (default: 500)
+```
+
+### Worktree File Synchronization
+
+When running `lw_coder code`, the coding agent executes in an isolated Git worktree. Files that are not tracked by Git (like `.env` files with secrets) won't be present in the worktree by default.
+
+The worktree file sync feature copies specified untracked files from your main repository to the worktree before execution, ensuring tests and code have access to necessary configuration files.
+
+#### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable or disable file synchronization |
+| `patterns` | list[string] | `[]` | Glob patterns relative to repo root |
+| `max_file_size_mb` | integer | `100` | Maximum size per individual file (MB) |
+| `max_total_size_mb` | integer | `500` | Maximum total size of all synced files (MB) |
+
+#### Pattern Syntax
+
+Patterns use standard glob syntax relative to the repository root:
+
+- `".env"` - Matches `.env` file in repo root
+- `".env.*"` - Matches `.env.local`, `.env.test`, etc.
+- `"config/*.json"` - Matches all JSON files in config directory
+- `"**/*.env"` - Matches `.env` files in any subdirectory
+
+#### Security Constraints
+
+For security, patterns cannot:
+
+- Reference parent directories (`..`)
+- Use absolute paths (`/etc/passwd`)
+- Use home directory expansion (`~/.bashrc`)
+
+#### File Handling
+
+- **Regular files**: Copied with metadata preserved (permissions, timestamps)
+- **Directories**: Recursively copied maintaining structure
+- **Symlinks**: Preserved as symlinks (not dereferenced)
+
+#### Size Limits
+
+Size limits prevent accidentally copying large files like build artifacts:
+
+- **Per-file limit**: Rejects any single file exceeding `max_file_size_mb`
+- **Total limit**: Rejects if cumulative size exceeds `max_total_size_mb`
+
+#### Error Behavior
+
+- **Pattern matches nothing**: Error with message suggesting to check the pattern
+- **Size limit exceeded**: Error identifying the problematic file
+- **Config validation error**: Error with specific fix guidance
+
+#### Cleanup
+
+Synced files are automatically removed from the worktree after the coding session ends, whether it completes successfully, fails, or is interrupted.
+
+#### Example Use Cases
+
+**Syncing environment files:**
+```toml
+[worktree.file_sync]
+patterns = [".env", ".env.local", ".env.test"]
+```
+
+**Syncing configuration directory:**
+```toml
+[worktree.file_sync]
+patterns = ["config/"]
+```
+
+**Multiple patterns with custom limits:**
+```toml
+[worktree.file_sync]
+patterns = [
+    ".env*",
+    "secrets/*.json",
+    "certs/*.pem",
+]
+max_file_size_mb = 10
+max_total_size_mb = 50
+```

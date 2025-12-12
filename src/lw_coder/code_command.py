@@ -44,6 +44,11 @@ from .session_manager import (
 )
 from .trace_capture import TraceCaptureError, capture_session_trace
 from .worktree_utils import WorktreeError, ensure_worktree
+from .worktree.file_sync import (
+    FileSyncError,
+    WorktreeFileCleanup,
+    sync_files_to_worktree,
+)
 from .cache_sync import (
     check_rsync_available,
     get_global_cache_dir,
@@ -328,6 +333,14 @@ def run_code_command(
         logger.error("Worktree preparation failed: %s", exc)
         return 1
 
+    # Sync files from repo to worktree based on .lw_coder/config.toml
+    file_sync_cleanup = WorktreeFileCleanup()
+    try:
+        sync_files_to_worktree(metadata.repo_root, worktree_path, file_sync_cleanup)
+    except FileSyncError as exc:
+        logger.error("File sync failed: %s", exc)
+        return 1
+
     # Write sub-agents to .claude/agents/ directory if using Claude Code
     if tool == "claude-code" and prompts:
         try:
@@ -577,6 +590,9 @@ def run_code_command(
         if rsync_available:
             logger.debug("Syncing DSPy cache from worktree back to global...")
             sync_cache_from_worktree(worktree_cache, global_cache)
+
+        # Clean up synced files from worktree
+        file_sync_cleanup.cleanup()
 
         # Clean up plan.md from worktree, even on failure or interruption
         try:

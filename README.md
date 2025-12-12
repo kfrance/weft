@@ -134,6 +134,7 @@ Running `lw_coder init` creates a `.lw_coder/` directory at your repository root
   - `plan-compliance.md`: Verifies implementation matches plan requirements
 - **Active Prompts** (`.lw_coder/prompts/active/`): Pre-optimized prompts for Claude Code CLI
   - Includes prompts for sonnet, opus, and haiku models
+- **Config Template** (`.lw_coder/config.toml`): Repository-level settings (e.g., worktree file sync)
 - **VERSION**: Tracks template version and file hashes for customization detection
 
 ### Basic Usage
@@ -206,6 +207,21 @@ lw_coder code .lw_coder/tasks/my-feature.md --model opus
 # Enable debug logging
 lw_coder code .lw_coder/tasks/my-feature.md --debug
 ```
+
+### Worktree File Synchronization
+
+When running `lw_coder code`, your code executes in an isolated Git worktree. By default, untracked files like `.env` aren't present in the worktree.
+
+To automatically copy untracked configuration files to the worktree, configure `.lw_coder/config.toml`:
+
+```toml
+schema_version = "1.0"
+
+[worktree.file_sync]
+patterns = [".env", ".env.*", "config/*.json"]
+```
+
+Files are copied before execution and cleaned up after. See [docs/configuration.md](docs/configuration.md) for full configuration options.
 
 ## Eval Command
 
