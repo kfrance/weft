@@ -49,6 +49,11 @@ def test_code_command_explicit_model(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
 
+    # First verify default: no --model should pass None (enables config.toml lookup)
+    exit_code = main(["code", str(plan_path)])
+    assert exit_code == 0
+    assert captured_args["model"] is None, "Without --model, None should be passed to enable config.toml lookup"
+
     # Run CLI with explicit model
     exit_code = main(["code", str(plan_path), "--model", "opus"])
 
@@ -245,7 +250,8 @@ def test_code_command_with_text_flag(monkeypatch, tmp_path, git_repo) -> None:
 
     assert exit_code == 0
     assert captured_args["tool"] == "claude-code"
-    assert captured_args["model"] == "sonnet"
+    # model=None means run_code_command will resolve via get_effective_model()
+    assert captured_args["model"] is None
 
     # Verify plan file was created
     plan_path = captured_args["path"]

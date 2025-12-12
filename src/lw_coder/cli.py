@@ -106,7 +106,7 @@ def create_parser() -> argparse.ArgumentParser:
     code_model_arg = code_parser.add_argument(
         "--model",
         dest="model",
-        default="sonnet",
+        default=None,
         help="Model variant for Claude Code CLI (default: sonnet)",
     )
     code_model_arg.completer = complete_models
