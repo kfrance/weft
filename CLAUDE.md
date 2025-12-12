@@ -76,6 +76,10 @@ This requirement is enforced by `tests/unit/test_marker_consistency.py`.
 - `pytest -m integration` - Runs integration tests by marker
 - `pytest -m ''` - Runs all tests (removes the default marker filter)
 
+### DSPy and OpenRouter
+
+- **Default model**: When writing code that uses DSPy with OpenRouter and no specific model is required, use `x-ai/grok-4.1-fast` as the default model tag.
+
 ### Test Optimization
 
 - **Avoid redundant tests**: Before adding a new test, check if similar test coverage already exists. Duplicate tests increase maintenance burden without adding value.

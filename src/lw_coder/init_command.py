@@ -304,15 +304,15 @@ class AtomicInitializer:
             raise InitCommandError(f"Failed to copy judges: {exc}") from exc
 
     def copy_optimized_prompts(self) -> None:
-        """Copy optimized_prompts from templates to staging directory."""
-        source = self.templates_dir / "optimized_prompts"
+        """Copy prompts from templates to staging directory."""
+        source = self.templates_dir / "prompts"
         if not source.exists():
-            raise InitCommandError("Optimized prompts directory not found in templates")
+            raise InitCommandError("Prompts directory not found in templates")
 
-        dest = self.staging_dir / "optimized_prompts"
+        dest = self.staging_dir / "prompts" / "active"
         try:
             shutil.copytree(source, dest)
-            logger.debug("Copied optimized_prompts to staging")
+            logger.debug("Copied prompts/active to staging")
         except (OSError, shutil.Error) as exc:
             raise InitCommandError(f"Failed to copy optimized prompts: {exc}") from exc
 
@@ -357,18 +357,26 @@ class AtomicInitializer:
                     self._created_subdirs.append(dest)
                 logger.info("Copied judges to %s", dest)
 
-        # Copy prompts if requested
+        # Copy prompts if requested (to new prompts/active location)
         if overwrite_prompts:
-            source = self.staging_dir / "optimized_prompts"
-            dest = self.target_dir / "optimized_prompts"
+            source = self.staging_dir / "prompts" / "active"
+            dest = self.target_dir / "prompts" / "active"
             if source.exists():
+                # Create prompts parent directory if needed
+                dest.parent.mkdir(parents=True, exist_ok=True)
                 if dest.exists():
                     shutil.rmtree(dest)
                 shutil.copytree(source, dest)
                 self._committed_paths.append(dest)
                 if not self._created_target:
                     self._created_subdirs.append(dest)
-                logger.info("Copied optimized_prompts to %s", dest)
+                logger.info("Copied prompts to %s", dest)
+
+                # Also remove old optimized_prompts if it exists (cleanup migration)
+                old_dest = self.target_dir / "optimized_prompts"
+                if old_dest.exists():
+                    shutil.rmtree(old_dest)
+                    logger.info("Removed old optimized_prompts directory")
 
         # Only copy VERSION file if at least one category is being overwritten
         # Otherwise, the VERSION hashes won't match the user's kept files
@@ -446,14 +454,18 @@ def run_init_command(force: bool = False, yes: bool = False) -> int:
                         "Overwrite existing judges?", skip_prompts=yes
                     )
 
-                    # Check for customized prompts
+                    # Check for customized prompts (check both old and new locations)
                     customized_prompts = detect_customizations(
                         lw_coder_dir, version_data, "optimized_prompts"
                     )
+                    # Also check new location
+                    customized_prompts.extend(detect_customizations(
+                        lw_coder_dir, version_data, "prompts/active"
+                    ))
                     if customized_prompts:
                         display_customization_warnings(customized_prompts, "prompts")
                     overwrite_prompts = prompt_yes_no(
-                        "Overwrite existing optimized prompts?", skip_prompts=yes
+                        "Overwrite existing prompts?", skip_prompts=yes
                     )
 
                 except InitCommandError as exc:
@@ -463,7 +475,7 @@ def run_init_command(force: bool = False, yes: bool = False) -> int:
                         "Overwrite existing judges?", skip_prompts=yes
                     )
                     overwrite_prompts = prompt_yes_no(
-                        "Overwrite existing optimized prompts?", skip_prompts=yes
+                        "Overwrite existing prompts?", skip_prompts=yes
                     )
             else:
                 # No VERSION file - simple prompts
@@ -471,7 +483,7 @@ def run_init_command(force: bool = False, yes: bool = False) -> int:
                     "Overwrite existing judges?", skip_prompts=yes
                 )
                 overwrite_prompts = prompt_yes_no(
-                    "Overwrite existing optimized prompts?", skip_prompts=yes
+                    "Overwrite existing prompts?", skip_prompts=yes
                 )
 
         # Perform atomic initialization
@@ -500,7 +512,7 @@ def run_init_command(force: bool = False, yes: bool = False) -> int:
             print()
             print("Next steps:")
             print("  1. Review judges in .lw_coder/judges/")
-            print("  2. Review prompts in .lw_coder/optimized_prompts/")
+            print("  2. Review prompts in .lw_coder/prompts/active/")
             print("  3. Create a plan: lw_coder plan --text \"your feature idea\"")
             print("  4. Implement it: lw_coder code <plan_id>")
 

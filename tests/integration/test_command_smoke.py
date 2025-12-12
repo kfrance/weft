@@ -12,7 +12,7 @@ These tests would have caught the "droids directory not found" bug where
 code referenced a directory that had been moved during refactoring.
 
 NOTE: These tests run against the REAL lw_coder repository (not a temp repo)
-because they need access to real project files like optimized_prompts/.
+because they need access to real project files like prompts/active/.
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ class TestCodeCommandSmoke:
         This test exercises the full code command initialization:
         - Plan validation and metadata loading
         - Session directory creation
-        - Prompt loading from optimized_prompts
+        - Prompt loading from prompts/active
         - Worktree preparation
         - Sub-agent file writing
         - SDK settings loading

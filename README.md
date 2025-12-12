@@ -132,7 +132,7 @@ Running `lw_coder init` creates a `.lw_coder/` directory at your repository root
 - **Judges** (`.lw_coder/judges/`): LLM judges for evaluating code changes
   - `code-reuse.md`: Evaluates proper reuse of existing functionality
   - `plan-compliance.md`: Verifies implementation matches plan requirements
-- **Optimized Prompts** (`.lw_coder/optimized_prompts/`): Pre-optimized prompts for Claude Code CLI
+- **Active Prompts** (`.lw_coder/prompts/active/`): Pre-optimized prompts for Claude Code CLI
   - Includes prompts for sonnet, opus, and haiku models
 - **VERSION**: Tracks template version and file hashes for customization detection
 
@@ -388,6 +388,113 @@ Required frontmatter fields:
 - `model`: OpenRouter model tag (e.g., "x-ai/grok-4.1-fast")
 
 The judge instructions in the markdown body are loaded dynamically into DSPy using the `.with_instructions()` pattern.
+
+## Train Command
+
+The `lw_coder train` command analyzes training data from the `eval` command and generates improved prompt candidates using DSPy. This is the first step toward self-optimizing prompts.
+
+### Basic Usage
+
+```bash
+# Generate candidate prompts for sonnet variant
+lw_coder train sonnet
+
+# Train opus prompts with custom parameters
+lw_coder train opus --batch-size 5 --max-subagents 3
+
+# Use a different OpenRouter model for generation
+lw_coder train sonnet --model openai/gpt-5.2
+```
+
+### What It Does
+
+The train command:
+
+1. **Loads training data** from `.lw_coder/training_data/<plan_id>/`
+2. **Loads current active prompts** from `.lw_coder/prompts/active/claude-code-cli/<variant>/`
+3. **Analyzes patterns** using DSPy with the specified OpenRouter model
+4. **Generates candidate prompts** saved to `.lw_coder/prompts/candidates/claude-code-cli/<variant>/`
+
+### Parameters
+
+- `VARIANT`: Required. Prompt variant to train: `sonnet`, `opus`, or `haiku`. Determines which prompt set to load and where candidates are saved.
+- `--batch-size N`: Number of training samples to analyze per batch (default: 3, max: 10)
+- `--max-subagents N`: Maximum number of subagents to generate (default: 5, max: 10)
+- `--model MODEL`: OpenRouter model for generating candidates (default: x-ai/grok-4.1-fast)
+- `--debug`: Enable debug-level logging
+
+### Prerequisites
+
+Before running `train`, you need:
+
+1. **Training data**: Run `lw_coder eval <plan_id>` on completed plans to generate training data
+2. **Active prompts**: Run `lw_coder init` to install baseline prompts at `.lw_coder/prompts/active/`
+3. **API key**: `OPENROUTER_API_KEY` must be set in `~/.lw_coder/.env`
+
+### Output
+
+Candidates are saved to:
+```
+.lw_coder/prompts/candidates/claude-code-cli/<model>/candidate-NNN/
+├── main.md              # Improved main prompt
+├── code-review-auditor.md  # Generated subagent (if applicable)
+├── test-validator.md       # Generated subagent (if applicable)
+├── ...                     # Additional subagents
+└── ANALYSIS.md          # Summary of improvements made
+```
+
+### Example Output
+
+```
+========================================================================
+Training Complete
+========================================================================
+
+Candidate saved to: .lw_coder/prompts/candidates/claude-code-cli/sonnet/candidate-001/
+Generated 3 subagent(s):
+  - code-review-auditor
+  - test-validator
+  - completion-checker
+
+Token Usage:
+  Input tokens:  45,231
+  Output tokens: 12,847
+  Total tokens:  58,078
+
+Analysis Summary:
+------------------------------------------------------------------------
+Based on training data analysis, the following improvements were made:
+1. Added explicit completion verification steps to address incomplete work
+2. Enhanced test validation instructions based on test failures
+3. Improved code review focus on reusing existing functionality
+------------------------------------------------------------------------
+
+Next steps:
+  1. Review the generated prompts in the candidate directory
+  2. Test the candidate prompts manually
+  3. If satisfactory, copy to prompts/active/ to use
+```
+
+### Directory Structure Migration
+
+The train command uses the new prompt directory structure:
+
+- **New location**: `.lw_coder/prompts/active/` (for active prompts)
+- **Legacy location**: `.lw_coder/optimized_prompts/` (auto-migrated)
+- **Candidates**: `.lw_coder/prompts/candidates/`
+
+When you run `train` or `load_prompts`, existing prompts in the old `optimized_prompts/` directory are automatically migrated to `prompts/active/`.
+
+### Workflow
+
+The recommended workflow for prompt optimization:
+
+1. **Implement plans**: `lw_coder code <plan_id>`
+2. **Evaluate results**: `lw_coder eval <plan_id>` (creates training data)
+3. **Train on data**: `lw_coder train sonnet` (generates candidates for sonnet variant)
+4. **Review candidates**: Manually inspect generated prompts
+5. **Promote if good**: Copy candidate files to `prompts/active/`
+6. **Repeat**: Continue the feedback loop to improve prompts
 
 ## Abandon Command
 

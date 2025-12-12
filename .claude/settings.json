@@ -9,6 +9,7 @@
 		},
 		"permissions": {
 				"allow": [
+						"WebSearch",
 						"WebFetch(domain:files.pythonhosted.org)",
 						"WebFetch(domain:pypi.org)",
 						"WebFetch(domain:app.asana.com)",

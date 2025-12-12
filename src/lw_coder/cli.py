@@ -250,6 +250,37 @@ def create_parser() -> argparse.ArgumentParser:
         help="Re-run all evaluation steps and overwrite existing results",
     )
 
+    # Train command
+    train_parser = subparsers.add_parser(
+        "train",
+        help="Generate improved prompt candidates using training data from eval",
+    )
+    train_parser.add_argument(
+        "variant",
+        choices=["sonnet", "opus", "haiku"],
+        help="Prompt variant to train (determines which prompts to load/write)",
+    )
+    train_parser.add_argument(
+        "--batch-size",
+        dest="batch_size",
+        type=int,
+        default=3,
+        help="Number of training samples per batch (default: 3, max: 10)",
+    )
+    train_parser.add_argument(
+        "--max-subagents",
+        dest="max_subagents",
+        type=int,
+        default=5,
+        help="Maximum number of subagents to generate (default: 5, max: 10)",
+    )
+    train_parser.add_argument(
+        "--model",
+        dest="model",
+        default="x-ai/grok-4.1-fast",
+        help="OpenRouter model for generating candidates (default: x-ai/grok-4.1-fast)",
+    )
+
     return parser
 
 
@@ -407,6 +438,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         model = args.model
         force = args.force
         return run_eval_command(plan_id, model=model, force=force)
+
+    # Train command
+    if args.command == "train":
+        # Lazy import to avoid loading dspy (2+ seconds) during tab completion
+        from .train_command import run_train_command
+
+        variant = args.variant
+        batch_size = args.batch_size
+        max_subagents = args.max_subagents
+        model = args.model
+        return run_train_command(
+            variant=variant,
+            batch_size=batch_size,
+            max_subagents=max_subagents,
+            model=model,
+        )
 
     # Code command
     if args.command == "code":

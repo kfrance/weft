@@ -309,7 +309,7 @@ def run_code_command(
                 tool="claude-code-cli",
                 model=effective_model,
             )
-            logger.info("Prompts loaded successfully from %s/.lw_coder/optimized_prompts/", metadata.repo_root)
+            logger.info("Prompts loaded successfully from %s/.lw_coder/prompts/active/", metadata.repo_root)
         except PromptLoadingError as exc:
             logger.error("Prompt loading failed: %s", exc)
             return 1
