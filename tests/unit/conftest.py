@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -48,4 +49,26 @@ def write_plan(path: Path, data: dict, body: str = "# Plan Body") -> None:
     path.write_text(content, encoding="utf-8")
 
 
-__all__ = ["GitRepo", "write_plan"]
+@pytest.fixture
+def real_trace_content() -> str:
+    """Load the committed test-planner-subagent trace file.
+
+    This fixture provides access to a real trace file for testing trace parsing
+    and summarization. The trace file is committed in the repository at
+    .lw_coder/training_data/test-planner-subagent/code_trace.md
+    """
+    # Find the repo root by looking for pyproject.toml
+    current = Path(__file__).parent
+    while current != current.parent:
+        if (current / "pyproject.toml").exists():
+            break
+        current = current.parent
+
+    trace_path = current / ".lw_coder" / "training_data" / "test-planner-subagent" / "code_trace.md"
+    if not trace_path.exists():
+        pytest.skip("Test trace file not available")
+
+    return trace_path.read_text(encoding="utf-8")
+
+
+__all__ = ["GitRepo", "write_plan", "real_trace_content"]

@@ -17,7 +17,11 @@ from .logging_config import get_logger
 from .prompt_loader import PromptLoadingError, load_current_prompts_for_training
 from .prompt_trainer import PromptTrainerError, run_prompt_trainer
 from .repo_utils import RepoUtilsError, find_repo_root
-from .training_data_loader import TrainingDataLoadError, load_training_batch
+from .training_data_loader import (
+    TrainingDataLoadError,
+    delete_trace_summaries,
+    load_training_batch,
+)
 
 logger = get_logger(__name__)
 
@@ -69,6 +73,7 @@ def run_train_command(
     batch_size: int = 3,
     max_subagents: int = 5,
     model: str = "x-ai/grok-4.1-fast",
+    regenerate_summaries: bool = False,
 ) -> int:
     """Run the train command to generate a candidate prompt set.
 
@@ -77,6 +82,7 @@ def run_train_command(
         batch_size: Number of training samples per batch (default: 3)
         max_subagents: Maximum subagents to generate (default: 5)
         model: OpenRouter model tag for DSPy calls (default: x-ai/grok-4.1-fast)
+        regenerate_summaries: Delete existing trace summaries before loading (default: False)
 
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -98,10 +104,16 @@ def run_train_command(
         logger.info("  Max subagents: %d", max_subagents)
         logger.info("  Model: %s", model)
 
-        # Load training batch
+        # Delete existing summaries if requested
+        if regenerate_summaries:
+            logger.info("Regenerating trace summaries...")
+            deleted = delete_trace_summaries(repo_root)
+            logger.info("  Deleted %d existing summar%s", deleted, "y" if deleted == 1 else "ies")
+
+        # Load training batch with trace summarization
         logger.info("Loading training data...")
         try:
-            training_samples = load_training_batch(repo_root, batch_size)
+            training_samples = load_training_batch(repo_root, batch_size, model=model)
         except TrainingDataLoadError as exc:
             logger.error("Failed to load training data: %s", exc)
             return 1

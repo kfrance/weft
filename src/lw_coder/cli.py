@@ -280,6 +280,12 @@ def create_parser() -> argparse.ArgumentParser:
         default="x-ai/grok-4.1-fast",
         help="OpenRouter model for generating candidates (default: x-ai/grok-4.1-fast)",
     )
+    train_parser.add_argument(
+        "--regenerate-summaries",
+        dest="regenerate_summaries",
+        action="store_true",
+        help="Delete and regenerate all trace summaries before training",
+    )
 
     return parser
 
@@ -448,11 +454,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         batch_size = args.batch_size
         max_subagents = args.max_subagents
         model = args.model
+        regenerate_summaries = args.regenerate_summaries
         return run_train_command(
             variant=variant,
             batch_size=batch_size,
             max_subagents=max_subagents,
             model=model,
+            regenerate_summaries=regenerate_summaries,
         )
 
     # Code command

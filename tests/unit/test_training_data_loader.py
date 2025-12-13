@@ -9,6 +9,8 @@ import pytest
 
 from lw_coder.training_data_loader import (
     TrainingDataLoadError,
+    _get_or_create_summary,
+    delete_trace_summaries,
     discover_training_samples,
     load_training_batch,
     load_training_sample,
@@ -212,3 +214,125 @@ class TestLoadTrainingBatch:
         samples = load_training_batch(tmp_path)  # No batch_size argument
 
         assert len(samples) == 3
+
+
+class TestSummaryHandling:
+    """Tests for trace summary handling in training data loader."""
+
+    def test_get_or_create_summary_uses_existing_summary(self, training_data_dir: Path, tmp_path: Path) -> None:
+        """Uses existing summary when newer than trace."""
+        sample_dir = training_data_dir / "test-sample"
+        sample_dir.mkdir()
+
+        trace_path = sample_dir / "code_trace.md"
+        summary_path = sample_dir / "code_trace_summary.md"
+
+        trace_path.write_text("# Full Trace\n\nLots of content here...")
+
+        # Ensure some time passes
+        import time
+        time.sleep(0.1)
+
+        summary_path.write_text("# Trace Summary\n\nCompressed content.")
+
+        # Should return summary content (no model needed since summary exists)
+        result = _get_or_create_summary(sample_dir, model=None)
+
+        assert result == "# Trace Summary\n\nCompressed content."
+
+    def test_get_or_create_summary_falls_back_to_trace(self, training_data_dir: Path, tmp_path: Path) -> None:
+        """Falls back to full trace when no model provided and no summary."""
+        sample_dir = training_data_dir / "test-sample"
+        sample_dir.mkdir()
+
+        trace_path = sample_dir / "code_trace.md"
+        trace_path.write_text("# Full Trace\n\nAll the content.")
+
+        # No summary exists, no model provided - should return full trace
+        result = _get_or_create_summary(sample_dir, model=None)
+
+        assert result == "# Full Trace\n\nAll the content."
+
+    def test_get_or_create_summary_returns_empty_when_no_trace(self, training_data_dir: Path, tmp_path: Path) -> None:
+        """Returns empty string when neither trace nor summary exists."""
+        sample_dir = training_data_dir / "test-sample"
+        sample_dir.mkdir()
+
+        result = _get_or_create_summary(sample_dir, model=None)
+
+        assert result == ""
+
+    def test_get_or_create_summary_uses_stale_summary_when_no_model(self, training_data_dir: Path, tmp_path: Path) -> None:
+        """When summary is stale and no model provided, falls back to full trace."""
+        sample_dir = training_data_dir / "test-sample"
+        sample_dir.mkdir()
+
+        summary_path = sample_dir / "code_trace_summary.md"
+        summary_path.write_text("# Old Summary")
+
+        # Ensure some time passes
+        import time
+        time.sleep(0.1)
+
+        trace_path = sample_dir / "code_trace.md"
+        trace_path.write_text("# New Trace Content")
+
+        # Summary is stale, no model - should return full trace
+        result = _get_or_create_summary(sample_dir, model=None)
+
+        assert result == "# New Trace Content"
+
+    def test_load_training_sample_prefers_summary(self, training_data_dir: Path, tmp_path: Path) -> None:
+        """load_training_sample uses summary when available."""
+        sample_dir = create_complete_sample(training_data_dir, "summary-sample")
+
+        # Create a summary newer than trace
+        import time
+        time.sleep(0.1)
+        (sample_dir / "code_trace_summary.md").write_text("# Compressed Summary\n\nShort version.")
+
+        sample = load_training_sample(tmp_path, "summary-sample")
+
+        assert sample.code_trace == "# Compressed Summary\n\nShort version."
+
+    def test_delete_trace_summaries_removes_all(self, training_data_dir: Path, tmp_path: Path) -> None:
+        """delete_trace_summaries removes all summary files."""
+        # Create multiple samples with summaries
+        for i in range(3):
+            sample_dir = create_complete_sample(training_data_dir, f"sample-{i}")
+            (sample_dir / "code_trace_summary.md").write_text(f"Summary {i}")
+
+        # Verify summaries exist
+        for i in range(3):
+            summary_path = training_data_dir / f"sample-{i}" / "code_trace_summary.md"
+            assert summary_path.exists()
+
+        # Delete summaries
+        deleted = delete_trace_summaries(tmp_path)
+
+        assert deleted == 3
+
+        # Verify summaries are gone
+        for i in range(3):
+            summary_path = training_data_dir / f"sample-{i}" / "code_trace_summary.md"
+            assert not summary_path.exists()
+
+    def test_delete_trace_summaries_returns_zero_when_none(self, training_data_dir: Path, tmp_path: Path) -> None:
+        """delete_trace_summaries returns 0 when no summaries exist."""
+        # Create samples without summaries
+        create_complete_sample(training_data_dir, "sample-1")
+        create_complete_sample(training_data_dir, "sample-2")
+
+        # Remove the code_trace.md files to ensure no summaries would be found
+        # (samples already don't have summaries by default)
+
+        deleted = delete_trace_summaries(tmp_path)
+
+        assert deleted == 0
+
+    def test_delete_trace_summaries_handles_missing_directory(self, tmp_path: Path) -> None:
+        """delete_trace_summaries handles missing training_data directory."""
+        # No training_data directory exists
+        deleted = delete_trace_summaries(tmp_path)
+
+        assert deleted == 0
