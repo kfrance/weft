@@ -96,6 +96,21 @@ Avoid recommending tests that:
 - Are difficult/impossible to implement in practice
 - Verify internal implementation details (method call order, private state, internal data structures)
 
+## Justification Requirements
+
+For each recommended test, you MUST provide:
+
+1. **Specific failure scenario**: What exact bug would this catch? Describe a concrete situation where this test would fail and alert developers to a real problem.
+
+2. **Why existing tests don't cover it**: How did you verify there's no overlap with existing test coverage? Reference specific test files you checked.
+
+3. **Confidence level**: How certain are you this test adds value? (High/Medium/Low)
+   - **High**: Clear failure scenario, no existing coverage, tests critical logic
+   - **Medium**: Reasonable failure scenario, may have partial coverage elsewhere
+   - **Low**: Speculative value, "nice to have" coverage
+
+**If you cannot articulate a specific, concrete failure scenario, do not recommend the test.**
+
 ## Your Deliverable
 
 Provide a structured report with:
