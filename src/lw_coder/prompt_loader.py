@@ -16,7 +16,7 @@ import shutil
 from pathlib import Path
 
 from .logging_config import get_logger
-from .training_types import CurrentPrompts, SubagentDefinition
+from .training_types import PromptSnapshot, SubagentDefinition
 
 logger = get_logger(__name__)
 
@@ -170,8 +170,8 @@ def load_current_prompts_for_training(
     repo_root: Path,
     tool: str = "claude-code-cli",
     model: str = "sonnet",
-) -> CurrentPrompts:
-    """Load current prompts as CurrentPrompts object for training.
+) -> PromptSnapshot:
+    """Load current prompts as PromptSnapshot object for training.
 
     Loads main.md and discovers all subagent .md files in the directory.
 
@@ -181,7 +181,7 @@ def load_current_prompts_for_training(
         model: Model variant (default: sonnet)
 
     Returns:
-        CurrentPrompts object with main prompt and all subagents
+        PromptSnapshot object with main prompt and all subagents
 
     Raises:
         PromptLoadingError: If prompts cannot be loaded
@@ -231,7 +231,7 @@ def load_current_prompts_for_training(
         len(subagents),
     )
 
-    return CurrentPrompts(
+    return PromptSnapshot(
         main_prompt=main_prompt,
         subagents=subagents,
     )

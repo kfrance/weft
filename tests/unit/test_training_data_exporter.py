@@ -272,7 +272,7 @@ class TestCreateTrainingData:
         (eval_dir / "judge_test.md").write_text("# Judge")
         (eval_dir / "human_feedback.md").write_text("# Feedback")
 
-        result = create_training_data("test-plan", tmp_path)
+        result = create_training_data("test-plan", tmp_path, eval_fingerprint="ab123456")
 
         assert result.exists()
         assert (result / "plan.md").exists()
@@ -280,6 +280,7 @@ class TestCreateTrainingData:
         assert (result / "test_results_after.json").exists()
         assert (result / "judge_test.json").exists()
         assert (result / "human_feedback.md").exists()
+        assert (result / "metadata.json").exists()
 
     def test_skips_when_already_exists(self, tmp_path: Path) -> None:
         """Returns existing directory when training data already exists."""
@@ -287,7 +288,7 @@ class TestCreateTrainingData:
         training_dir.mkdir(parents=True)
         (training_dir / "plan.md").write_text("# Existing")
 
-        result = create_training_data("test-plan", tmp_path)
+        result = create_training_data("test-plan", tmp_path, eval_fingerprint="ab123456")
 
         assert result == training_dir
         assert "Existing" in (result / "plan.md").read_text()
@@ -305,7 +306,7 @@ class TestCreateTrainingData:
         monkeypatch.setattr("builtins.input", lambda _: "y")
 
         with pytest.raises(TrainingDataExportError):
-            create_training_data("test-plan", tmp_path)
+            create_training_data("test-plan", tmp_path, eval_fingerprint="ab123456")
 
         # Training data directory should not exist
         assert not training_dir.exists()
@@ -327,13 +328,15 @@ class TestCreateTrainingData:
         # Mock input to continue past missing code trace prompt
         monkeypatch.setattr("builtins.input", lambda _: "y")
 
-        result = create_training_data("test-plan", tmp_path)
+        result = create_training_data("test-plan", tmp_path, eval_fingerprint="ab123456")
 
         # Should still create training data
         assert result.exists()
         assert (result / "plan.md").exists()
         # But code_trace.md should not exist
         assert not (result / "code_trace.md").exists()
+        # metadata.json should exist with eval_fingerprint
+        assert (result / "metadata.json").exists()
 
 
 class TestPruningBehavior:

@@ -6,6 +6,9 @@ loading training samples, defining prompts, and generating candidates.
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -18,6 +21,8 @@ class TrainingSample(BaseModel):
     - Human feedback on the quality of work
     - Judge results formatted as readable string
     - Test results before and after implementation
+    - Prompts used during the session (if available)
+    - Metadata about tool, model, and fingerprints
     """
 
     plan_id: str = Field(description="Unique identifier for the plan")
@@ -27,6 +32,18 @@ class TrainingSample(BaseModel):
     judge_results: str = Field(description="Formatted string of all judge scores/feedback")
     test_results_before: str = Field(default="", description="JSON string of before-test results")
     test_results_after: str = Field(description="JSON string of after-test results")
+    # New fields for metadata and prompts
+    used_prompts: Optional["PromptSnapshot"] = Field(
+        default=None, description="Prompts used during the session (if available)"
+    )
+    tool: str = Field(default="claude-code", description="Tool used (claude-code or droid)")
+    model: Optional[str] = Field(default=None, description="Model used (sonnet, opus, haiku)")
+    prompt_fingerprint: Optional[str] = Field(
+        default=None, description="SHA256 fingerprint (8 chars) of prompts used"
+    )
+    eval_fingerprint: Optional[str] = Field(
+        default=None, description="SHA256 fingerprint (8 chars) of judges used"
+    )
 
 
 class SubagentDefinition(BaseModel):
@@ -50,17 +67,39 @@ class SubagentDefinition(BaseModel):
     )
 
 
-class CurrentPrompts(BaseModel):
-    """The current best prompts being improved upon.
+class PromptSnapshot(BaseModel):
+    """A snapshot of prompts at a point in time.
 
-    This represents the active prompt set that the train command
-    will analyze and attempt to improve.
+    This model serves dual purposes:
+    1. Representing the current best prompts being improved upon (for training)
+    2. Recording the historical prompts used during a specific session
     """
 
     main_prompt: str = Field(description="Main system prompt content")
     subagents: list[SubagentDefinition] = Field(
         default_factory=list,
         description="List of subagent definitions",
+    )
+
+
+# Backwards compatibility alias
+CurrentPrompts = PromptSnapshot
+
+
+class SessionMetadata(BaseModel):
+    """Metadata about a coding session.
+
+    Recorded during `code` command execution and enhanced by `eval` command.
+    """
+
+    tool: str = Field(description="Tool used (claude-code or droid)")
+    model: Optional[str] = Field(default=None, description="Model used (sonnet, opus, haiku)")
+    recorded_at: datetime = Field(description="When the session was recorded (ISO format)")
+    prompt_fingerprint: str = Field(
+        description="SHA256 fingerprint (8 chars) of prompts used"
+    )
+    eval_fingerprint: Optional[str] = Field(
+        default=None, description="SHA256 fingerprint (8 chars) of judges used (added by eval)"
     )
 
 

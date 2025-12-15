@@ -56,6 +56,8 @@ from .cache_sync import (
     sync_cache_from_worktree,
     sync_cache_to_worktree,
 )
+from .fingerprint import compute_prompt_fingerprint
+from .training_types import SessionMetadata, SubagentDefinition
 
 logger = get_logger(__name__)
 
@@ -171,6 +173,139 @@ def _build_agent_definitions(
         ),
     }
     return agents
+
+
+def _write_prompts_to_session(
+    session_dir: Path,
+    prompts: dict[str, str],
+    tool: str,
+) -> None:
+    """Write all prompts to session directory for training data capture.
+
+    For claude-code:
+    - Writes main.md from prompts["main_prompt"]
+    - Writes code-review-auditor.md from prompts["code_review_auditor"]
+    - Writes plan-alignment-checker.md from prompts["plan_alignment_checker"]
+
+    For droid:
+    - Writes main.md from the droid prompt template
+
+    Args:
+        session_dir: Session directory path
+        prompts: Dictionary of prompts (from load_prompts)
+        tool: Tool name ("claude-code" or "droid")
+
+    Raises:
+        OSError: If writing fails
+    """
+    prompts_dir = session_dir / "prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+
+    if tool == "claude-code":
+        # Write main prompt
+        main_prompt_path = prompts_dir / "main.md"
+        main_prompt_path.write_text(prompts["main_prompt"], encoding="utf-8")
+
+        # Write subagent prompts
+        code_review_path = prompts_dir / "code-review-auditor.md"
+        code_review_path.write_text(prompts["code_review_auditor"], encoding="utf-8")
+
+        plan_alignment_path = prompts_dir / "plan-alignment-checker.md"
+        plan_alignment_path.write_text(prompts["plan_alignment_checker"], encoding="utf-8")
+
+        logger.debug("Wrote prompts to %s (3 files)", prompts_dir)
+
+    elif tool == "droid":
+        # For droid, load the droid prompt template
+        src_dir = get_lw_coder_src_dir()
+        droid_prompt_template = src_dir / "prompts" / "droid" / "code.md"
+        if droid_prompt_template.exists():
+            droid_prompt = droid_prompt_template.read_text(encoding="utf-8")
+            main_prompt_path = prompts_dir / "main.md"
+            main_prompt_path.write_text(droid_prompt, encoding="utf-8")
+            logger.debug("Wrote droid prompt to %s", main_prompt_path)
+        else:
+            # Fallback to a basic prompt if template doesn't exist
+            main_prompt_path = prompts_dir / "main.md"
+            main_prompt_path.write_text(
+                "Implement the plan in plan.md\n",
+                encoding="utf-8"
+            )
+            logger.warning("Droid prompt template not found, using basic prompt")
+
+
+def _write_session_metadata(
+    session_dir: Path,
+    tool: str,
+    model: str | None,
+    prompt_fingerprint: str,
+) -> None:
+    """Write session metadata to metadata.json.
+
+    Args:
+        session_dir: Session directory path
+        tool: Tool name ("claude-code" or "droid")
+        model: Model name (sonnet, opus, haiku) or None for droid
+        prompt_fingerprint: SHA256 fingerprint (8 chars) of prompts used
+
+    Raises:
+        OSError: If writing fails
+    """
+    import json
+    from datetime import datetime, timezone
+
+    metadata = SessionMetadata(
+        tool=tool,
+        model=model,
+        recorded_at=datetime.now(timezone.utc),
+        prompt_fingerprint=prompt_fingerprint,
+    )
+
+    metadata_path = session_dir / "metadata.json"
+    metadata_path.write_text(
+        json.dumps(metadata.model_dump(mode="json"), indent=2),
+        encoding="utf-8"
+    )
+    logger.debug("Wrote session metadata to %s", metadata_path)
+
+
+def _compute_prompt_fingerprint_for_session(
+    prompts: dict[str, str],
+    tool: str,
+) -> str:
+    """Compute fingerprint for the prompts used in a session.
+
+    Args:
+        prompts: Dictionary of prompts from load_prompts
+        tool: Tool name
+
+    Returns:
+        8-character hexadecimal fingerprint
+    """
+    if tool == "claude-code":
+        # Build subagent definitions for fingerprint computation
+        subagents = [
+            SubagentDefinition(
+                name="code-review-auditor",
+                description=AGENT_DESCRIPTIONS["code-review-auditor"],
+                prompt=prompts["code_review_auditor"],
+            ),
+            SubagentDefinition(
+                name="plan-alignment-checker",
+                description=AGENT_DESCRIPTIONS["plan-alignment-checker"],
+                prompt=prompts["plan_alignment_checker"],
+            ),
+        ]
+        return compute_prompt_fingerprint(prompts["main_prompt"], subagents)
+    else:
+        # For droid, just hash the main prompt (no subagents)
+        src_dir = get_lw_coder_src_dir()
+        droid_prompt_template = src_dir / "prompts" / "droid" / "code.md"
+        if droid_prompt_template.exists():
+            droid_prompt = droid_prompt_template.read_text(encoding="utf-8")
+            return compute_prompt_fingerprint(droid_prompt, [])
+        else:
+            return compute_prompt_fingerprint("Implement the plan in plan.md\n", [])
 
 
 def run_code_command(
@@ -380,36 +515,24 @@ def run_code_command(
         logger.error("Executor error: %s", exc)
         return 1
 
-    # Create main prompt file in session directory for reference
-    if tool == "claude-code" and prompts:
-        main_prompt_path = session_dir / "prompts" / "main.md"
-        main_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+    # Write all prompts to session directory for training data capture
+    # For claude-code: main.md + subagent prompts
+    # For droid: main.md only
+    if prompts or tool == "droid":
         try:
-            main_prompt_path.write_text(prompts["main_prompt"], encoding="utf-8")
-            logger.debug("Wrote main prompt to %s", main_prompt_path)
+            _write_prompts_to_session(session_dir, prompts or {}, tool)
         except (OSError, IOError) as exc:
-            logger.warning("Failed to write main prompt to session directory: %s", exc)
-    elif tool == "droid":
-        # For droid, we need to create a simple prompt file
-        main_prompt_path = session_dir / "prompts" / "droid_prompt.md"
-        main_prompt_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            # Load the droid prompt from template
-            src_dir = get_lw_coder_src_dir()
-            droid_prompt_template = src_dir / "prompts" / "droid" / "code.md"
-            if droid_prompt_template.exists():
-                droid_prompt = droid_prompt_template.read_text(encoding="utf-8")
-                main_prompt_path.write_text(droid_prompt, encoding="utf-8")
-                logger.debug("Wrote droid prompt to %s", main_prompt_path)
-            else:
-                # Fallback to a basic prompt if template doesn't exist
-                main_prompt_path.write_text(
-                    "Implement the plan in plan.md\n",
-                    encoding="utf-8"
-                )
-                logger.warning("Droid prompt template not found, using basic prompt")
-        except (OSError, IOError) as exc:
-            logger.warning("Failed to write droid prompt to run directory: %s", exc)
+            logger.warning("Failed to write prompts to session directory: %s", exc)
+
+    # Compute prompt fingerprint and write session metadata
+    try:
+        if prompts:
+            prompt_fingerprint = _compute_prompt_fingerprint_for_session(prompts, tool)
+        else:
+            prompt_fingerprint = _compute_prompt_fingerprint_for_session({}, tool)
+        _write_session_metadata(session_dir, tool, effective_model, prompt_fingerprint)
+    except (OSError, IOError) as exc:
+        logger.warning("Failed to write session metadata: %s", exc)
 
     # Sync cache to worktree before execution
     global_cache = get_global_cache_dir()
@@ -482,6 +605,8 @@ def run_code_command(
         logger.info("Resuming with CLI session...")
     else:
         # For droid or other tools: use executor pattern directly
+        # Prompt was written to session_dir/prompts/main.md by _write_prompts_to_session
+        main_prompt_path = session_dir / "prompts" / "main.md"
         command = executor.build_command(main_prompt_path, effective_model)
 
     # Use auth file from home directory

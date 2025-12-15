@@ -14,12 +14,14 @@ Training data includes:
 
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Optional
 
 from .logging_config import get_logger
+from .training_types import SessionMetadata
 
 logger = get_logger(__name__)
 
@@ -193,6 +195,82 @@ def copy_human_feedback(plan_id: str, repo_root: Path, staging_dir: Path) -> Non
         ) from exc
 
 
+def copy_prompts(plan_id: str, repo_root: Path, staging_dir: Path) -> Optional[str]:
+    """Copy prompts directory from session to staging directory.
+
+    Args:
+        plan_id: Plan identifier
+        repo_root: Repository root directory
+        staging_dir: Staging directory for atomic commit
+
+    Returns:
+        Warning message if prompts not found, None otherwise
+
+    Raises:
+        TrainingDataExportError: If copy fails (but not if prompts are missing)
+    """
+    source = repo_root / ".lw_coder" / "sessions" / plan_id / "code" / "prompts"
+    dest = staging_dir / "prompts"
+
+    if not source.exists():
+        return "Prompts directory not found. Training example will not include prompts."
+
+    try:
+        shutil.copytree(source, dest)
+        logger.debug("Copied prompts directory to staging")
+        return None
+    except OSError as exc:
+        raise TrainingDataExportError(f"Failed to copy prompts: {exc}") from exc
+
+
+def copy_and_update_metadata(
+    plan_id: str, repo_root: Path, staging_dir: Path, eval_fingerprint: str
+) -> Optional[str]:
+    """Copy metadata.json from session and add eval_fingerprint.
+
+    If session metadata is missing, creates minimal metadata with just eval_fingerprint.
+
+    Args:
+        plan_id: Plan identifier
+        repo_root: Repository root directory
+        staging_dir: Staging directory for atomic commit
+        eval_fingerprint: SHA256 fingerprint (8 chars) of judges used
+
+    Returns:
+        Warning message if source metadata not found, None otherwise
+
+    Raises:
+        TrainingDataExportError: If write fails
+    """
+    source = repo_root / ".lw_coder" / "sessions" / plan_id / "code" / "metadata.json"
+    dest = staging_dir / "metadata.json"
+    warning_msg = None
+
+    if source.exists():
+        try:
+            with open(source, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to read session metadata: %s", exc)
+            metadata = {}
+            warning_msg = "Session metadata could not be read. Using minimal metadata."
+    else:
+        metadata = {}
+        warning_msg = "Session metadata not found. Using minimal metadata."
+
+    # Add eval_fingerprint
+    metadata["eval_fingerprint"] = eval_fingerprint
+
+    try:
+        with open(dest, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+        logger.debug("Wrote metadata with eval_fingerprint to staging")
+    except OSError as exc:
+        raise TrainingDataExportError(f"Failed to write metadata: {exc}") from exc
+
+    return warning_msg
+
+
 def validate_training_data(training_data_dir: Path) -> list[str]:
     """Validate that training data directory has required files.
 
@@ -210,6 +288,7 @@ def validate_training_data(training_data_dir: Path) -> list[str]:
         ("test_results_after.json", True),
         ("test_results_before.json", False),  # Optional
         ("human_feedback.md", True),
+        ("metadata.json", False),  # Optional (new metadata file)
     ]
 
     for filename, is_required in required_files:
@@ -225,10 +304,15 @@ def validate_training_data(training_data_dir: Path) -> list[str]:
     if not judge_files:
         warnings.append("Missing required files: judge results (judge_*.json)")
 
+    # Check for prompts directory (optional)
+    prompts_dir = training_data_dir / "prompts"
+    if not prompts_dir.exists():
+        warnings.append("Missing optional directory: prompts/")
+
     return warnings
 
 
-def create_training_data(plan_id: str, repo_root: Path) -> Path:
+def create_training_data(plan_id: str, repo_root: Path, eval_fingerprint: str) -> Path:
     """Create permanent training data from evaluation results.
 
     Uses staging directory pattern for atomic operations:
@@ -239,6 +323,7 @@ def create_training_data(plan_id: str, repo_root: Path) -> Path:
     Args:
         plan_id: Plan identifier
         repo_root: Repository root directory
+        eval_fingerprint: SHA256 fingerprint (8 chars) of judges used
 
     Returns:
         Path to created training data directory
@@ -275,6 +360,16 @@ def create_training_data(plan_id: str, repo_root: Path) -> Path:
         copy_test_results(plan_id, repo_root, staging_path)
         copy_judge_results(plan_id, repo_root, staging_path)
         copy_human_feedback(plan_id, repo_root, staging_path)
+
+        # Copy prompts directory (optional - warn if missing but don't fail)
+        warning = copy_prompts(plan_id, repo_root, staging_path)
+        if warning:
+            logger.warning(warning)
+
+        # Copy and update metadata with eval_fingerprint (warn if source missing)
+        warning = copy_and_update_metadata(plan_id, repo_root, staging_path, eval_fingerprint)
+        if warning:
+            logger.warning(warning)
 
         # Validate staging directory
         validation_warnings = validate_training_data(staging_path)

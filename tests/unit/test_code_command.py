@@ -830,7 +830,8 @@ def test_code_command_with_droid_tool(monkeypatch, git_repo, tmp_path: Path) -> 
     exit_code = run_code_command(plan_path, tool="droid")
     assert exit_code == 0
     assert captured_tool["value"] == "droid"
-    assert "droid_prompt.md" in captured_command["path"]
+    # Droid prompt is now written as main.md (unified naming)
+    assert "prompts/main.md" in captured_command["path"]
     # Model is None for droid
     assert captured_command["model"] is None
 

@@ -20,6 +20,7 @@ from lw_coder.judge_executor import (
 from lw_coder.judge_loader import JudgeConfig
 
 
+@pytest.mark.integration
 def test_execute_judge_with_real_llm(tmp_path: Path) -> None:
     """Test executing a judge with real DSPy LLM call.
 

@@ -14,7 +14,7 @@ from .judge_executor import configure_dspy_cache, get_openrouter_api_key
 from .logging_config import get_logger
 from .training_types import (
     CandidatePrompts,
-    CurrentPrompts,
+    PromptSnapshot,
     SubagentDefinition,
     TrainingSample,
 )
@@ -185,7 +185,7 @@ def _serialize_training_samples(samples: list[TrainingSample]) -> str:
     return json.dumps([s.model_dump() for s in samples], indent=2)
 
 
-def _serialize_current_prompts(prompts: CurrentPrompts) -> str:
+def _serialize_current_prompts(prompts: PromptSnapshot) -> str:
     """Serialize current prompts to JSON string."""
     import json
     return json.dumps(prompts.model_dump(), indent=2)
@@ -193,7 +193,7 @@ def _serialize_current_prompts(prompts: CurrentPrompts) -> str:
 
 def run_prompt_trainer(
     training_samples: list[TrainingSample],
-    current_prompts: CurrentPrompts,
+    current_prompts: PromptSnapshot,
     max_subagents: int,
     model: str,
     cache_dir: Path,
@@ -202,7 +202,7 @@ def run_prompt_trainer(
 
     Args:
         training_samples: List of training samples to analyze
-        current_prompts: Current prompts to improve upon
+        current_prompts: Current prompts (PromptSnapshot) to improve upon
         max_subagents: Maximum number of subagents to generate
         model: OpenRouter model tag (e.g., x-ai/grok-4.1-fast)
         cache_dir: Directory for DSPy cache

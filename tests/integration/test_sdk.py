@@ -40,6 +40,7 @@ class TestRealSDKSession:
         assert isinstance(session_id, str)
         assert len(session_id) > 0
 
+    @pytest.mark.integration
     def test_trace_capture_from_sdk_session(self, tmp_path: Path):
         """Verify trace capture works with real SDK session.
 

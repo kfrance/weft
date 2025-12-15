@@ -20,6 +20,7 @@ from .cache_sync import (
     sync_cache_to_worktree,
 )
 from .feedback_collector import FeedbackCollectionError, collect_human_feedback
+from .fingerprint import compute_eval_fingerprint
 from .git_context import GitContextError, gather_git_context
 from .judge_executor import JudgeExecutionError, JudgeResult, get_cache_dir, get_openrouter_api_key
 from .judge_loader import JudgeLoaderError, discover_judges
@@ -212,6 +213,10 @@ def run_eval_command(
             return 1
 
         logger.info("Loaded %d judge(s)", len(discovered_judges))
+
+        # Compute eval fingerprint from discovered judges
+        eval_fingerprint = compute_eval_fingerprint(discovered_judges)
+        logger.debug("Eval fingerprint: %s", eval_fingerprint)
 
         # Check which judge outputs already exist
         discovered_names = {j.name for j in discovered_judges}
@@ -442,7 +447,7 @@ def run_eval_command(
                 try:
                     if training_data_dir.exists():
                         shutil.rmtree(training_data_dir)
-                    create_training_data(actual_plan_id, repo_root)
+                    create_training_data(actual_plan_id, repo_root, eval_fingerprint)
                     logger.info("Training data created at: %s", training_data_dir)
                 except TrainingDataExportError as exc:
                     logger.error("Training data creation failed: %s", exc)

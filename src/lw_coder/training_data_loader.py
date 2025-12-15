@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from .logging_config import get_logger
-from .training_types import TrainingSample
+from .training_types import PromptSnapshot, SubagentDefinition, TrainingSample
 
 logger = get_logger(__name__)
 
@@ -103,6 +103,86 @@ def _get_or_create_summary(
         raise TrainingDataLoadError(
             f"Failed to read generated summary for {sample_dir.name}: {exc}"
         ) from exc
+
+
+def _load_prompts_from_training_data(training_sample_dir: Path) -> Optional[PromptSnapshot]:
+    """Load prompts from training data directory into PromptSnapshot.
+
+    Args:
+        training_sample_dir: Path to the training sample directory
+
+    Returns:
+        PromptSnapshot object if prompts exist, None otherwise
+    """
+    prompts_dir = training_sample_dir / "prompts"
+    if not prompts_dir.exists():
+        return None
+
+    main_prompt_path = prompts_dir / "main.md"
+    if not main_prompt_path.exists():
+        logger.warning("Prompts directory exists but main.md not found: %s", prompts_dir)
+        return None
+
+    try:
+        main_prompt = main_prompt_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Failed to read main prompt: %s", exc)
+        return None
+
+    # Discover all subagent files (all .md files except main.md)
+    subagents = []
+    for md_file in prompts_dir.glob("*.md"):
+        if md_file.name == "main.md":
+            continue
+
+        try:
+            content = md_file.read_text(encoding="utf-8")
+            # Extract name from filename (kebab-case)
+            name = md_file.stem  # e.g., "code-review-auditor"
+
+            subagents.append(SubagentDefinition(
+                name=name,
+                description=f"Subagent: {name.replace('-', ' ').title()}",
+                prompt=content,
+            ))
+            logger.debug("Loaded subagent from training data: %s", name)
+        except OSError as exc:
+            logger.warning("Failed to read subagent file %s: %s", md_file, exc)
+            continue
+
+    logger.debug("Loaded prompts from training data: 1 main + %d subagents", len(subagents))
+    return PromptSnapshot(main_prompt=main_prompt, subagents=subagents)
+
+
+def _load_metadata_from_training_data(
+    training_sample_dir: Path,
+) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
+    """Load metadata from training data directory.
+
+    Args:
+        training_sample_dir: Path to the training sample directory
+
+    Returns:
+        Tuple of (tool, model, prompt_fingerprint, eval_fingerprint)
+        Defaults to ("claude-code", None, None, None) if metadata not found
+    """
+    metadata_path = training_sample_dir / "metadata.json"
+    if not metadata_path.exists():
+        return ("claude-code", None, None, None)
+
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to read metadata: %s", exc)
+        return ("claude-code", None, None, None)
+
+    tool = metadata.get("tool", "claude-code")
+    model = metadata.get("model")
+    prompt_fingerprint = metadata.get("prompt_fingerprint")
+    eval_fingerprint = metadata.get("eval_fingerprint")
+
+    return (tool, model, prompt_fingerprint, eval_fingerprint)
 
 
 def discover_training_samples(repo_root: Path) -> list[str]:
@@ -241,6 +321,14 @@ def load_training_sample(
     # Prioritizes code_trace_summary.md over full trace
     data["code_trace"] = _get_or_create_summary(training_sample_dir, model)
 
+    # Load prompts (optional)
+    used_prompts = _load_prompts_from_training_data(training_sample_dir)
+
+    # Load metadata (optional)
+    tool, metadata_model, prompt_fingerprint, eval_fingerprint = _load_metadata_from_training_data(
+        training_sample_dir
+    )
+
     # Check for at least one judge result
     judge_files = list(training_sample_dir.glob("judge_*.json"))
     if not judge_files:
@@ -253,7 +341,14 @@ def load_training_sample(
     data["judge_results"] = _format_judge_results(training_sample_dir)
 
     logger.debug("Loaded training sample: %s", plan_id)
-    return TrainingSample(**data)
+    return TrainingSample(
+        **data,
+        used_prompts=used_prompts,
+        tool=tool,
+        model=metadata_model,
+        prompt_fingerprint=prompt_fingerprint,
+        eval_fingerprint=eval_fingerprint,
+    )
 
 
 def load_training_batch(
