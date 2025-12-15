@@ -11,31 +11,31 @@
       "hash": "sha256:bc0d20ae19f769110fb1834d326df3ead279457532c33e1f8832b48a811f1f03"
     },
     "prompts/active/claude-code-cli/haiku/code-review-auditor.md": {
-      "hash": "sha256:fb67b96fb2f73da3422279f0b5da53b2553fea5fa8fdbf87f9cb8b8943950a80"
+      "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
     "prompts/active/claude-code-cli/haiku/main.md": {
-      "hash": "sha256:f77f59229c0631e199d8b185c42c93c855c961f37ed2e2005823b60cc0adf35d"
+      "hash": "sha256:46965a58e027c0b18d956de44019027cc1c5a681696ac61fcc371c33d20ba603"
     },
     "prompts/active/claude-code-cli/haiku/plan-alignment-checker.md": {
-      "hash": "sha256:ebccc4d6e94cb92a917a89dddb51629dbc0320ff71f8d08528d3fe7705daeb4e"
+      "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
     },
     "prompts/active/claude-code-cli/opus/code-review-auditor.md": {
-      "hash": "sha256:fb67b96fb2f73da3422279f0b5da53b2553fea5fa8fdbf87f9cb8b8943950a80"
+      "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
     "prompts/active/claude-code-cli/opus/main.md": {
-      "hash": "sha256:95aadf536aa95a8f9f6e48fb545cedd06adb1770f47574808c0377a37f4726e6"
+      "hash": "sha256:a48c6fb90ab65aad5aded85924684dcfa2064d406cd9920b7309ce32f5f0f160"
     },
     "prompts/active/claude-code-cli/opus/plan-alignment-checker.md": {
-      "hash": "sha256:ebccc4d6e94cb92a917a89dddb51629dbc0320ff71f8d08528d3fe7705daeb4e"
+      "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
     },
     "prompts/active/claude-code-cli/sonnet/code-review-auditor.md": {
-      "hash": "sha256:fb67b96fb2f73da3422279f0b5da53b2553fea5fa8fdbf87f9cb8b8943950a80"
+      "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
     "prompts/active/claude-code-cli/sonnet/main.md": {
-      "hash": "sha256:c698a923c2668032b752879fe574821cd0d73e9222921281363a6917b03dd205"
+      "hash": "sha256:4534b0a2d03cf9a56c28eb982a3303bfe4b9164b9bacb324eebdf4665d9644ea"
     },
     "prompts/active/claude-code-cli/sonnet/plan-alignment-checker.md": {
-      "hash": "sha256:ebccc4d6e94cb92a917a89dddb51629dbc0320ff71f8d08528d3fe7705daeb4e"
+      "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
     }
   }
 }

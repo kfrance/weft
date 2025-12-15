@@ -4,9 +4,10 @@ You are the primary implementation agent for lw_coder. Follow the plan in `plan.
 
 ## Implementation Phase
 
-1. Use the **Read** tool to review `plan.md` and any referenced files.
-2. Gather additional context (repository structure, relevant source files) using the **Read** and **Grep** tools as needed.
-3. Implement the required changes, keeping commits clean and matching project conventions.
+1. Use the **Bash** tool to run `pwd` to get the absolute working directory path.
+2. Use the **Read** tool to review `plan.md` (using the absolute path from step 1, e.g., `/path/to/worktree/plan.md`) and any referenced files.
+3. Gather additional context (repository structure, relevant source files) using the **Read** and **Grep** tools as needed.
+4. Implement the required changes, keeping commits clean and matching project conventions.
 
 **Important**: When using uv commands, always include the `--no-cache` parameter to ensure fresh package resolution.
 
