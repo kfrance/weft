@@ -17,6 +17,7 @@ from typing import Any, Optional
 from .claude_session import ClaudeSessionError, run_headless_session
 from .host_runner import get_lw_coder_src_dir
 from .logging_config import get_logger
+from .patch_utils import PatchApplicationError, apply_patch
 from .plan_validator import extract_front_matter
 
 logger = get_logger(__name__)
@@ -357,14 +358,19 @@ def run_before_tests(
 
 
 def run_after_tests(
+    plan_path: Path,
     plan_id: str,
     repo_root: Path,
     output_dir: Path,
     model: str,
 ) -> dict[str, Any]:
-    """Run tests in the "after" state (current worktree).
+    """Run tests in the "after" state using AI patch applied to git_sha.
+
+    Creates a temporary worktree at the plan's git_sha, applies the AI-generated
+    patch from the code session, runs tests, and cleans up the temporary worktree.
 
     Args:
+        plan_path: Path to the plan file
         plan_id: Plan identifier
         repo_root: Repository root directory
         output_dir: Directory where test_results_after.json should be saved
@@ -376,23 +382,83 @@ def run_after_tests(
     Raises:
         TestRunnerError: If test execution fails (not if tests themselves fail)
     """
-    # Use existing worktree from code command
-    worktree_path = repo_root / ".lw_coder" / "worktrees" / plan_id
-
-    if not worktree_path.exists():
+    # Get git_sha from plan
+    git_sha = get_plan_git_sha(plan_path)
+    if not git_sha:
         raise TestRunnerError(
-            f"Worktree not found: {worktree_path}. "
-            f"Run 'lw_coder code {plan_id}' first to create the worktree."
+            "Plan's git_sha not found. Cannot run after-tests without a valid git_sha."
         )
 
-    output_file = output_dir / "test_results_after.json"
-    results = run_tests_via_sdk(worktree_path, output_file, model)
+    # Validate SHA exists
+    if not validate_git_sha(repo_root, git_sha):
+        raise TestRunnerError(
+            f"Plan's git_sha '{git_sha}' not found in repository."
+        )
 
-    logger.info(
-        "After tests: %d total, %d passed, %d failed",
-        results.get("total_tests", 0),
-        results.get("passed_tests", 0),
-        results.get("failed_tests", 0),
-    )
+    # Check that patch file exists
+    patch_path = repo_root / ".lw_coder" / "sessions" / plan_id / "code" / "ai_changes.patch"
+    if not patch_path.exists():
+        raise TestRunnerError(
+            f"AI patch file not found: {patch_path}. "
+            f"Run 'lw_coder code {plan_id}' first to generate the patch."
+        )
 
-    return results
+    # Create temporary worktree at git_sha
+    temp_worktree = repo_root / ".lw_coder" / "temp-worktrees" / f"{plan_id}-after"
+
+    try:
+        # Clean up any existing temp worktree
+        if temp_worktree.exists():
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(temp_worktree)],
+                cwd=repo_root,
+                capture_output=True,
+                check=False,
+            )
+
+        # Create worktree at the specific SHA
+        logger.info("Creating temporary worktree at %s for after-tests...", git_sha[:7])
+        result = subprocess.run(
+            ["git", "worktree", "add", str(temp_worktree), git_sha],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise TestRunnerError(
+                f"Failed to create worktree at {git_sha}: {result.stderr}"
+            )
+
+        # Apply the AI patch to the temp worktree
+        logger.info("Applying AI patch to temporary worktree...")
+        try:
+            apply_patch(patch_path, temp_worktree)
+        except PatchApplicationError as exc:
+            raise TestRunnerError(
+                f"Failed to apply AI patch: {exc}"
+            ) from exc
+
+        # Run tests in temp worktree
+        output_file = output_dir / "test_results_after.json"
+        results = run_tests_via_sdk(temp_worktree, output_file, model)
+
+        logger.info(
+            "After tests: %d total, %d passed, %d failed",
+            results.get("total_tests", 0),
+            results.get("passed_tests", 0),
+            results.get("failed_tests", 0),
+        )
+
+        return results
+
+    finally:
+        # Clean up temp worktree (even on failure)
+        if temp_worktree.exists():
+            logger.debug("Cleaning up temporary worktree...")
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(temp_worktree)],
+                cwd=repo_root,
+                capture_output=True,
+                check=False,
+            )

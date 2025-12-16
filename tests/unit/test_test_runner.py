@@ -335,28 +335,137 @@ status: coding
 
 
 class TestRunAfterTests:
-    """Tests for run_after_tests function."""
+    """Tests for run_after_tests function with patch-based worktree.
 
-    def test_raises_when_worktree_missing(self, tmp_path: Path) -> None:
-        """Raises TestRunnerError when worktree doesn't exist."""
-        with pytest.raises(TestRunnerError, match="Worktree not found"):
+    The run_after_tests function now creates a temp worktree at git_sha,
+    applies the AI patch, and runs tests there (instead of using the plan worktree).
+    """
+
+    def _create_git_repo(self, tmp_path: Path) -> str:
+        """Create a git repo and return the initial commit SHA."""
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=tmp_path,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=tmp_path,
+            check=True,
+        )
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("initial content")
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp_path, check=True, capture_output=True)
+
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    def test_raises_when_git_sha_missing(self, tmp_path: Path) -> None:
+        """Raises TestRunnerError when plan has no git_sha."""
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("""---
+plan_id: test-plan
+status: coding
+---
+
+# Test Plan
+""", encoding="utf-8")
+
+        with pytest.raises(TestRunnerError, match="git_sha not found"):
             run_after_tests(
-                plan_id="nonexistent-plan",
+                plan_path=plan_file,
+                plan_id="test-plan",
                 repo_root=tmp_path,
                 output_dir=tmp_path,
                 model="haiku",
             )
 
-    def test_runs_tests_in_existing_worktree(self, tmp_path: Path) -> None:
-        """Runs tests in the plan's worktree."""
-        # Create worktree directory
-        worktree = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
-        worktree.mkdir(parents=True)
+    def test_raises_when_patch_missing(self, tmp_path: Path) -> None:
+        """Raises TestRunnerError when patch file doesn't exist."""
+        sha = self._create_git_repo(tmp_path)
+
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text(f"""---
+plan_id: test-plan
+git_sha: {sha}
+status: coding
+---
+
+# Test Plan
+""", encoding="utf-8")
+
+        with pytest.raises(TestRunnerError, match="AI patch file not found"):
+            run_after_tests(
+                plan_path=plan_file,
+                plan_id="test-plan",
+                repo_root=tmp_path,
+                output_dir=tmp_path,
+                model="haiku",
+            )
+
+    def test_raises_when_git_sha_invalid(self, tmp_path: Path) -> None:
+        """Raises TestRunnerError when git_sha doesn't exist in repo."""
+        self._create_git_repo(tmp_path)
+
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("""---
+plan_id: test-plan
+git_sha: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+status: coding
+---
+
+# Test Plan
+""", encoding="utf-8")
+
+        with pytest.raises(TestRunnerError, match="not found in repository"):
+            run_after_tests(
+                plan_path=plan_file,
+                plan_id="test-plan",
+                repo_root=tmp_path,
+                output_dir=tmp_path,
+                model="haiku",
+            )
+
+    def test_applies_patch_and_runs_tests(self, tmp_path: Path) -> None:
+        """Creates temp worktree, applies patch, and runs tests."""
+        sha = self._create_git_repo(tmp_path)
+
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text(f"""---
+plan_id: test-plan
+git_sha: {sha}
+status: coding
+---
+
+# Test Plan
+""", encoding="utf-8")
+
+        # Create patch file with a simple change
+        patch_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        patch_dir.mkdir(parents=True)
+        patch_file = patch_dir / "ai_changes.patch"
+        # Simple patch that creates a new file
+        patch_content = """diff --git a/new_file.txt b/new_file.txt
+new file mode 100644
+--- /dev/null
++++ b/new_file.txt
+@@ -0,0 +1 @@
++new file content
+"""
+        patch_file.write_text(patch_content, encoding="utf-8")
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Mock run_tests_via_sdk
+        # Mock run_tests_via_sdk to verify it's called with temp worktree
         with patch("lw_coder.test_runner.run_tests_via_sdk") as mock_run:
             mock_run.return_value = {
                 "command": "pytest",
@@ -365,6 +474,7 @@ class TestRunAfterTests:
             }
 
             results = run_after_tests(
+                plan_path=plan_file,
                 plan_id="test-plan",
                 repo_root=tmp_path,
                 output_dir=output_dir,
@@ -374,5 +484,102 @@ class TestRunAfterTests:
         assert results["total_tests"] == 10
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == worktree  # worktree_path
-        assert call_args[0][1] == output_dir / "test_results_after.json"  # output_file
+
+        # Verify the worktree path is the temp worktree, not plan worktree
+        worktree_arg = call_args[0][0]
+        assert "temp-worktrees" in str(worktree_arg)
+        assert "test-plan-after" in str(worktree_arg)
+
+        # Verify temp worktree was cleaned up
+        temp_worktree = tmp_path / ".lw_coder" / "temp-worktrees" / "test-plan-after"
+        assert not temp_worktree.exists(), "Temp worktree should be cleaned up"
+
+    def test_cleans_up_temp_worktree_on_failure(self, tmp_path: Path) -> None:
+        """Temp worktree is cleaned up even when tests fail."""
+        sha = self._create_git_repo(tmp_path)
+
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text(f"""---
+plan_id: test-plan
+git_sha: {sha}
+status: coding
+---
+
+# Test Plan
+""", encoding="utf-8")
+
+        # Create patch file
+        patch_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        patch_dir.mkdir(parents=True)
+        patch_file = patch_dir / "ai_changes.patch"
+        patch_file.write_text("""diff --git a/new.txt b/new.txt
+new file mode 100644
+--- /dev/null
++++ b/new.txt
+@@ -0,0 +1 @@
++content
+""", encoding="utf-8")
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Mock run_tests_via_sdk to raise an error
+        with patch("lw_coder.test_runner.run_tests_via_sdk") as mock_run:
+            mock_run.side_effect = TestRunnerError("Test execution failed")
+
+            with pytest.raises(TestRunnerError):
+                run_after_tests(
+                    plan_path=plan_file,
+                    plan_id="test-plan",
+                    repo_root=tmp_path,
+                    output_dir=output_dir,
+                    model="haiku",
+                )
+
+        # Verify temp worktree was still cleaned up
+        temp_worktree = tmp_path / ".lw_coder" / "temp-worktrees" / "test-plan-after"
+        assert not temp_worktree.exists(), "Temp worktree should be cleaned up even on failure"
+
+    def test_raises_when_patch_conflicts(self, tmp_path: Path) -> None:
+        """Raises TestRunnerError when patch cannot be applied."""
+        sha = self._create_git_repo(tmp_path)
+
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text(f"""---
+plan_id: test-plan
+git_sha: {sha}
+status: coding
+---
+
+# Test Plan
+""", encoding="utf-8")
+
+        # Create a patch that modifies test.txt in a way that would conflict
+        # with an invalid context (trying to modify a line that doesn't exist)
+        patch_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        patch_dir.mkdir(parents=True)
+        patch_file = patch_dir / "ai_changes.patch"
+        # Invalid patch - tries to modify content that doesn't exist
+        patch_file.write_text("""diff --git a/test.txt b/test.txt
+--- a/test.txt
++++ b/test.txt
+@@ -1,3 +1,3 @@
+-nonexistent line 1
+-nonexistent line 2
+-nonexistent line 3
++modified line 1
++modified line 2
++modified line 3
+""", encoding="utf-8")
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        with pytest.raises(TestRunnerError, match="Failed to apply AI patch"):
+            run_after_tests(
+                plan_path=plan_file,
+                plan_id="test-plan",
+                repo_root=tmp_path,
+                output_dir=output_dir,
+                model="haiku",
+            )

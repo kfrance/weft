@@ -80,6 +80,42 @@ class TestCopyCodeTrace:
         assert "not found" in warning.lower()
 
 
+class TestCopyAiPatch:
+    """Tests for copy_ai_patch function."""
+
+    def test_copies_patch_to_staging(self, tmp_path: Path) -> None:
+        """Copies AI patch file to staging."""
+        # Create code directory with patch file
+        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir.mkdir(parents=True)
+
+        patch_content = "diff --git a/test.txt b/test.txt\n+new content"
+        (code_dir / "ai_changes.patch").write_text(patch_content)
+
+        staging = tmp_path / "staging"
+        staging.mkdir()
+
+        from lw_coder.training_data_exporter import copy_ai_patch
+        copy_ai_patch("test-plan", tmp_path, staging)
+
+        copied = staging / "ai_changes.patch"
+        assert copied.exists()
+        assert copied.read_text() == patch_content
+
+    def test_raises_when_patch_missing(self, tmp_path: Path) -> None:
+        """Raises TrainingDataExportError when patch file missing."""
+        # Don't create the patch file
+        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir.mkdir(parents=True)
+
+        staging = tmp_path / "staging"
+        staging.mkdir()
+
+        from lw_coder.training_data_exporter import copy_ai_patch, TrainingDataExportError
+        with pytest.raises(TrainingDataExportError, match="AI patch file not found"):
+            copy_ai_patch("test-plan", tmp_path, staging)
+
+
 class TestCopyTestResults:
     """Tests for copy_test_results function."""
 
@@ -202,6 +238,7 @@ class TestValidateTrainingData:
         # Create all required files
         (tmp_path / "plan.md").write_text("# Plan")
         (tmp_path / "code_trace.md").write_text("# Trace")
+        (tmp_path / "ai_changes.patch").write_text("diff --git a/test.txt b/test.txt")
         (tmp_path / "test_results_after.json").write_text("{}")
         (tmp_path / "test_results_before.json").write_text("{}")
         (tmp_path / "human_feedback.md").write_text("# Feedback")
@@ -217,6 +254,7 @@ class TestValidateTrainingData:
         """Returns warnings for missing optional files."""
         # Create only required files
         (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "ai_changes.patch").write_text("diff --git a/test.txt b/test.txt")
         (tmp_path / "test_results_after.json").write_text("{}")
         (tmp_path / "human_feedback.md").write_text("# Feedback")
         (tmp_path / "judge_test.json").write_text("{}")
@@ -241,6 +279,7 @@ class TestValidateTrainingData:
     def test_warns_when_no_judge_files(self, tmp_path: Path) -> None:
         """Returns warning when no judge result files exist."""
         (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "ai_changes.patch").write_text("diff --git a/test.txt b/test.txt")
         (tmp_path / "test_results_after.json").write_text("{}")
         (tmp_path / "human_feedback.md").write_text("# Feedback")
         # No judge_*.json files
@@ -264,6 +303,7 @@ class TestCreateTrainingData:
         code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
         code_dir.mkdir(parents=True)
         (code_dir / "trace.md").write_text("# Trace")
+        (code_dir / "ai_changes.patch").write_text("diff --git a/test.txt b/test.txt")
 
         eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
@@ -277,6 +317,7 @@ class TestCreateTrainingData:
         assert result.exists()
         assert (result / "plan.md").exists()
         assert (result / "code_trace.md").exists()
+        assert (result / "ai_changes.patch").exists()
         assert (result / "test_results_after.json").exists()
         assert (result / "judge_test.json").exists()
         assert (result / "human_feedback.md").exists()
@@ -318,12 +359,16 @@ class TestCreateTrainingData:
         tasks_dir.mkdir(parents=True)
         (tasks_dir / "test-plan.md").write_text("# Plan")
 
+        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir.mkdir(parents=True)
+        (code_dir / "ai_changes.patch").write_text("diff --git a/test.txt b/test.txt")
+        # No code trace
+
         eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         (eval_dir / "test_results_after.json").write_text('{"exit_code": 0}')
         (eval_dir / "judge_test.json").write_text('{"score": 0.85}')
         (eval_dir / "human_feedback.md").write_text("# Feedback")
-        # No code trace
 
         # Mock input to continue past missing code trace prompt
         monkeypatch.setattr("builtins.input", lambda _: "y")
@@ -333,6 +378,8 @@ class TestCreateTrainingData:
         # Should still create training data
         assert result.exists()
         assert (result / "plan.md").exists()
+        # AI patch should exist
+        assert (result / "ai_changes.patch").exists()
         # But code_trace.md should not exist
         assert not (result / "code_trace.md").exists()
         # metadata.json should exist with eval_fingerprint

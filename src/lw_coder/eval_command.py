@@ -358,6 +358,7 @@ def run_eval_command(
         else:
             try:
                 test_results_after = run_after_tests(
+                    plan_path=plan_path,
                     plan_id=actual_plan_id,
                     repo_root=repo_root,
                     output_dir=eval_dir,

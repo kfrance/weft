@@ -43,6 +43,12 @@ from .session_manager import (
     prune_old_sessions,
 )
 from .trace_capture import TraceCaptureError, capture_session_trace
+from .patch_utils import (
+    EmptyPatchError,
+    PatchCaptureError,
+    capture_ai_patch,
+    save_patch,
+)
 from .worktree_utils import WorktreeError, ensure_worktree
 from .worktree.file_sync import (
     FileSyncError,
@@ -588,7 +594,20 @@ def run_code_command(
             logger.error("SDK session failed: %s", exc)
             return 1
 
-        # Trigger code_sdk_complete hook after SDK session completes
+        # Capture AI changes as patch
+        try:
+            patch_content = capture_ai_patch(worktree_path)
+            patch_path = session_dir / "ai_changes.patch"
+            save_patch(patch_content, patch_path)
+            logger.info("AI changes captured to: %s", patch_path)
+        except EmptyPatchError:
+            logger.error("SDK session produced no changes. Cannot proceed without AI modifications.")
+            return 1
+        except PatchCaptureError as exc:
+            logger.error("Failed to capture AI changes: %s", exc)
+            return 1
+
+        # Trigger code_sdk_complete hook after patch capture (so hook has access to patch file)
         if not no_hooks:
             trigger_hook(
                 "code_sdk_complete",

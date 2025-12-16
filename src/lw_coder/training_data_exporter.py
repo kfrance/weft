@@ -86,6 +86,30 @@ def copy_code_trace(
         raise TrainingDataExportError(f"Failed to copy code trace: {exc}") from exc
 
 
+def copy_ai_patch(plan_id: str, repo_root: Path, staging_dir: Path) -> None:
+    """Copy AI changes patch file to staging directory.
+
+    Args:
+        plan_id: Plan identifier
+        repo_root: Repository root directory
+        staging_dir: Staging directory for atomic commit
+
+    Raises:
+        TrainingDataExportError: If patch file not found or copy fails
+    """
+    source = repo_root / ".lw_coder" / "sessions" / plan_id / "code" / "ai_changes.patch"
+    dest = staging_dir / "ai_changes.patch"
+
+    if not source.exists():
+        raise TrainingDataExportError(f"AI patch file not found: {source}")
+
+    try:
+        shutil.copy2(source, dest)
+        logger.debug("Copied AI patch to staging")
+    except OSError as exc:
+        raise TrainingDataExportError(f"Failed to copy AI patch: {exc}") from exc
+
+
 def copy_test_results(plan_id: str, repo_root: Path, staging_dir: Path) -> None:
     """Copy test results to staging directory.
 
@@ -285,6 +309,7 @@ def validate_training_data(training_data_dir: Path) -> list[str]:
     required_files = [
         ("plan.md", True),
         ("code_trace.md", False),  # Optional, warn if missing
+        ("ai_changes.patch", True),  # Required - AI patch file
         ("test_results_after.json", True),
         ("test_results_before.json", False),  # Optional
         ("human_feedback.md", True),
@@ -356,6 +381,9 @@ def create_training_data(plan_id: str, repo_root: Path, eval_fingerprint: str) -
                 raise TrainingDataExportError(
                     "Training data creation cancelled by user (missing code trace)"
                 )
+
+        # Copy AI patch file (required)
+        copy_ai_patch(plan_id, repo_root, staging_path)
 
         copy_test_results(plan_id, repo_root, staging_path)
         copy_judge_results(plan_id, repo_root, staging_path)
