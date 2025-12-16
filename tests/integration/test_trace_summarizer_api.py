@@ -215,12 +215,12 @@ def test_summary_usable_in_training_loader(real_trace_path: Path, tmp_path: Path
     assert "## Narrative Summary" in sample.code_trace
 
 
-def test_summary_caching_prevents_regeneration(real_trace_path: Path, tmp_path: Path) -> None:
+def test_summary_file_not_rewritten_when_trace_unchanged(real_trace_path: Path, tmp_path: Path) -> None:
     """Verify that existing up-to-date summaries are not regenerated.
 
-    This test verifies the lazy generation logic:
+    This test verifies the file-based caching by checking st_mtime equality:
     - First call creates the summary
-    - Second call reuses existing summary (no API call needed)
+    - Second call reuses existing summary (no file rewrite)
     """
     # Get API key
     try:

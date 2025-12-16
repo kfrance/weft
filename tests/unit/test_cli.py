@@ -1,9 +1,10 @@
 """Tests for CLI argument parsing and validation.
 
+# Parameter validation tests: see tests/unit/test_validation.py
+
 These tests focus on:
-1. CLI validation logic (not argparse behavior)
-2. Quick-fix plan creation with --text flag
-3. Import/dispatch safety checks
+1. Quick-fix plan creation with --text flag
+2. Import/dispatch safety checks
 
 Integration tests for CLI validation via subprocess are in
 tests/integration/test_cli_validation.py
@@ -11,128 +12,9 @@ tests/integration/test_cli_validation.py
 
 from __future__ import annotations
 
-import logging
-from unittest.mock import MagicMock
-
 import pytest
 
 from lw_coder.cli import main
-
-
-# =============================================================================
-# Validation Logic Tests
-# =============================================================================
-
-
-def test_code_command_validation_error_droid_with_model(monkeypatch, caplog, tmp_path) -> None:
-    """Test code command raises validation error for droid with model."""
-    plan_path = tmp_path / "test.md"
-    plan_path.write_text("# Test Plan\n")
-
-    # Mock run_code_command - should not be called due to validation error
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with incompatible parameters
-    exit_code = main(["code", str(plan_path), "--tool", "droid", "--model", "sonnet"])
-
-    assert exit_code == 1
-    assert "cannot be used with --tool droid" in caplog.text
-    mock_run.assert_not_called()
-
-
-def test_code_command_validation_error_invalid_tool(monkeypatch, caplog, tmp_path) -> None:
-    """Test code command raises validation error for invalid tool."""
-    plan_path = tmp_path / "test.md"
-    plan_path.write_text("# Test Plan\n")
-
-    # Mock run_code_command - should not be called due to validation error
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with invalid tool
-    exit_code = main(["code", str(plan_path), "--tool", "invalid-tool"])
-
-    assert exit_code == 1
-    assert "Unknown tool 'invalid-tool'" in caplog.text
-    mock_run.assert_not_called()
-
-
-def test_code_command_invalid_model(monkeypatch, caplog, tmp_path) -> None:
-    """Test code command raises validation error for invalid model."""
-    plan_path = tmp_path / "test.md"
-    plan_path.write_text("# Test Plan\n")
-
-    # Mock run_code_command - should not be called due to validation error
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with invalid model
-    exit_code = main(["code", str(plan_path), "--model", "gpt-4"])
-
-    assert exit_code == 1
-    assert "Unknown model 'gpt-4'" in caplog.text
-    mock_run.assert_not_called()
-
-
-def test_code_command_text_mutual_exclusivity(monkeypatch, caplog, tmp_path, git_repo) -> None:
-    """Test that plan_path and --text are mutually exclusive."""
-    monkeypatch.chdir(git_repo.path)
-
-    plan_path = tmp_path / "test.md"
-    plan_path.write_text("# Test Plan\n")
-
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with both plan_path and --text
-    exit_code = main(["code", str(plan_path), "--text", "Fix something"])
-
-    assert exit_code == 1
-    assert "mutually exclusive" in caplog.text
-    mock_run.assert_not_called()
-
-
-def test_code_command_text_empty_error(monkeypatch, caplog, git_repo) -> None:
-    """Test that empty --text is rejected."""
-    monkeypatch.chdir(git_repo.path)
-
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with empty text
-    exit_code = main(["code", "--text", ""])
-
-    assert exit_code == 1
-    assert "Failed to create quick-fix plan" in caplog.text
-    mock_run.assert_not_called()
-
-
-def test_code_command_neither_path_nor_text(monkeypatch, caplog, git_repo) -> None:
-    """Test that error is raised when neither plan_path nor --text is provided."""
-    monkeypatch.chdir(git_repo.path)
-
-    mock_run = MagicMock()
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
-
-    caplog.set_level(logging.ERROR)
-
-    # Run CLI with no arguments
-    exit_code = main(["code"])
-
-    assert exit_code == 1
-    assert "Must specify either plan_path or --text" in caplog.text
-    mock_run.assert_not_called()
 
 
 # =============================================================================
