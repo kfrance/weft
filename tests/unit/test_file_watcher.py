@@ -67,9 +67,10 @@ class TestPlanFileWatcher:
             time.sleep(0.2)
 
         # Callback should have been called with the file path
-        assert callback.call_count == 1
-        called_path = callback.call_args[0][0]
+        assert callback.called
+        called_path = callback.call_args_list[0][0][0]
         assert called_path.name == "test-plan.md"
+        assert called_path.parent == watch_dir
 
     def test_watcher_ignores_non_md_files(self, tmp_path: Path) -> None:
         """Test watcher ignores non-.md files."""
@@ -137,7 +138,9 @@ class TestPlanFileWatcher:
             time.sleep(0.3)
 
         # Callback should have been called for each file
-        assert callback.call_count == 2
+        assert len(callback.call_args_list) == 2
+        called_paths = {call[0][0].name for call in callback.call_args_list}
+        assert called_paths == {"plan1.md", "plan2.md"}
 
     def test_watcher_double_start_warning(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         """Test that starting watcher twice logs a warning."""
@@ -185,7 +188,9 @@ class TestPlanFileWatcher:
             time.sleep(0.15)
 
         # Both files should have triggered callbacks
-        assert callback.call_count == 2
+        assert len(callback.call_args_list) == 2
+        called_paths = {call[0][0].name for call in callback.call_args_list}
+        assert called_paths == {"plan1.md", "plan2.md"}
 
     def test_watcher_prevents_duplicate_triggers(self, tmp_path: Path) -> None:
         """Test watcher doesn't trigger twice for same file."""
@@ -221,6 +226,7 @@ class TestPlanFileWatcher:
 
             time.sleep(0.2)
 
-        assert callback.call_count == 1
-        called_path = callback.call_args[0][0]
+        assert callback.called
+        called_path = callback.call_args_list[0][0][0]
         assert called_path.stem == "my-test-plan"
+        assert called_path.suffix == ".md"

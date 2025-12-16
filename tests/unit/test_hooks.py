@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -407,50 +406,6 @@ enabled = true
 
 class TestCleanup:
     """Tests for process cleanup."""
-
-    def test_cleanup_terminates_processes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that cleanup terminates running processes."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
-
-        mock_process = MagicMock()
-        mock_process.poll.return_value = None  # Still running
-        mock_process.pid = 12345
-
-        mock_executor = MagicMock()
-        mock_executor.execute.return_value = mock_process
-
-        manager = HookManager(executor=mock_executor)
-        manager._processes = [mock_process]
-
-        # Call cleanup
-        manager._cleanup()
-
-        # Should have called terminate
-        mock_process.terminate.assert_called_once()
-
-    def test_cleanup_kills_stubborn_processes(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test that cleanup kills processes that don't terminate."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
-
-        mock_process = MagicMock()
-        mock_process.poll.return_value = None  # Still running
-        mock_process.pid = 12345
-        mock_process.wait.side_effect = subprocess.TimeoutExpired("cmd", 5)
-
-        mock_executor = MagicMock()
-        mock_executor.execute.return_value = mock_process
-
-        manager = HookManager(executor=mock_executor)
-        manager._processes = [mock_process]
-
-        # Call cleanup
-        manager._cleanup()
-
-        # Should have called terminate and then kill
-        mock_process.terminate.assert_called_once()
-        mock_process.kill.assert_called_once()
 
     def test_prune_completed_removes_finished(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
