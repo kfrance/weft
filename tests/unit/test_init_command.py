@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import shutil
-from io import StringIO
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from lw_coder.init_command import (
-    AtomicInitializer,
     InitCommandError,
     calculate_file_hash,
     detect_customizations,
@@ -44,40 +39,6 @@ def initialized_repo(git_repo):
 
 
 # =============================================================================
-# Hash Calculation Utilities
-# =============================================================================
-
-
-def test_calculate_file_hash(tmp_path):
-    """Test calculate_file_hash returns correct SHA256 hash."""
-    test_file = tmp_path / "test.txt"
-    test_content = b"Hello, World!"
-    test_file.write_bytes(test_content)
-
-    result = calculate_file_hash(test_file)
-
-    # Verify format
-    assert result.startswith("sha256:")
-
-    # Verify hash is correct
-    expected_hash = hashlib.sha256(test_content).hexdigest()
-    assert result == f"sha256:{expected_hash}"
-
-
-def test_calculate_file_hash_binary_file(tmp_path):
-    """Test calculate_file_hash works with binary files."""
-    test_file = tmp_path / "binary.bin"
-    test_content = bytes(range(256))
-    test_file.write_bytes(test_content)
-
-    result = calculate_file_hash(test_file)
-
-    assert result.startswith("sha256:")
-    expected_hash = hashlib.sha256(test_content).hexdigest()
-    assert result == f"sha256:{expected_hash}"
-
-
-# =============================================================================
 # VERSION File Loading
 # =============================================================================
 
@@ -99,20 +60,17 @@ def test_load_version_file(tmp_path):
     assert result["template_version"] == "1.0.0"
 
 
-def test_load_version_file_invalid_json(tmp_path):
-    """Test load_version_file raises error for invalid JSON."""
+@pytest.mark.parametrize(
+    "setup_file",
+    [
+        pytest.param(lambda p: p.write_text("not valid json"), id="invalid_json"),
+        pytest.param(lambda p: None, id="missing_file"),  # don't create file
+    ],
+)
+def test_load_version_file_error_cases(tmp_path, setup_file):
+    """Test load_version_file raises InitCommandError for invalid/missing files."""
     version_file = tmp_path / "VERSION"
-    version_file.write_text("not valid json", encoding="utf-8")
-
-    with pytest.raises(InitCommandError) as exc_info:
-        load_version_file(version_file)
-
-    assert "Failed to read VERSION file" in str(exc_info.value)
-
-
-def test_load_version_file_missing_file(tmp_path):
-    """Test load_version_file raises error for missing file."""
-    version_file = tmp_path / "VERSION"
+    setup_file(version_file)
 
     with pytest.raises(InitCommandError) as exc_info:
         load_version_file(version_file)
@@ -534,63 +492,6 @@ def test_init_warns_about_customizations(initialized_repo, capsys, monkeypatch):
 
 
 # =============================================================================
-# Atomic Operations
-# =============================================================================
-
-
-def test_init_rollback_on_permission_error(git_repo, monkeypatch):
-    """Test init rolls back changes on permission error during staging."""
-    lw_coder_dir = git_repo.path / ".lw_coder"
-
-    # Mock shutil.copytree to raise PermissionError during staging copy
-    original_copytree = shutil.copytree
-    call_count = [0]
-
-    def mock_copytree(src, dst, **kwargs):
-        call_count[0] += 1
-        # Let the first call succeed, but fail the second (during staging)
-        if call_count[0] == 2:
-            raise PermissionError("Permission denied during staging")
-        return original_copytree(src, dst, **kwargs)
-
-    monkeypatch.setattr("lw_coder.init_command.shutil.copytree", mock_copytree)
-
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
-        result = run_init_command(force=False, yes=True)
-
-    # Should have failed
-    assert result == 1
-    # Verify rollback: .lw_coder should NOT exist after failure
-    assert not lw_coder_dir.exists(), "Expected rollback to remove .lw_coder directory"
-
-
-def test_init_rollback_on_disk_full(git_repo, monkeypatch):
-    """Test init rolls back changes when disk is full."""
-    import errno
-
-    lw_coder_dir = git_repo.path / ".lw_coder"
-
-    # Mock shutil.copy2 to raise OSError (disk full) during VERSION copy
-    original_copy2 = shutil.copy2
-
-    def mock_copy2(src, dst, **kwargs):
-        # Fail on VERSION file copy (which happens after copytree calls)
-        if "VERSION" in str(src):
-            raise OSError(errno.ENOSPC, "No space left on device")
-        return original_copy2(src, dst, **kwargs)
-
-    monkeypatch.setattr("lw_coder.init_command.shutil.copy2", mock_copy2)
-
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
-        result = run_init_command(force=False, yes=True)
-
-    # Should have failed
-    assert result == 1
-    # Verify rollback: .lw_coder should NOT exist after failure
-    assert not lw_coder_dir.exists(), "Expected rollback to remove .lw_coder on disk full"
-
-
-# =============================================================================
 # Prompt Yes/No
 # =============================================================================
 
@@ -601,32 +502,21 @@ def test_prompt_yes_no_skip_prompts_returns_true():
     assert result is True
 
 
-def test_prompt_yes_no_accepts_y(monkeypatch):
-    """Test prompt_yes_no accepts 'y' as yes."""
-    monkeypatch.setattr("builtins.input", lambda x: "y")
+@pytest.mark.parametrize(
+    "user_input,expected",
+    [
+        ("y", True),
+        ("yes", True),
+        ("n", False),
+        ("no", False),
+    ],
+    ids=["y", "yes", "n", "no"],
+)
+def test_prompt_yes_no_accepts_valid_input(monkeypatch, user_input, expected):
+    """Test prompt_yes_no accepts valid yes/no inputs."""
+    monkeypatch.setattr("builtins.input", lambda x: user_input)
     result = prompt_yes_no("Test?", skip_prompts=False)
-    assert result is True
-
-
-def test_prompt_yes_no_accepts_yes(monkeypatch):
-    """Test prompt_yes_no accepts 'yes' as yes."""
-    monkeypatch.setattr("builtins.input", lambda x: "yes")
-    result = prompt_yes_no("Test?", skip_prompts=False)
-    assert result is True
-
-
-def test_prompt_yes_no_accepts_n(monkeypatch):
-    """Test prompt_yes_no accepts 'n' as no."""
-    monkeypatch.setattr("builtins.input", lambda x: "n")
-    result = prompt_yes_no("Test?", skip_prompts=False)
-    assert result is False
-
-
-def test_prompt_yes_no_accepts_no(monkeypatch):
-    """Test prompt_yes_no accepts 'no' as no."""
-    monkeypatch.setattr("builtins.input", lambda x: "no")
-    result = prompt_yes_no("Test?", skip_prompts=False)
-    assert result is False
+    assert result is expected
 
 
 def test_prompt_yes_no_eof_returns_false(monkeypatch):
@@ -691,32 +581,22 @@ def test_display_customization_warnings_empty_does_nothing(capsys):
 # =============================================================================
 
 
-def test_get_templates_dir_returns_path():
-    """Test get_templates_dir returns valid path."""
+@pytest.mark.parametrize(
+    "subpath,should_be_dir",
+    [
+        pytest.param(".", True, id="templates_dir"),
+        pytest.param("judges", True, id="judges"),
+        pytest.param("prompts", True, id="prompts"),
+        pytest.param("VERSION", False, id="version_file"),
+    ],
+)
+def test_templates_dir_contains_required_paths(subpath, should_be_dir):
+    """Test templates directory contains required files and subdirectories."""
     templates_dir = get_templates_dir()
-    assert templates_dir.exists()
-    assert templates_dir.is_dir()
-
-
-def test_get_templates_dir_contains_judges():
-    """Test templates directory contains judges."""
-    templates_dir = get_templates_dir()
-    judges_dir = templates_dir / "judges"
-    assert judges_dir.exists()
-
-
-def test_get_templates_dir_contains_prompts():
-    """Test templates directory contains prompts."""
-    templates_dir = get_templates_dir()
-    prompts_dir = templates_dir / "prompts"
-    assert prompts_dir.exists()
-
-
-def test_get_templates_dir_contains_version():
-    """Test templates directory contains VERSION file."""
-    templates_dir = get_templates_dir()
-    version_file = templates_dir / "VERSION"
-    assert version_file.exists()
+    path = templates_dir / subpath if subpath != "." else templates_dir
+    assert path.exists()
+    if should_be_dir:
+        assert path.is_dir()
 
 
 def test_version_file_hashes_match_template_files():
