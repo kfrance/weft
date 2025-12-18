@@ -19,7 +19,6 @@ from lw_coder.judge_loader import JudgeConfig
 from lw_coder.judge_orchestrator import execute_judges_parallel
 
 
-@pytest.mark.integration
 def test_execute_judges_parallel_with_real_llm(tmp_path: Path) -> None:
     """Test parallel execution of 2 judges with real DSPy calls.
 

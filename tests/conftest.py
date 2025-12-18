@@ -11,6 +11,23 @@ import yaml
 import lw_coder.hooks as hooks_module
 
 
+def _is_integration_test(request: pytest.FixtureRequest) -> bool:
+    """Check if the current test is an integration test based on file path.
+
+    Integration tests are detected by their location in the tests/integration/
+    directory rather than by pytest markers. This enables directory-based
+    test organization where test type is determined solely by file location.
+
+    Args:
+        request: The pytest fixture request object.
+
+    Returns:
+        True if the test file is located under tests/integration/, False otherwise.
+    """
+    test_file = Path(request.fspath)
+    return "tests/integration" in str(test_file) or "tests\\integration" in str(test_file)
+
+
 @dataclass
 class GitRepo:
     path: Path
@@ -92,10 +109,10 @@ def mock_sdk_runner(request, monkeypatch):
     This fixture is auto-used for all tests to ensure we never accidentally
     make real SDK API calls during testing. Returns a mock session ID.
 
-    Tests marked with @pytest.mark.integration will skip this mock.
+    Integration tests (in tests/integration/) skip this mock.
     """
-    # Skip mocking for integration tests
-    if request.node.get_closest_marker("integration"):
+    # Skip mocking for integration tests (detected by file path)
+    if _is_integration_test(request):
         return
 
     import lw_coder.code_command as code_command
@@ -114,9 +131,9 @@ def isolate_config(request, monkeypatch, tmp_path):
     path in tmp_path. This ensures tests use hardcoded defaults rather than
     reading from ~/.lw_coder/config.toml.
 
-    Tests marked with @pytest.mark.integration will skip this mock.
+    Integration tests (in tests/integration/) skip this mock.
     """
-    if request.node.get_closest_marker("integration"):
+    if _is_integration_test(request):
         return
 
     import lw_coder.config as config_module
@@ -138,14 +155,14 @@ def reset_hooks_global_state(request, monkeypatch, tmp_path):
     This prevents tests from reading the user's real ~/.lw_coder/config.toml
     which might have hooks configured that open GUI applications (e.g., code-oss).
 
-    Tests marked with @pytest.mark.integration will skip the Path.home mock
+    Integration tests (in tests/integration/) skip the Path.home mock
     but will still reset global state.
     """
     # Always reset global state before each test
     monkeypatch.setattr(hooks_module, "_global_manager", None)
 
     # For non-integration tests, also mock Path.home to prevent reading real config
-    if not request.node.get_closest_marker("integration"):
+    if not _is_integration_test(request):
         # Create a fake home directory with empty config
         fake_home = tmp_path / "fake_home"
         fake_home.mkdir(exist_ok=True)

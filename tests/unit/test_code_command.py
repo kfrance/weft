@@ -4,6 +4,7 @@ Focused tests for the code_command module. Per CLAUDE.md, we don't test
 interactive commands extensively - integration smoke tests cover the happy path.
 These tests focus on:
 - Pure function tests (_filter_env_vars)
+- Sandbox dependency check tests (_check_sandbox_dependencies)
 - Critical error path tests with minimal mocking
 - Patch capture workflow test (happy path with mocked SDK and CLI)
 """
@@ -11,15 +12,21 @@ These tests focus on:
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 import lw_coder.code_command as code_command
-from lw_coder.code_command import _filter_env_vars, run_code_command
+from lw_coder.code_command import (
+    _filter_env_vars,
+    _check_sandbox_dependencies,
+    run_code_command,
+    SandboxDependencyError,
+)
 from lw_coder.patch_utils import EmptyPatchError, PatchCaptureError
 from lw_coder.plan_validator import PlanValidationError
 from lw_coder.worktree_utils import WorktreeError
@@ -30,6 +37,9 @@ def test_run_code_command_validation_failure(monkeypatch, caplog, tmp_path: Path
     """Test run_code_command with plan validation failure."""
     # Setup
     plan_path = tmp_path / "plan.md"
+
+    # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap/socat)
+    monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
 
     # Mock load_plan_metadata to raise PlanValidationError
     def mock_load_plan_metadata(path):
@@ -60,6 +70,9 @@ def test_run_code_command_worktree_failure(monkeypatch, caplog, git_repo) -> Non
         "plan_id": "test-plan-fail",
         "status": "draft",
     })
+
+    # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap/socat)
+    monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
 
     # Mock load_prompts so we can reach the worktree preparation step
     mock_prompts = {
@@ -115,12 +128,121 @@ def test_filter_env_vars_no_matches(monkeypatch) -> None:
     assert result == {}
 
 
-def test_code_command_error_when_sha_mismatch(git_repo, caplog) -> None:
+class TestSandboxDependencyCheck:
+    """Tests for sandbox dependency checking.
+
+    These tests mock shutil.which to simulate presence/absence of sandbox
+    dependencies (bubblewrap and socat) without requiring actual binaries.
+    """
+
+    def test_sandbox_dependency_check_passes_when_both_installed(self) -> None:
+        """Verify check passes when both bwrap and socat are installed.
+
+        Mocks shutil.which to return paths for both binaries, simulating
+        a system where sandbox dependencies are correctly installed.
+        """
+        with patch.object(shutil, "which") as mock_which:
+            # Mock both binaries as found
+            mock_which.side_effect = lambda cmd: f"/usr/bin/{cmd}" if cmd in ["bwrap", "socat"] else None
+
+            # Should not raise any exception
+            _check_sandbox_dependencies()
+
+            # Verify both binaries were checked
+            assert mock_which.call_count == 2
+
+    def test_sandbox_dependency_check_fails_when_bwrap_missing(self) -> None:
+        """Verify check fails with clear error when bwrap is missing.
+
+        Mocks shutil.which to return None for bwrap, simulating a system
+        where bubblewrap is not installed.
+        """
+        with patch.object(shutil, "which") as mock_which:
+            # Mock bwrap as missing, socat as present
+            mock_which.side_effect = lambda cmd: None if cmd == "bwrap" else f"/usr/bin/{cmd}"
+
+            with pytest.raises(SandboxDependencyError) as exc_info:
+                _check_sandbox_dependencies()
+
+            # Verify error message mentions bwrap
+            assert "bubblewrap (bwrap)" in str(exc_info.value)
+            # Verify error includes installation instructions
+            assert "sudo apt install" in str(exc_info.value)
+
+    def test_sandbox_dependency_check_fails_when_socat_missing(self) -> None:
+        """Verify check fails with clear error when socat is missing.
+
+        Mocks shutil.which to return None for socat, simulating a system
+        where socat is not installed.
+        """
+        with patch.object(shutil, "which") as mock_which:
+            # Mock socat as missing, bwrap as present
+            mock_which.side_effect = lambda cmd: None if cmd == "socat" else f"/usr/bin/{cmd}"
+
+            with pytest.raises(SandboxDependencyError) as exc_info:
+                _check_sandbox_dependencies()
+
+            # Verify error message mentions socat
+            assert "socat" in str(exc_info.value)
+            # Verify error includes installation instructions
+            assert "sudo apt install" in str(exc_info.value)
+
+    def test_sandbox_dependency_check_fails_when_both_missing(self) -> None:
+        """Verify check fails listing both dependencies when both are missing.
+
+        Mocks shutil.which to return None for both binaries, simulating
+        a fresh system without any sandbox dependencies.
+        """
+        with patch.object(shutil, "which") as mock_which:
+            # Mock both binaries as missing
+            mock_which.return_value = None
+
+            with pytest.raises(SandboxDependencyError) as exc_info:
+                _check_sandbox_dependencies()
+
+            error_msg = str(exc_info.value)
+            # Verify error message lists both missing dependencies
+            assert "bubblewrap (bwrap)" in error_msg
+            assert "socat" in error_msg
+            # Verify error includes installation instructions
+            assert "sudo apt install bubblewrap socat" in error_msg
+
+    def test_run_code_command_fails_on_missing_sandbox_deps(
+        self, monkeypatch, caplog, tmp_path: Path
+    ) -> None:
+        """Verify run_code_command fails early when sandbox deps are missing.
+
+        This test ensures the dependency check is called early in the
+        command execution and returns error code 1 with appropriate logging.
+        """
+        # Mock _check_sandbox_dependencies to raise
+        def mock_check_deps() -> None:
+            raise SandboxDependencyError(
+                "Missing sandbox dependencies: bubblewrap (bwrap), socat. "
+                "Install with: sudo apt install bubblewrap socat"
+            )
+
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", mock_check_deps)
+
+        plan_path = tmp_path / "plan.md"
+
+        caplog.set_level(logging.ERROR)
+        exit_code = run_code_command(plan_path)
+
+        assert exit_code == 1
+        assert "Sandbox dependency check failed" in caplog.text
+        assert "bubblewrap" in caplog.text or "bwrap" in caplog.text
+
+
+def test_code_command_error_when_sha_mismatch(git_repo, caplog, monkeypatch) -> None:
     """Test run_code_command errors when plan SHA doesn't match HEAD.
 
     This is a critical safety feature that prevents coding against stale code.
     Uses git_repo fixture for real git operations - minimal mocking.
     """
+    # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap/socat)
+    monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+
     initial_sha = git_repo.latest_commit()
     extra_file = git_repo.path / "extra.txt"
     extra_file.write_text("extra", encoding="utf-8")
@@ -163,6 +285,9 @@ class TestCodeCommandPatchCapture:
             "status": "draft",
         })
 
+        # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap/socat)
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+
         # Mock all the components needed to reach the patch capture step
         mock_prompts = {
             "main_prompt": "Main prompt content",
@@ -200,6 +325,9 @@ class TestCodeCommandPatchCapture:
             "plan_id": "test-patch-error",
             "status": "draft",
         })
+
+        # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap/socat)
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
 
         mock_prompts = {
             "main_prompt": "Main prompt content",
@@ -239,6 +367,9 @@ class TestCodeCommandPatchCapture:
             "plan_id": "test-workflow",
             "status": "draft",
         })
+
+        # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap/socat)
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
 
         # Mock prompts
         mock_prompts = {

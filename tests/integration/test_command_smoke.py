@@ -50,7 +50,6 @@ def _get_head_sha(repo_root: Path) -> str:
     return result.stdout.strip()
 
 
-@pytest.mark.integration
 class TestPlanCommandSmoke:
     """Smoke tests for plan command setup phase."""
 
@@ -106,7 +105,6 @@ def _cleanup_worktree(repo_root: Path, plan_id: str) -> None:
     )
 
 
-@pytest.mark.integration
 class TestCodeCommandSmoke:
     """Smoke tests for code command setup phase."""
 
@@ -142,6 +140,18 @@ class TestCodeCommandSmoke:
                 code_command,
                 "run_sdk_session_sync",
                 lambda **kw: "mock-session-id"
+            )
+
+            # Mock patch capture (SDK session would normally create file changes)
+            monkeypatch.setattr(
+                code_command,
+                "capture_ai_patch",
+                lambda worktree_path: "mock patch content"
+            )
+            monkeypatch.setattr(
+                code_command,
+                "save_patch",
+                lambda content, path: None
             )
 
             # Mock subprocess.run in code_command module (the interactive CLI part)

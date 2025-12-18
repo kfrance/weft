@@ -21,7 +21,6 @@ from lw_coder.test_runner import (
 )
 
 
-@pytest.mark.integration
 class TestTestRunnerIntegration:
     """Real integration tests that execute Claude Code SDK to run tests."""
 

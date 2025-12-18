@@ -169,7 +169,6 @@ Verify implementation aligns with the original plan.
 """)
 
 
-@pytest.mark.integration
 def test_train_command_end_to_end(tmp_path: Path) -> None:
     """Full workflow test covering the complete happy path.
 
@@ -269,7 +268,6 @@ def test_train_command_end_to_end(tmp_path: Path) -> None:
     assert "candidate-001" in analysis_path.read_text()
 
 
-@pytest.mark.integration
 def test_train_command_multiple_samples(tmp_path: Path) -> None:
     """Test training with multiple samples."""
     try:

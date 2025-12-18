@@ -67,6 +67,55 @@ from .training_types import SessionMetadata, SubagentDefinition
 
 logger = get_logger(__name__)
 
+
+class SandboxDependencyError(Exception):
+    """Raised when required sandbox dependencies are not installed.
+
+    Claude Code's sandbox functionality requires bubblewrap (bwrap) and socat
+    to be installed on the system. If these dependencies are missing, the
+    sandbox will silently fail, allowing unrestricted file system access.
+
+    This error prevents silent failures by catching missing dependencies
+    at startup rather than discovering the sandbox is non-functional later.
+    """
+
+    pass
+
+
+def _check_sandbox_dependencies() -> None:
+    """Verify that sandbox dependencies (bubblewrap and socat) are installed.
+
+    Claude Code's sandbox uses bubblewrap (bwrap) for filesystem isolation
+    and socat for network proxying. Without these, the sandbox silently
+    fails and file writes are unrestricted.
+
+    This preflight check catches missing dependencies early, before any
+    SDK session setup, giving the user a clear error message with
+    installation instructions.
+
+    Raises:
+        SandboxDependencyError: If bwrap or socat are not found in PATH,
+            with a message listing missing dependencies and installation
+            instructions.
+    """
+    missing = []
+
+    # shutil.which returns None if the binary is not found in PATH
+    if shutil.which("bwrap") is None:
+        missing.append("bubblewrap (bwrap)")
+
+    if shutil.which("socat") is None:
+        missing.append("socat")
+
+    if missing:
+        missing_list = ", ".join(missing)
+        raise SandboxDependencyError(
+            f"Missing sandbox dependencies: {missing_list}. "
+            f"Claude Code sandbox requires these to be installed. "
+            f"Install with: sudo apt install bubblewrap socat"
+        )
+
+
 # Agent descriptions - single source of truth for both filesystem and programmatic agents
 AGENT_DESCRIPTIONS = {
     "code-review-auditor": "Reviews code changes for quality and compliance",
@@ -342,6 +391,15 @@ def run_code_command(
     """
     if no_hooks:
         logger.info("Hooks disabled via --no-hooks flag")
+
+    # Verify sandbox dependencies are installed before proceeding
+    # This catches missing bubblewrap/socat early, preventing silent sandbox failures
+    try:
+        _check_sandbox_dependencies()
+    except SandboxDependencyError as exc:
+        logger.error("Sandbox dependency check failed: %s", exc)
+        return 1
+
     # Resolve plan path
     if isinstance(plan_path, str):
         plan_path = Path(plan_path)

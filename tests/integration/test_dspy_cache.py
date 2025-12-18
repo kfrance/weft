@@ -29,7 +29,6 @@ from lw_coder.judge_executor import (
 from lw_coder.judge_loader import JudgeConfig
 
 
-@pytest.mark.integration
 def test_dspy_cache_creates_files(tmp_path: Path) -> None:
     """Verify DSPy cache actually writes files to disk.
 

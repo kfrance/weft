@@ -32,7 +32,6 @@ def run_lw_coder(*args: str, cwd: Path | None = None) -> subprocess.CompletedPro
     )
 
 
-@pytest.mark.integration
 class TestCliValidation:
     """Integration tests for CLI parameter validation."""
 
@@ -117,7 +116,6 @@ class TestCliValidation:
         assert "mutually exclusive" in result.stderr
 
 
-@pytest.mark.integration
 class TestCliInitCommand:
     """Integration tests for init command."""
 
