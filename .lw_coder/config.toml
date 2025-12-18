@@ -1,0 +1,10 @@
+# Repository-level configuration for lw_coder
+
+# Required: Schema version for forward compatibility
+schema_version = "1.0"
+
+# Worktree file synchronization
+[worktree.file_sync]
+enabled = false
+patterns = [
+]
