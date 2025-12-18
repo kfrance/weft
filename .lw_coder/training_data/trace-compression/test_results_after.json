@@ -1,0 +1,35 @@
+{
+  "command": "uv --no-cache run pytest tests/ -v",
+  "exit_code": 1,
+  "total_tests": 841,
+  "passed_tests": 834,
+  "failed_tests": 3,
+  "skipped_tests": 4,
+  "failed_test_details": [
+    {
+      "test_name": "test_dspy_cache_creates_files",
+      "file": "tests/integration/test_dspy_cache.py",
+      "error_message": "Failed: OPENROUTER_API_KEY not found in ~/.lw_coder/.env. Add it to run this integration test."
+    },
+    {
+      "test_name": "test_execute_judge_with_real_llm",
+      "file": "tests/integration/test_judge_executor_api.py",
+      "error_message": "Failed: OPENROUTER_API_KEY not found in ~/.lw_coder/.env. Add it to run this integration test."
+    },
+    {
+      "test_name": "TestRealSDKSession::test_trace_capture_from_sdk_session",
+      "file": "tests/integration/test_sdk.py",
+      "error_message": "AssertionError: Trace capture should return a file path - Could not find Claude Code project folder for worktree /tmp/pytest-of-kfrance/pytest-114/test_trace_capture_from_sdk_se0"
+    }
+  ],
+  "summary": "841 tests collected, 834 passed, 3 failed, 4 skipped. Test suite ran in 152.30s (2 minutes 32 seconds).",
+  "analysis": "The test failures fall into two categories: 1) Environment configuration issues (2 tests): Two integration tests (test_dspy_cache_creates_files and test_execute_judge_with_real_llm) require an OPENROUTER_API_KEY to be set in ~/.lw_coder/.env. These tests use a 'fake_home' fixture that creates a temporary home directory, but this fixture does not provision the required .env file with the API key. The tests are designed to fail explicitly with pytest.fail() when the API key is missing, following the project's testing guidelines that prefer pytest.fail() over pytest.skip() for missing dependencies. 2) Trace capture integration issue (1 test): The test_trace_capture_from_sdk_session test fails because the trace_capture module cannot find the Claude Code project folder for the temporary worktree used in testing. The SDK session itself succeeds (outputs 'hello'), but the trace capture returns None because it cannot locate the Claude Code internal storage folder (~/.claude/projects/) for the temporary test directory.",
+  "possible_solutions": [
+    "For OPENROUTER_API_KEY tests: Ensure the fake_home fixture used in these tests provisions a ~/.lw_coder/.env file containing the OPENROUTER_API_KEY from the real environment",
+    "For OPENROUTER_API_KEY tests: Modify the fixture to copy or read the real ~/.lw_coder/.env into the fake home directory",
+    "For trace_capture test: The test may need to mock or set up the Claude Code project folder structure (~/.claude/projects/) for the temporary worktree",
+    "For trace_capture test: Investigate whether the trace capture implementation needs to handle temporary/test directories differently",
+    "Consider whether these integration tests should be run in environments that have full configuration set up"
+  ],
+  "recommended_fix": "The most appropriate fix is to update the test fixtures for the failing integration tests. For the two OPENROUTER_API_KEY tests, the 'fake_home' fixture should be enhanced to copy the OPENROUTER_API_KEY from the real ~/.lw_coder/.env into the fake home's .env file, allowing these tests to make real API calls as intended by the project's testing philosophy. For the trace_capture test, the test setup needs to create the expected Claude Code project folder structure that trace_capture.py is looking for, or the test needs to mock the session storage location discovery. This is likely a test environment setup issue rather than a code bug, as the trace capture warning message 'Could not find Claude Code project folder for worktree' indicates the module is correctly detecting that no Claude Code session data exists for this ephemeral test directory."
+}

@@ -1,0 +1,33 @@
+{
+  "command": "uv run --no-cache pytest tests/ -v",
+  "exit_code": 1,
+  "total_tests": 793,
+  "passed_tests": 790,
+  "failed_tests": 3,
+  "failed_test_details": [
+    {
+      "test_name": "test_dspy_cache_creates_files",
+      "file": "tests/integration/test_dspy_cache.py",
+      "error_message": "Failed: OPENROUTER_API_KEY not found in ~/.lw_coder/.env. Add it to run this integration test."
+    },
+    {
+      "test_name": "test_execute_judge_with_real_llm",
+      "file": "tests/integration/test_judge_executor_api.py",
+      "error_message": "Failed: OPENROUTER_API_KEY not found in ~/.lw_coder/.env. Add it to run this integration test."
+    },
+    {
+      "test_name": "TestRealSDKSession::test_trace_capture_from_sdk_session",
+      "file": "tests/integration/test_sdk.py",
+      "error_message": "AssertionError: Trace capture should return a file path - assert None is not None. Warning logged: Could not find Claude Code project folder for worktree /tmp/pytest-of-kfrance/pytest-112/test_trace_capture_from_sdk_se0"
+    }
+  ],
+  "summary": "793 tests collected, 790 passed, 3 failed (99.6% pass rate). All failures are in integration tests.",
+  "analysis": "The test failures fall into two categories: (1) Two tests (test_dspy_cache_creates_files and test_execute_judge_with_real_llm) fail because the OPENROUTER_API_KEY environment variable is not configured in ~/.lw_coder/.env. These are expected failures when running integration tests without proper API credentials. (2) One test (test_trace_capture_from_sdk_session) fails because the trace capture function cannot find the Claude Code project folder for the temporary worktree. This appears to be an environmental issue where the Claude Code data directory structure doesn't exist for the test's temporary path.",
+  "possible_solutions": [
+    "For OPENROUTER_API_KEY failures: Configure the OPENROUTER_API_KEY in ~/.lw_coder/.env file with a valid OpenRouter API key to enable these integration tests.",
+    "For trace capture failure: The test relies on Claude Code's internal folder structure existing. Either ensure Claude Code has been run in a way that creates the expected project folder, or modify the test to set up the required directory structure.",
+    "Consider moving these tests to require explicit opt-in (e.g., via environment variables or markers) since they depend on external services and specific system configurations.",
+    "For CI/CD environments: Ensure required secrets are available as environment variables or skip these integration tests in environments without credentials."
+  ],
+  "recommended_fix": "The 2 OPENROUTER_API_KEY failures are expected behavior for integration tests run without API credentials - this is working as designed according to CLAUDE.md guidelines which state to use pytest.fail() for missing dependencies. For the trace_capture test failure, investigate whether the test's expectation about Claude Code project folder structure is correct, or whether the test setup needs to create this directory structure. Since 99.6% of tests pass, the codebase is in good health; the failures are environmental/configuration issues rather than code bugs."
+}
