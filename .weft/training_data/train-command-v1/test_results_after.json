@@ -1,0 +1,14 @@
+{
+  "command": "uv run --no-cache pytest -m ''",
+  "exit_code": 0,
+  "total_tests": 746,
+  "passed_tests": 746,
+  "failed_tests": 0,
+  "failed_test_details": [],
+  "summary": "All 746 tests passed successfully across both unit and integration test suites. The test run completed in approximately 3 minutes and 11 seconds with 20 warnings (all related to Pydantic serialization in DSPy cache tests, which are non-critical).",
+  "analysis": "The test suite demonstrates comprehensive coverage with a healthy balance of unit tests (710 tests in tests/unit/) and integration tests (36 tests in tests/integration/). All tests passed on the first run, indicating: (1) The codebase is in a stable, working state. (2) Dependencies are properly configured and available. (3) Both mocked unit tests and real API integration tests are functioning correctly. (4) The DSPy caching mechanism is working as expected, though it produces some Pydantic serialization warnings that don't affect test outcomes. The test categories cover critical areas including: command functionality (plan, code, init, finalize, abandon, eval, train), SDK integration, git operations, hooks, executors (Droid and Claude Code), completion systems, configuration management, and specialized features like backup/recovery workflows.",
+  "possible_solutions": [
+    "No fixes needed - all tests are passing"
+  ],
+  "recommended_fix": "No action required. The codebase is healthy with 100% test pass rate. The Pydantic serialization warnings in DSPy cache tests are cosmetic and relate to internal DSPy/Pydantic compatibility - they do not indicate functional issues and can be safely ignored or addressed in a future DSPy library update if desired."
+}
