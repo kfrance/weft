@@ -4,8 +4,7 @@ In weaving, the **weft** is the thread that passes back and forth through the wa
 
 **Weft** is a self-optimizing coding assistant that weaves specialized AI agents—coders, reviewers, testers—into production-ready software. Like the weft thread in a loom, it's the cross-cutting intelligence that binds individual capabilities into something useful.
 
-**Supported Platforms**: Linux (Ubuntu 20.04+, Debian 11+, Fedora, etc.)
-**Not Supported**: macOS, Windows (coming soon with Claude Code CLI integration)
+**Supported Platforms**: Linux
 
 ## Highlights
 - Orchestrates specialized AI agents for coding, review, and testing
@@ -14,21 +13,29 @@ In weaving, the **weft** is the thread that passes back and forth through the wa
 
 ## Requirements
 
-- Python 3.10+
-- Git
-- `rsync` command (for DSPy cache synchronization in worktrees)
-  - Linux/macOS: Usually pre-installed
-  - Windows: Install via WSL, Cygwin, or `choco install rsync`
+- **uv** (Python package installer and manager)
+  - Install with: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+  - uv will automatically manage Python 3.12+ installation
+- **Git** (2.7.0 or later for worktree support)
+  - Verify version: `git --version`
+- **Claude Code CLI**
+  - Website: [claude.ai/code](https://claude.ai/code)
+  - Install with: `curl -fsSL https://claude.ai/install.sh | bash`
+- **rsync** (for DSPy cache synchronization in worktrees)
+  - Usually pre-installed on Linux
   - Verify installation: `rsync --version`
-
-If `rsync` is not available, commands will run but cache synchronization will be disabled.
+  - If unavailable, commands will run but cache synchronization will be disabled
 
 ## Installation
 
 To install `weft` as a system-wide command that works from any directory:
 
 ```bash
-cd /home/kfrance/weft
+# Clone the repository (if you haven't already)
+git clone https://github.com/kfrance/weft.git
+cd weft
+
+# Install the tool
 uv tool install --force .
 ```
 
@@ -38,6 +45,57 @@ For an editable install (where code changes are immediately reflected without re
 
 ```bash
 uv tool install --force --editable .
+```
+
+## Tab Completion
+
+Weft supports intelligent tab completion for all commands, making it faster to work with plans, files, and options.
+
+### Enabling Tab Completion
+
+**For Bash:**
+
+```bash
+weft completion install
+```
+
+This automatically configures tab completion by creating `~/.bash_completion.d/weft` and updating your `~/.bashrc`.
+
+**For Zsh:**
+
+```bash
+# Add to ~/.zshrc
+autoload -U bashcompinit
+bashcompinit
+eval "$(register-python-argcomplete weft)"
+```
+
+### What Gets Completed
+
+- **Commands**: `weft <TAB>` shows all available commands
+- **Plan IDs**: Commands like `code`, `eval`, `abandon`, and `recover-plan` complete plan identifiers
+- **File paths**: Arguments expecting files complete from your filesystem
+- **Options**: `--<TAB>` shows available flags for each command
+- **Model names**: `--model <TAB>` completes with `sonnet`, `opus`, `haiku`
+
+### Examples
+
+```bash
+# Complete command names
+weft <TAB>
+# Shows: code  eval  plan  init  train  abandon  recover-plan  ...
+
+# Complete plan IDs
+weft code <TAB>
+# Shows plan files from .weft/tasks/
+
+# Complete with status information
+weft recover-plan <TAB>
+# Shows: feature-auth (exists)  feature-export (missing)
+
+# Complete model options
+weft code plan.md --model <TAB>
+# Shows: sonnet  opus  haiku
 ```
 
 ## Quick Start
@@ -60,11 +118,38 @@ Get started with weft in a new project:
    weft code <plan_id>
    ```
 
+## Commands Overview
+
+Weft provides a suite of commands for the complete development lifecycle:
+
+| Command | Purpose | Details |
+|---------|---------|---------|
+| `plan` | Interactively create implementation plans | [Plan Command](#plan-command-setup) |
+| `code` | Execute a plan using Claude Code CLI | [Code Command](#code-command) |
+| `eval` | Evaluate code quality and create training data | [Eval Command](#eval-command) |
+| `train` | Generate improved prompt candidates from training data | [Train Command](#train-command) |
+| `init` | Initialize weft in a new project | [Init Command](#init-command) |
+| `abandon` | Clean up failed or unwanted plans | [Abandon Command](#abandon-command) |
+| `recover-plan` | Restore backed-up plan files | [Recover Plan Command](#recover-plan-command) |
+| `completion` | Install shell tab completion | [Tab Completion](#tab-completion) |
+
 ## Setup and Authentication
 
-### Configuration
+### Prerequisites
 
-weft loads credentials from `~/.weft/.env` in your home directory:
+Before configuring weft, ensure you have:
+
+1. **Claude Code CLI installed** (see [Requirements](#requirements))
+2. **Authenticated with Claude Code CLI**:
+   ```bash
+   # Run claude to authenticate (opens browser for login)
+   claude
+   ```
+   This creates your Claude authentication in `~/.claude/` which weft will use.
+
+### Weft Configuration
+
+weft also requires OpenRouter API credentials for judges and training. Configure them in `~/.weft/.env`:
 
 1. Create the configuration directory:
    ```bash
@@ -80,13 +165,9 @@ weft loads credentials from `~/.weft/.env` in your home directory:
 
 See [docs/code-config.md](docs/code-config.md) for detailed configuration options.
 
-### Plan Command Setup
+## Plan Command Setup
 
-The `weft plan` command supports multiple AI coding assistants for interactive plan development. By default, it uses **Claude Code CLI**, but you can also use Factory AI's Droid CLI.
-
-#### Using Claude Code CLI (Default)
-
-Claude Code CLI is the default executor and handles authentication automatically. No setup required.
+The `weft plan` command uses Claude Code CLI for interactive plan development. Once you've authenticated with Claude Code CLI (see [Prerequisites](#prerequisites)), you can create plans:
 
 ```bash
 # Interactive plan creation from an idea file
@@ -99,29 +180,7 @@ weft plan --text "Create a feature to export user metrics"
 weft plan --text "Create a feature" --model opus
 ```
 
-#### Using Droid CLI (Optional)
-
-To use Droid instead of Claude Code CLI, add the `--tool droid` option:
-
-```bash
-weft plan idea.md --tool droid
-weft plan --text "Create a feature" --tool droid
-```
-
-Before using Droid, you must authenticate once:
-
-1. **One-time authentication**: Run `droid` once to login via your browser:
-   ```bash
-   droid
-   ```
-   This will open a browser window for authentication and save credentials to `~/.factory/auth.json`.
-
-2. **Verify authentication**: Ensure the auth file exists:
-   ```bash
-   ls ~/.factory/auth.json
-   ```
-
-After authenticating, you can use Droid with `--tool droid` as shown above.
+The plan command opens an interactive Claude Code CLI session where you can discuss and refine your implementation plan. The resulting plan is saved to `.weft/tasks/<plan-id>.md`.
 
 ## Init Command
 
@@ -170,7 +229,7 @@ Overwrite existing judges? (y/n):
 
 ## Code Command
 
-The `weft code` command executes plans created with the `plan` command. It validates the plan, sets up a worktree, and runs the selected coding tool to implement the plan.
+The `weft code` command executes plans created with the `plan` command. It validates the plan, sets up a worktree, and uses Claude Code CLI to implement the plan.
 
 ### Basic Usage
 
@@ -178,20 +237,15 @@ The `weft code` command executes plans created with the `plan` command. It valid
 # Run with defaults (Claude Code CLI with sonnet model)
 weft code plan.md
 
-# Use Droid instead of Claude Code CLI
-weft code plan.md --tool droid
-
-# Use Claude Code CLI with a specific model
+# Use a specific model
 weft code plan.md --model opus
-weft code plan.md --tool claude-code --model haiku
+weft code plan.md --model haiku
 ```
 
 ### Parameters
 
 - `<plan_path>`: Path to the plan file to execute (required)
-- `--tool <tool>`: Coding tool to use. Options: `claude-code` (default), `droid`
-- `--model <model>`: Model variant for Claude Code CLI. Options: `sonnet` (default), `opus`, `haiku`
-  - Note: The `--model` parameter only works with `claude-code` and cannot be used with `droid`
+- `--model <model>`: Model variant to use. Options: `sonnet` (default), `opus`, `haiku`
 - `--debug`: Enable debug-level logging for troubleshooting
 
 ### Examples
@@ -200,10 +254,7 @@ weft code plan.md --tool claude-code --model haiku
 # Execute a plan with default settings
 weft code .weft/tasks/my-feature.md
 
-# Use Droid for execution
-weft code .weft/tasks/my-feature.md --tool droid
-
-# Use Claude Code CLI with opus model
+# Use opus model
 weft code .weft/tasks/my-feature.md --model opus
 
 # Enable debug logging
@@ -494,16 +545,6 @@ Next steps:
   3. If satisfactory, copy to prompts/active/ to use
 ```
 
-### Directory Structure Migration
-
-The train command uses the new prompt directory structure:
-
-- **New location**: `.weft/prompts/active/` (for active prompts)
-- **Legacy location**: `.weft/optimized_prompts/` (auto-migrated)
-- **Candidates**: `.weft/prompts/candidates/`
-
-When you run `train` or `load_prompts`, existing prompts in the old `optimized_prompts/` directory are automatically migrated to `prompts/active/`.
-
 ### Workflow
 
 The recommended workflow for prompt optimization:
@@ -671,15 +712,6 @@ If a plan file already exists and you want to restore it from backup:
 weft recover-plan my-feature --force
 ```
 
-### Tab Completion
-
-The recover-plan command supports tab completion for plan IDs. Press TAB after typing `weft recover-plan` to see available backups with their status:
-
-```bash
-weft recover-plan <TAB>
-# Shows: feature-auth (exists)  feature-export (missing)
-```
-
 ### Important: Backup Timing
 
 **Backups are created when you run `weft plan`, not when you manually edit files.** The backup timestamp shown in the listing indicates when the backup was created, which may be older than your current plan file if you've manually edited it since running the `plan` command.
@@ -714,13 +746,11 @@ enabled = true
 
 - **plan_file_created**: Triggered when plan file is created during interactive session
 - **code_sdk_complete**: Triggered after SDK session completes, before CLI resume
-- **eval_complete**: Triggered after evaluation completes (requires round-out-eval-command)
 
 ### Available Variables
 
 Use `${variable}` syntax in commands:
 - All hooks: `${worktree_path}`, `${plan_path}`, `${plan_id}`, `${repo_root}`
-- eval_complete also has: `${training_data_dir}`
 
 ### Common Examples
 
@@ -733,11 +763,6 @@ enabled = true
 # Desktop notification when code completes
 [hooks.code_sdk_complete]
 command = "notify-send 'weft' 'Code generation complete for ${plan_id}'"
-enabled = true
-
-# Open file manager to training data
-[hooks.eval_complete]
-command = "nautilus ${training_data_dir}"
 enabled = true
 ```
 
