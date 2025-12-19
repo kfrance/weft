@@ -1,27 +1,27 @@
 # Configuration Guide
 
-This document describes the configuration for lw_coder.
+This document describes the configuration for weft.
 
 ## Configuration Locations
 
-lw_coder uses two types of configuration:
+weft uses two types of configuration:
 
-1. **User-level secrets**: `~/.lw_coder/.env` - API keys and credentials
-2. **Repository-level config**: `.lw_coder/config.toml` - Per-repository settings like worktree file sync
+1. **User-level secrets**: `~/.weft/.env` - API keys and credentials
+2. **Repository-level config**: `.weft/config.toml` - Per-repository settings like worktree file sync
 
 ## Setup
 
-1. Create the `.lw_coder` directory in your home directory:
+1. Create the `.weft` directory in your home directory:
    ```bash
-   mkdir -p ~/.lw_coder
+   mkdir -p ~/.weft
    ```
 
 2. Create the `.env` file:
    ```bash
-   touch ~/.lw_coder/.env
+   touch ~/.weft/.env
    ```
 
-3. Add your API keys to `~/.lw_coder/.env`:
+3. Add your API keys to `~/.weft/.env`:
    ```bash
    # Required for DSPy to use OpenRouter
    OPENROUTER_API_KEY=your-api-key-here
@@ -30,20 +30,20 @@ lw_coder uses two types of configuration:
    OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
 
    # Optional: Your app name for OpenRouter analytics
-   OPENROUTER_APP_NAME=lw_coder
+   OPENROUTER_APP_NAME=weft
    ```
 
-4. Run `lw_coder code <plan_path>` to generate prompts and execute coding tasks
+4. Run `weft code <plan_path>` to generate prompts and execute coding tasks
 
 ## Environment Variables for DSPy
 
-lw_coder uses DSPy for prompt generation and optimization. DSPy requires access to LLM providers via environment variables.
+weft uses DSPy for prompt generation and optimization. DSPy requires access to LLM providers via environment variables.
 
 ### OpenRouter Configuration
 
 The recommended LLM provider is OpenRouter, which provides access to multiple models through a single API.
 
-Set these variables in your `~/.lw_coder/.env` file:
+Set these variables in your `~/.weft/.env` file:
 
 ```bash
 # Required for DSPy to use OpenRouter
@@ -53,7 +53,7 @@ OPENROUTER_API_KEY=your-api-key-here
 OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
 
 # Optional: Your app name for OpenRouter analytics
-OPENROUTER_APP_NAME=lw_coder
+OPENROUTER_APP_NAME=weft
 ```
 
 ### DSPy Caching
@@ -61,8 +61,8 @@ OPENROUTER_APP_NAME=lw_coder
 DSPy caches LLM responses to improve performance and reduce API costs.
 
 **Cache Locations:**
-- Global cache: `~/.lw_coder/dspy_cache/`
-- Worktree cache: `<worktree>/.lw_coder/dspy_cache/`
+- Global cache: `~/.weft/dspy_cache/`
+- Worktree cache: `<worktree>/.weft/dspy_cache/`
 
 **How It Works:**
 - Cache entries are automatically synced to worktrees before command execution
@@ -81,7 +81,7 @@ DSPy caches LLM responses to improve performance and reduce API costs.
 - Commands continue to work without cache sync, just without worktree cache sharing
 
 **Manual Cache Management:**
-- Clear cache: `rm -rf ~/.lw_coder/dspy_cache`
+- Clear cache: `rm -rf ~/.weft/dspy_cache`
 - Verify rsync: `which rsync`
 
 **Troubleshooting:**
@@ -93,58 +93,58 @@ DSPy caches LLM responses to improve performance and reduce API costs.
 
 Configuration is validated when loading:
 
-- **Missing `~/.lw_coder/.env`**: Error raised with instructions to create the file
+- **Missing `~/.weft/.env`**: Error raised with instructions to create the file
 - **Unreadable file**: Error if the file exists but cannot be read
-- **Invalid path**: Error if `~/.lw_coder/.env` is a directory instead of a file
+- **Invalid path**: Error if `~/.weft/.env` is a directory instead of a file
 
 ### Error Messages
 
 The configuration loader provides actionable error messages:
 
 ```
-HomeEnvError: Environment file not found: /home/user/.lw_coder/.env
-Create ~/.lw_coder/.env with required secrets (e.g., OPENROUTER_API_KEY).
+HomeEnvError: Environment file not found: /home/user/.weft/.env
+Create ~/.weft/.env with required secrets (e.g., OPENROUTER_API_KEY).
 ```
 
 ```
-HomeEnvError: Environment path is not a file: /home/user/.lw_coder/.env
-~/.lw_coder/.env must be a regular file.
+HomeEnvError: Environment path is not a file: /home/user/.weft/.env
+~/.weft/.env must be a regular file.
 ```
 
 ```
-HomeEnvError: Cannot read environment file: /home/user/.lw_coder/.env
+HomeEnvError: Cannot read environment file: /home/user/.weft/.env
 Error: [Errno 13] Permission denied
 ```
 
 ## Security Considerations
 
-- The `~/.lw_coder/.env` file contains sensitive API keys and should not be committed to version control
-- Environment variables are loaded into the process environment when lw_coder runs
-- The DSPy cache at `~/.lw_coder/dspy_cache/` stores LLM responses in plaintext
+- The `~/.weft/.env` file contains sensitive API keys and should not be committed to version control
+- Environment variables are loaded into the process environment when weft runs
+- The DSPy cache at `~/.weft/dspy_cache/` stores LLM responses in plaintext
 - Standard filesystem permissions protect these files on single-user systems
-- On shared systems, consider setting restrictive permissions: `chmod 600 ~/.lw_coder/.env`
+- On shared systems, consider setting restrictive permissions: `chmod 600 ~/.weft/.env`
 
 ## Troubleshooting
 
 **Error: Environment file not found**
-- Ensure `~/.lw_coder/.env` exists
-- Check that you're running lw_coder as the correct user
-- Verify the path with `ls -la ~/.lw_coder/`
+- Ensure `~/.weft/.env` exists
+- Check that you're running weft as the correct user
+- Verify the path with `ls -la ~/.weft/`
 
 **Environment variables not loading**
 - Verify the `.env` file syntax (KEY=value format, one per line)
 - Check for typos in variable names
 - Ensure no extra spaces around the `=` sign
-- Test by running `cat ~/.lw_coder/.env`
+- Test by running `cat ~/.weft/.env`
 
 **Permission denied errors**
-- Check file permissions: `ls -l ~/.lw_coder/.env`
-- Ensure the file is readable: `chmod 644 ~/.lw_coder/.env`
-- Verify directory permissions: `chmod 755 ~/.lw_coder`
+- Check file permissions: `ls -l ~/.weft/.env`
+- Ensure the file is readable: `chmod 644 ~/.weft/.env`
+- Verify directory permissions: `chmod 755 ~/.weft`
 
 ## Host Execution Configuration
 
-The `lw_coder code` command executes coding agents directly on your Linux host using Git worktrees for isolated execution. No Docker setup is required.
+The `weft code` command executes coding agents directly on your Linux host using Git worktrees for isolated execution. No Docker setup is required.
 
 ### Prerequisites
 
@@ -158,21 +158,21 @@ The `lw_coder code` command executes coding agents directly on your Linux host u
 
 **Not Supported**: macOS, Windows (coming soon with Claude Code CLI integration)
 
-If you're running on an unsupported platform, `lw_coder` will emit a warning on startup but may still function if you have the required tools available.
+If you're running on an unsupported platform, `weft` will emit a warning on startup but may still function if you have the required tools available.
 
 ### Environment Variable Forwarding
 
-By default, lw_coder forwards environment variables matching the pattern `OPENROUTER_*` to the host execution context. This ensures that API credentials are available to the coding agents.
+By default, weft forwards environment variables matching the pattern `OPENROUTER_*` to the host execution context. This ensures that API credentials are available to the coding agents.
 
-The forwarding behavior is hardcoded in `src/lw_coder/code_command.py` and currently includes:
+The forwarding behavior is hardcoded in `src/weft/code_command.py` and currently includes:
 - `OPENROUTER_*` pattern (matches all OpenRouter-related variables)
 
 ### Git Worktree Isolation
 
-Code execution occurs in isolated Git worktrees created under `.lw_coder/runs/<plan_id>/`:
+Code execution occurs in isolated Git worktrees created under `.weft/runs/<plan_id>/`:
 
 ```
-.lw_coder/runs/
+.weft/runs/
 └── my-plan/
     └── 20251009_143000/
         ├── prompts/
@@ -192,11 +192,11 @@ Run directories are automatically pruned after **30 days**. The pruning logic:
 - Skips the currently active run
 - Removes empty plan directories after all runs are pruned
 
-**Note**: If you need to preserve run artifacts long-term, copy them outside the `.lw_coder/runs/` directory.
+**Note**: If you need to preserve run artifacts long-term, copy them outside the `.weft/runs/` directory.
 
 ## Repository-Level Configuration
 
-Repository-level settings are stored in `.lw_coder/config.toml` at the root of your repository. This file is created automatically when you run `lw_coder init`.
+Repository-level settings are stored in `.weft/config.toml` at the root of your repository. This file is created automatically when you run `weft init`.
 
 ### Configuration Schema
 
@@ -218,7 +218,7 @@ max_total_size_mb = 500          # Max total size in MB (default: 500)
 
 ### Worktree File Synchronization
 
-When running `lw_coder code`, the coding agent executes in an isolated Git worktree. Files that are not tracked by Git (like `.env` files with secrets) won't be present in the worktree by default.
+When running `weft code`, the coding agent executes in an isolated Git worktree. Files that are not tracked by Git (like `.env` files with secrets) won't be present in the worktree by default.
 
 The worktree file sync feature copies specified untracked files from your main repository to the worktree before execution, ensuring tests and code have access to necessary configuration files.
 

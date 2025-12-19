@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from claude_agent_sdk import AgentDefinition
 
-from lw_coder.code_command import _build_agent_definitions, AGENT_DESCRIPTIONS
+from weft.code_command import _build_agent_definitions, AGENT_DESCRIPTIONS
 
 
 class TestBuildAgentDefinitions:

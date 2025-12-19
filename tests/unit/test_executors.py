@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lw_coder.executors import (
+from weft.executors import (
     ClaudeCodeExecutor,
     DroidExecutor,
     Executor,
@@ -88,17 +88,17 @@ class TestDroidExecutor:
         # The path should be quoted (shlex.quote uses single quotes for safety)
         assert "prompt with spaces" in command
 
-    @patch("lw_coder.droid_auth.check_droid_auth")
+    @patch("weft.droid_auth.check_droid_auth")
     def test_check_auth_success(self, mock_check_droid_auth: MagicMock) -> None:
         """Test check_auth calls check_droid_auth."""
         executor = DroidExecutor()
         executor.check_auth()
         mock_check_droid_auth.assert_called_once()
 
-    @patch("lw_coder.droid_auth.check_droid_auth")
+    @patch("weft.droid_auth.check_droid_auth")
     def test_check_auth_raises_executor_error(self, mock_check_droid_auth: MagicMock) -> None:
         """Test check_auth raises ExecutorError on auth failure."""
-        from lw_coder.droid_auth import DroidAuthError
+        from weft.droid_auth import DroidAuthError
 
         mock_check_droid_auth.side_effect = DroidAuthError("Auth failed")
         executor = DroidExecutor()

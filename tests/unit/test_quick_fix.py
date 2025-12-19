@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.plan_validator import load_plan_metadata
-from lw_coder.quick_fix import QuickFixError, create_quick_fix_plan, generate_quick_fix_id
+from weft.plan_validator import load_plan_metadata
+from weft.quick_fix import QuickFixError, create_quick_fix_plan, generate_quick_fix_id
 
 from conftest import GitRepo
 
@@ -137,7 +137,7 @@ class TestCreateQuickFixPlan:
     def test_valid_text(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test plan creation with valid text."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         plan_path = create_quick_fix_plan("Fix the login button styling")
@@ -156,7 +156,7 @@ class TestCreateQuickFixPlan:
     def test_empty_text(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that empty text is rejected."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         with pytest.raises(QuickFixError, match="Text cannot be empty"):
@@ -165,7 +165,7 @@ class TestCreateQuickFixPlan:
     def test_whitespace_only_text(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that whitespace-only text is rejected."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         with pytest.raises(QuickFixError, match="Text cannot be empty"):
@@ -174,7 +174,7 @@ class TestCreateQuickFixPlan:
     def test_multiline_text_preserved(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that multi-line text input is preserved exactly."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         text = "Fix login\n\nUpdate button styles\nAdd hover effect"
@@ -186,7 +186,7 @@ class TestCreateQuickFixPlan:
     def test_creates_tasks_directory(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that tasks directory is created if it doesn't exist."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         assert not tasks_dir.exists()
 
         plan_path = create_quick_fix_plan("Test fix")
@@ -207,7 +207,7 @@ class TestCreateQuickFixPlan:
     def test_filesystem_error_handling(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test handling of filesystem errors during plan creation."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         # Mock write_text to raise an OSError
@@ -218,7 +218,7 @@ class TestCreateQuickFixPlan:
     def test_non_string_text(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that non-string text is rejected."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         with pytest.raises(QuickFixError, match="Text must be a string"):
@@ -227,7 +227,7 @@ class TestCreateQuickFixPlan:
     def test_sequential_creation(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that multiple quick fixes get sequential IDs."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         plan1 = create_quick_fix_plan("First fix")
@@ -258,7 +258,7 @@ class TestPlanValidationIntegration:
     def test_generated_plan_passes_validation(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that a generated plan file passes load_plan_metadata validation."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         plan_path = create_quick_fix_plan("Test fix for validation")
@@ -275,7 +275,7 @@ class TestPlanValidationIntegration:
     def test_plan_id_matches_pattern(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that generated plan_id matches validation pattern."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         plan_path = create_quick_fix_plan("Test fix")
@@ -289,7 +289,7 @@ class TestPlanValidationIntegration:
     def test_plan_id_uniqueness(self, git_repo: GitRepo, monkeypatch) -> None:
         """Test that each generated plan has a unique plan_id."""
         monkeypatch.chdir(git_repo.path)
-        tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+        tasks_dir = git_repo.path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         plan1 = create_quick_fix_plan("First fix")

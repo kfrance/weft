@@ -13,7 +13,7 @@ import pytest
 
 from claude_agent_sdk import AgentDefinition, ResultMessage
 
-from lw_coder.sdk_runner import (
+from weft.sdk_runner import (
     run_sdk_session,
     run_sdk_session_sync,
     SDKRunnerError,
@@ -48,7 +48,7 @@ def test_no_proxy_restored_on_sdk_error(tmp_path: Path, monkeypatch):
             pass
 
     monkeypatch.setattr(
-        "lw_coder.sdk_runner.ClaudeSDKClient",
+        "weft.sdk_runner.ClaudeSDKClient",
         MockSDKClient
     )
 
@@ -115,8 +115,8 @@ def test_agents_parameter_passed_to_options(tmp_path: Path, monkeypatch):
         async def receive_response(self):
             yield mock_result
 
-    monkeypatch.setattr("lw_coder.sdk_runner.ClaudeAgentOptions", MockAgentOptions)
-    monkeypatch.setattr("lw_coder.sdk_runner.ClaudeSDKClient", MockSDKClient)
+    monkeypatch.setattr("weft.sdk_runner.ClaudeAgentOptions", MockAgentOptions)
+    monkeypatch.setattr("weft.sdk_runner.ClaudeSDKClient", MockSDKClient)
 
     # Create test agents
     test_agents = {
@@ -186,8 +186,8 @@ def test_agents_parameter_optional(tmp_path: Path, monkeypatch):
         async def receive_response(self):
             yield mock_result
 
-    monkeypatch.setattr("lw_coder.sdk_runner.ClaudeAgentOptions", MockAgentOptions)
-    monkeypatch.setattr("lw_coder.sdk_runner.ClaudeSDKClient", MockSDKClient)
+    monkeypatch.setattr("weft.sdk_runner.ClaudeAgentOptions", MockAgentOptions)
+    monkeypatch.setattr("weft.sdk_runner.ClaudeSDKClient", MockSDKClient)
 
     # Run session WITHOUT agents parameter
     session_id = run_sdk_session_sync(

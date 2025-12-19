@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.abandon_command import run_abandon_command
-from lw_coder.plan_backup import (
+from weft.abandon_command import run_abandon_command
+from weft.plan_backup import (
     backup_exists_in_namespace,
     create_backup,
     list_abandoned_plans,
     list_backups,
 )
-from lw_coder.recover_command import run_recover_command
+from weft.recover_command import run_recover_command
 
 from conftest import GitRepo, write_plan
 
@@ -23,7 +23,7 @@ from conftest import GitRepo, write_plan
 def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:
     """Test complete abandon workflow with real git repository."""
     # Setup: Create plan file, backup, worktree, and branch
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "integration-test.md"
     commit_sha = git_repo.latest_commit()
@@ -40,7 +40,7 @@ def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:
 
     # Create branch and worktree
     git_repo.run("branch", "integration-test", commit_sha)
-    worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "integration-test"
+    worktree_path = git_repo.path / ".weft" / "worktrees" / "integration-test"
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     git_repo.run("worktree", "add", str(worktree_path), "integration-test")
 
@@ -50,7 +50,7 @@ def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:
     assert backup_exists_in_namespace(git_repo.path, "integration-test", "plan-backups")
 
     # Execute: Abandon the plan
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command(
             plan_file,
             reason="Integration test abandonment",
@@ -79,7 +79,7 @@ def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:
     assert backup_exists_in_namespace(git_repo.path, "integration-test", "plan-abandoned")
 
     # Verify: Reason logged
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     assert log_file.exists()
     log_content = log_file.read_text(encoding="utf-8")
     assert "integration-test" in log_content
@@ -89,7 +89,7 @@ def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:
 def test_recover_abandoned_plan_workflow(git_repo: GitRepo) -> None:
     """Test recovering an abandoned plan and verifying ref moves back."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "recoverable-plan.md"
     write_plan(
@@ -105,7 +105,7 @@ def test_recover_abandoned_plan_workflow(git_repo: GitRepo) -> None:
     create_backup(git_repo.path, "recoverable-plan")
 
     # Abandon the plan
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         run_abandon_command(plan_file, reason="Will recover later", skip_confirmation=True)
 
     # Verify: Plan is in abandoned namespace
@@ -114,7 +114,7 @@ def test_recover_abandoned_plan_workflow(git_repo: GitRepo) -> None:
     assert backup_exists_in_namespace(git_repo.path, "recoverable-plan", "plan-abandoned")
 
     # Execute: Recover the abandoned plan
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id="recoverable-plan",
             force=False,
@@ -137,7 +137,7 @@ def test_recover_abandoned_plan_workflow(git_repo: GitRepo) -> None:
 def test_multiple_abandon_recover_cycles(git_repo: GitRepo) -> None:
     """Test multiple abandon/recover cycles on the same plan."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "cycle-test.md"
     write_plan(
@@ -152,25 +152,25 @@ def test_multiple_abandon_recover_cycles(git_repo: GitRepo) -> None:
     create_backup(git_repo.path, "cycle-test")
 
     # Cycle 1: Abandon
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command(plan_file, reason="Cycle 1", skip_confirmation=True)
     assert exit_code == 0
     assert backup_exists_in_namespace(git_repo.path, "cycle-test", "plan-abandoned")
 
     # Cycle 1: Recover
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command("cycle-test", force=False, show_abandoned=True)
     assert exit_code == 0
     assert backup_exists_in_namespace(git_repo.path, "cycle-test", "plan-backups")
 
     # Cycle 2: Abandon again
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command(plan_file, reason="Cycle 2", skip_confirmation=True)
     assert exit_code == 0
     assert backup_exists_in_namespace(git_repo.path, "cycle-test", "plan-abandoned")
 
     # Verify log has both entries
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     log_content = log_file.read_text(encoding="utf-8")
     assert "Cycle 1" in log_content
     assert "Cycle 2" in log_content
@@ -179,7 +179,7 @@ def test_multiple_abandon_recover_cycles(git_repo: GitRepo) -> None:
 def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
     """Test --abandoned flag shows only abandoned plans."""
     # Setup: Create active backup and abandoned backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create and abandon first plan
@@ -194,7 +194,7 @@ def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
         },
     )
     create_backup(git_repo.path, "abandoned-one")
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         run_abandon_command(plan1, skip_confirmation=True)
 
     # Create active backup for second plan
@@ -211,7 +211,7 @@ def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
     create_backup(git_repo.path, "active-one")
 
     # Execute: List with --abandoned flag
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id=None,
             force=False,
@@ -232,7 +232,7 @@ def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
 def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
     """Test --all flag shows both active and abandoned plans."""
     # Setup: Create active backup and abandoned backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create and abandon first plan
@@ -247,7 +247,7 @@ def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
         },
     )
     create_backup(git_repo.path, "abandoned-two")
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         run_abandon_command(plan1, skip_confirmation=True)
 
     # Create active backup for second plan
@@ -264,7 +264,7 @@ def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
     create_backup(git_repo.path, "active-two")
 
     # Execute: List with --all flag
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id=None,
             force=False,
@@ -286,7 +286,7 @@ def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
 def test_git_refs_integrity_after_operations(git_repo: GitRepo) -> None:
     """Test git refs remain valid after abandon/recover operations."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "ref-test.md"
     write_plan(
@@ -312,7 +312,7 @@ def test_git_refs_integrity_after_operations(git_repo: GitRepo) -> None:
     original_sha = original_ref.stdout.strip()
 
     # Abandon
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         run_abandon_command(plan_file, skip_confirmation=True)
 
     # Verify abandoned ref has same SHA
@@ -326,7 +326,7 @@ def test_git_refs_integrity_after_operations(git_repo: GitRepo) -> None:
     assert abandoned_ref.stdout.strip() == original_sha
 
     # Recover
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         run_recover_command("ref-test", force=False, show_abandoned=True)
 
     # Verify restored ref has same SHA
@@ -343,7 +343,7 @@ def test_git_refs_integrity_after_operations(git_repo: GitRepo) -> None:
 def test_log_file_format_and_content(git_repo: GitRepo) -> None:
     """Test abandoned plans log file format."""
     # Setup: Create and abandon multiple plans
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     for i, (plan_id, reason) in enumerate([
@@ -360,11 +360,11 @@ def test_log_file_format_and_content(git_repo: GitRepo) -> None:
                 "evaluation_notes": [],
             },
         )
-        with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+        with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
             run_abandon_command(plan_file, reason=reason, skip_confirmation=True)
 
     # Verify log file format
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     assert log_file.exists()
 
     content = log_file.read_text(encoding="utf-8")
@@ -385,7 +385,7 @@ def test_log_file_format_and_content(git_repo: GitRepo) -> None:
 def test_list_abandoned_shows_reason(git_repo: GitRepo, capsys) -> None:
     """Test that listing abandoned plans shows the abandonment reason."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "reason-test.md"
     write_plan(
@@ -400,7 +400,7 @@ def test_list_abandoned_shows_reason(git_repo: GitRepo, capsys) -> None:
     create_backup(git_repo.path, "reason-test")
 
     # Abandon with a specific reason
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         run_abandon_command(
             plan_file,
             reason="The reason for abandoning this plan",
@@ -408,7 +408,7 @@ def test_list_abandoned_shows_reason(git_repo: GitRepo, capsys) -> None:
         )
 
     # Execute: List abandoned plans
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id=None,
             force=False,
@@ -426,10 +426,10 @@ def test_list_abandoned_shows_reason(git_repo: GitRepo, capsys) -> None:
 
 def test_plan_backup_create_and_list(git_repo: GitRepo) -> None:
     """Test plan_backup module create_backup and list_backups functions directly."""
-    from lw_coder.plan_backup import create_backup, list_backups
+    from weft.plan_backup import create_backup, list_backups
 
     # Setup: Create plan files
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     for plan_id in ["backup-test-a", "backup-test-b"]:
@@ -465,10 +465,10 @@ def test_plan_backup_create_and_list(git_repo: GitRepo) -> None:
 
 def test_plan_backup_recover(git_repo: GitRepo) -> None:
     """Test plan_backup module recover_backup function directly."""
-    from lw_coder.plan_backup import create_backup, recover_backup
+    from weft.plan_backup import create_backup, recover_backup
 
     # Setup: Create and backup a plan
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "recover-test.md"
     write_plan(
@@ -508,7 +508,7 @@ def test_plan_backup_recover(git_repo: GitRepo) -> None:
 def test_recover_command_error_cases(git_repo: GitRepo, capsys) -> None:
     """Test recover_command error handling for edge cases."""
     # Setup: Create an abandoned plan (no active backup)
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "error-test.md"
     write_plan(
@@ -521,11 +521,11 @@ def test_recover_command_error_cases(git_repo: GitRepo, capsys) -> None:
         },
     )
     create_backup(git_repo.path, "error-test")
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         run_abandon_command(plan_file, skip_confirmation=True)
 
     # Execute: Try to recover from active backups (should fail with helpful message)
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id="error-test",
             force=False,

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lw_coder.file_watcher import PlanFileWatcher
+from weft.file_watcher import PlanFileWatcher
 
 
 class TestPlanFileWatcher:

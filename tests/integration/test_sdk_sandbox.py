@@ -17,7 +17,7 @@ we must attempt to write to a path that's NOT in the allowlist. The home
 directory (`~`) is blocked by a working sandbox but allowed when sandbox fails.
 
 **This is an environmental/operational test**, not a unit/integration test of
-lw_coder code. It verifies the deployment environment has the prerequisites
+weft code. It verifies the deployment environment has the prerequisites
 for sandbox functionality.
 
 Prerequisites:
@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.sdk_runner import run_sdk_session
+from weft.sdk_runner import run_sdk_session
 
 
 class TestSDKSandboxOperational:
@@ -64,11 +64,11 @@ class TestSDKSandboxOperational:
         # Use Path.home() for consistent cross-platform home directory resolution
         # This returns the actual home directory regardless of environment quirks
         # Filename is intentionally obscure - no user would ever create this file
-        target_file = Path.home() / ".lw_coder_sandbox_test_a9f3e2c1.tmp"
+        target_file = Path.home() / ".weft_sandbox_test_a9f3e2c1.tmp"
 
         # Unique content that we'll ask the SDK to write - this lets us verify
         # the file was created by THIS test run, not some other process
-        unique_content = "lw_coder_sandbox_verification_8b2f4a1c"
+        unique_content = "weft_sandbox_verification_8b2f4a1c"
 
         # Clean up any leftover file from previous failed test run
         # The filename is obscure enough that we can safely delete it

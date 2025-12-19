@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from lw_coder.cli import main
+from weft.cli import main
 
 
 # =============================================================================
@@ -35,7 +35,7 @@ def test_code_command_with_text_flag(monkeypatch, tmp_path, git_repo) -> None:
         captured_args["no_hooks"] = no_hooks
         return 0
 
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("weft.code_command.run_code_command", mock_run_code_command)
 
     # Run CLI with --text flag
     exit_code = main(["code", "--text", "Fix the login button"])
@@ -65,7 +65,7 @@ def test_code_command_text_multiline(monkeypatch, git_repo) -> None:
         captured_args["no_hooks"] = no_hooks
         return 0
 
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run_code_command)
+    monkeypatch.setattr("weft.code_command.run_code_command", mock_run_code_command)
 
     multiline_text = "Fix login\n\nUpdate button styles\nAdd hover effect"
 
@@ -123,13 +123,13 @@ def test_all_subcommands_dispatch_without_import_errors(monkeypatch, tmp_path) -
     plan_file.write_text("# Test Plan\n")
 
     # Mock all command handlers to return 0
-    monkeypatch.setattr("lw_coder.plan_command.run_plan_command", lambda *args, **kwargs: 0)
-    monkeypatch.setattr("lw_coder.code_command.run_code_command", lambda *args, **kwargs: 0)
-    monkeypatch.setattr("lw_coder.cli.run_init_command", lambda *args, **kwargs: 0)
-    monkeypatch.setattr("lw_coder.finalize_command.run_finalize_command", lambda *args, **kwargs: 0)
-    monkeypatch.setattr("lw_coder.recover_command.run_recover_command", lambda *args, **kwargs: 0)
-    monkeypatch.setattr("lw_coder.abandon_command.run_abandon_command", lambda *args, **kwargs: 0)
-    monkeypatch.setattr("lw_coder.eval_command.run_eval_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.plan_command.run_plan_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.code_command.run_code_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.cli.run_init_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.finalize_command.run_finalize_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.recover_command.run_recover_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.abandon_command.run_abandon_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.eval_command.run_eval_command", lambda *args, **kwargs: 0)
 
     # Test each subcommand with minimal valid arguments
     # These exercise the dispatch code paths where import errors would manifest

@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.fingerprint import (
+from weft.fingerprint import (
     compute_eval_fingerprint,
     compute_prompt_fingerprint,
     compute_prompt_fingerprint_from_snapshot,
 )
-from lw_coder.training_types import PromptSnapshot, SubagentDefinition
+from weft.training_types import PromptSnapshot, SubagentDefinition
 
 
 class TestComputePromptFingerprint:

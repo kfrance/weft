@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.feedback_collector import (
+from weft.feedback_collector import (
     FeedbackCollectionError,
     build_feedback_prompt,
     collect_human_feedback,
@@ -114,7 +114,7 @@ class TestCollectHumanFeedback:
 
     def test_raises_when_sdk_settings_missing(self, tmp_path: Path) -> None:
         """Raises FeedbackCollectionError when SDK settings missing."""
-        with patch("lw_coder.feedback_collector.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.feedback_collector.get_weft_src_dir") as mock_src:
             mock_src.return_value = tmp_path  # No sdk_settings.json
 
             with pytest.raises(FeedbackCollectionError, match="SDK settings file not found"):
@@ -131,7 +131,7 @@ class TestCollectHumanFeedback:
         # Create SDK settings
         (tmp_path / "sdk_settings.json").write_text("{}")
 
-        with patch("lw_coder.feedback_collector.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.feedback_collector.get_weft_src_dir") as mock_src:
             mock_src.return_value = tmp_path
 
             with pytest.raises(FeedbackCollectionError, match="Worktree not found"):
@@ -147,13 +147,13 @@ class TestCollectHumanFeedback:
         """Returns None when user cancels without creating feedback file."""
         # Create SDK settings and worktree
         (tmp_path / "sdk_settings.json").write_text("{}")
-        worktree = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
+        worktree = tmp_path / ".weft" / "worktrees" / "test-plan"
         worktree.mkdir(parents=True)
 
-        with patch("lw_coder.feedback_collector.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.feedback_collector.get_weft_src_dir") as mock_src:
             mock_src.return_value = tmp_path
 
-            with patch("lw_coder.feedback_collector.run_interactive_session") as mock_session:
+            with patch("weft.feedback_collector.run_interactive_session") as mock_session:
                 # Simulate user cancelling without creating file
                 mock_session.return_value = ("session-123", None)
 
@@ -171,7 +171,7 @@ class TestCollectHumanFeedback:
         """Copies feedback file to output directory when created."""
         # Create SDK settings and worktree
         (tmp_path / "sdk_settings.json").write_text("{}")
-        worktree = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
+        worktree = tmp_path / ".weft" / "worktrees" / "test-plan"
         worktree.mkdir(parents=True)
 
         output_dir = tmp_path / "output"
@@ -181,10 +181,10 @@ class TestCollectHumanFeedback:
         feedback_file = worktree / "human_feedback.md"
         feedback_file.write_text("# My Feedback\n\nThis is great!")
 
-        with patch("lw_coder.feedback_collector.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.feedback_collector.get_weft_src_dir") as mock_src:
             mock_src.return_value = tmp_path
 
-            with patch("lw_coder.feedback_collector.run_interactive_session") as mock_session:
+            with patch("weft.feedback_collector.run_interactive_session") as mock_session:
                 mock_session.return_value = ("session-123", feedback_file)
 
                 result = collect_human_feedback(
@@ -204,15 +204,15 @@ class TestCollectHumanFeedback:
         """Raises FeedbackCollectionError when session fails."""
         # Create SDK settings and worktree
         (tmp_path / "sdk_settings.json").write_text("{}")
-        worktree = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
+        worktree = tmp_path / ".weft" / "worktrees" / "test-plan"
         worktree.mkdir(parents=True)
 
-        from lw_coder.claude_session import ClaudeSessionError
+        from weft.claude_session import ClaudeSessionError
 
-        with patch("lw_coder.feedback_collector.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.feedback_collector.get_weft_src_dir") as mock_src:
             mock_src.return_value = tmp_path
 
-            with patch("lw_coder.feedback_collector.run_interactive_session") as mock_session:
+            with patch("weft.feedback_collector.run_interactive_session") as mock_session:
                 mock_session.side_effect = ClaudeSessionError("Session failed")
 
                 with pytest.raises(FeedbackCollectionError, match="Feedback collection failed"):
@@ -228,7 +228,7 @@ class TestCollectHumanFeedback:
         """Removes feedback file from worktree after copying."""
         # Create SDK settings and worktree
         (tmp_path / "sdk_settings.json").write_text("{}")
-        worktree = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
+        worktree = tmp_path / ".weft" / "worktrees" / "test-plan"
         worktree.mkdir(parents=True)
 
         output_dir = tmp_path / "output"
@@ -238,10 +238,10 @@ class TestCollectHumanFeedback:
         feedback_file = worktree / "human_feedback.md"
         feedback_file.write_text("# Feedback")
 
-        with patch("lw_coder.feedback_collector.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.feedback_collector.get_weft_src_dir") as mock_src:
             mock_src.return_value = tmp_path
 
-            with patch("lw_coder.feedback_collector.run_interactive_session") as mock_session:
+            with patch("weft.feedback_collector.run_interactive_session") as mock_session:
                 mock_session.return_value = ("session-123", feedback_file)
 
                 collect_human_feedback(

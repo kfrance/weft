@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.plan_resolver import PlanResolver
+from weft.plan_resolver import PlanResolver
 
 
 def test_resolve_absolute_path_existing(tmp_path):
@@ -58,7 +58,7 @@ def test_resolve_plan_id_existing(tmp_path, monkeypatch):
     subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True, capture_output=True)
 
     # Create tasks directory and plan file
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "fix-subagent.md"
     plan_file.write_text("# Fix Subagent\n")
@@ -79,7 +79,7 @@ def test_resolve_plan_id_nonexistent(tmp_path, monkeypatch):
     subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True, capture_output=True)
 
     # Create tasks directory (but no plan file)
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Change to the repository directory

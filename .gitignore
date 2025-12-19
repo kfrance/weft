@@ -39,13 +39,13 @@ Thumbs.db
 *.swo
 
 
-# lw_coder cache and temporary files
-.lw_coder/dspy_cache/
-.lw_coder/worktrees/
-.lw_coder/runs/
-.lw_coder/plan-traces/
-.lw_coder/sessions/
-.lw_coder/temp-worktrees/
+# weft cache and temporary files
+.weft/dspy_cache/
+.weft/worktrees/
+.weft/runs/
+.weft/plan-traces/
+.weft/sessions/
+.weft/temp-worktrees/
 plan.md
 .claude/agents/
 

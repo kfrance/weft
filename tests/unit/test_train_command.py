@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.train_command import run_train_command
+from weft.train_command import run_train_command
 
 
 class TestRunTrainCommand:
@@ -18,9 +18,9 @@ class TestRunTrainCommand:
 
     def test_train_command_no_training_data(self, tmp_path: Path) -> None:
         """Returns error when no training data."""
-        with patch("lw_coder.train_command.find_repo_root", return_value=tmp_path):
-            # Create empty .lw_coder directory without training data
-            (tmp_path / ".lw_coder").mkdir()
+        with patch("weft.train_command.find_repo_root", return_value=tmp_path):
+            # Create empty .weft directory without training data
+            (tmp_path / ".weft").mkdir()
 
             result = run_train_command(variant="sonnet", batch_size=3, max_subagents=5)
 
@@ -28,9 +28,9 @@ class TestRunTrainCommand:
 
     def test_train_command_no_active_prompts(self, tmp_path: Path) -> None:
         """Returns error when no active prompts."""
-        with patch("lw_coder.train_command.find_repo_root", return_value=tmp_path):
+        with patch("weft.train_command.find_repo_root", return_value=tmp_path):
             # Create training data directory with a sample
-            training_dir = tmp_path / ".lw_coder" / "training_data" / "test-sample"
+            training_dir = tmp_path / ".weft" / "training_data" / "test-sample"
             training_dir.mkdir(parents=True)
             (training_dir / "human_feedback.md").write_text("Feedback")
             (training_dir / "test_results_after.json").write_text('{"passed": 10}')
@@ -45,10 +45,10 @@ class TestRunTrainCommand:
 
     def test_train_command_repo_not_found(self) -> None:
         """Returns error when repository not found."""
-        from lw_coder.repo_utils import RepoUtilsError
+        from weft.repo_utils import RepoUtilsError
 
         with patch(
-            "lw_coder.train_command.find_repo_root",
+            "weft.train_command.find_repo_root",
             side_effect=RepoUtilsError("Not a git repository"),
         ):
             result = run_train_command(variant="sonnet", batch_size=3, max_subagents=5)

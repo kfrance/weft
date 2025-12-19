@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+# IMPORTANT: Set NO_PROXY before any imports that might initialize httpx/litellm
+# This prevents SOCKS proxy errors during test collection when litellm initializes
+import os
+os.environ["NO_PROXY"] = "*"
+
+# TEMPORARY: Disable DSPy cache to avoid cache-related issues during testing
+os.environ["DSPY_CACHEDIR"] = ""
+
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,7 +16,26 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-import lw_coder.hooks as hooks_module
+import weft.hooks as hooks_module
+
+
+@pytest.fixture(scope="session", autouse=True)
+def disable_dspy_cache():
+    """Disable DSPy cache for all tests to avoid cache initialization issues.
+
+    TEMPORARY: This disables DSPy caching during tests to work around
+    SOCKS proxy issues during test collection/initialization.
+    """
+    try:
+        import dspy
+        # Disable both disk and memory cache
+        dspy.configure_cache(
+            enable_disk_cache=False,
+            enable_memory_cache=False,
+        )
+    except ImportError:
+        # DSPy not available, skip
+        pass
 
 
 def _is_integration_test(request: pytest.FixtureRequest) -> bool:
@@ -115,7 +142,7 @@ def mock_sdk_runner(request, monkeypatch):
     if _is_integration_test(request):
         return
 
-    import lw_coder.code_command as code_command
+    import weft.code_command as code_command
     monkeypatch.setattr(
         code_command,
         "run_sdk_session_sync",
@@ -129,14 +156,14 @@ def isolate_config(request, monkeypatch, tmp_path):
 
     This fixture mocks CONFIG_PATH in the config module to use a non-existent
     path in tmp_path. This ensures tests use hardcoded defaults rather than
-    reading from ~/.lw_coder/config.toml.
+    reading from ~/.weft/config.toml.
 
     Integration tests (in tests/integration/) skip this mock.
     """
     if _is_integration_test(request):
         return
 
-    import lw_coder.config as config_module
+    import weft.config as config_module
     monkeypatch.setattr(
         config_module,
         "CONFIG_PATH",
@@ -152,7 +179,7 @@ def reset_hooks_global_state(request, monkeypatch, tmp_path):
     1. Resets _global_manager to None
     2. Monkeypatches Path.home to use tmp_path for non-integration tests
 
-    This prevents tests from reading the user's real ~/.lw_coder/config.toml
+    This prevents tests from reading the user's real ~/.weft/config.toml
     which might have hooks configured that open GUI applications (e.g., code-oss).
 
     Integration tests (in tests/integration/) skip the Path.home mock

@@ -15,7 +15,7 @@ try:
 except ImportError:
     ARGCOMPLETE_AVAILABLE = False
 
-from lw_coder.cli import create_parser
+from weft.cli import create_parser
 
 
 def test_argcomplete_available():
@@ -31,7 +31,7 @@ def test_parser_creation():
     """Test that argument parser can be created."""
     parser = create_parser()
     assert parser is not None
-    assert parser.prog == "lw_coder"
+    assert parser.prog == "weft"
 
 
 def test_parser_has_completers():

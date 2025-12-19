@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lw_coder.claude_session import (
+from weft.claude_session import (
     ClaudeSessionError,
     run_headless_session,
     run_interactive_session,
@@ -29,7 +29,7 @@ class TestRunHeadlessSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-123"
 
             result = run_headless_session(
@@ -52,7 +52,7 @@ class TestRunHeadlessSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-123"
 
             with pytest.raises(ClaudeSessionError, match="Expected output file not created"):
@@ -73,9 +73,9 @@ class TestRunHeadlessSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        from lw_coder.sdk_runner import SDKRunnerError
+        from weft.sdk_runner import SDKRunnerError
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.side_effect = SDKRunnerError("SDK failed")
 
             with pytest.raises(ClaudeSessionError, match="SDK session failed"):
@@ -100,7 +100,7 @@ class TestRunHeadlessSession:
 
         mock_agents = {"test-agent": MagicMock()}
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-123"
 
             run_headless_session(
@@ -131,10 +131,10 @@ class TestRunInteractiveSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-456"
 
-            with patch("lw_coder.claude_session.subprocess.run") as mock_subprocess:
+            with patch("weft.claude_session.subprocess.run") as mock_subprocess:
                 session_id, output_path = run_interactive_session(
                     worktree_path=worktree,
                     prompt="Test prompt",
@@ -156,10 +156,10 @@ class TestRunInteractiveSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-456"
 
-            with patch("lw_coder.claude_session.subprocess.run"):
+            with patch("weft.claude_session.subprocess.run"):
                 session_id, output_path = run_interactive_session(
                     worktree_path=worktree,
                     prompt="Test prompt",
@@ -179,10 +179,10 @@ class TestRunInteractiveSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-789"
 
-            with patch("lw_coder.claude_session.subprocess.run"):
+            with patch("weft.claude_session.subprocess.run"):
                 session_id, output_path = run_interactive_session(
                     worktree_path=worktree,
                     prompt="Test prompt",
@@ -202,9 +202,9 @@ class TestRunInteractiveSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        from lw_coder.sdk_runner import SDKRunnerError
+        from weft.sdk_runner import SDKRunnerError
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.side_effect = SDKRunnerError("SDK failed")
 
             with pytest.raises(ClaudeSessionError, match="SDK session failed"):
@@ -223,10 +223,10 @@ class TestRunInteractiveSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-456"
 
-            with patch("lw_coder.claude_session.subprocess.run") as mock_subprocess:
+            with patch("weft.claude_session.subprocess.run") as mock_subprocess:
                 mock_subprocess.side_effect = Exception("CLI failed to launch")
 
                 with pytest.raises(ClaudeSessionError, match="Failed to launch CLI"):
@@ -245,10 +245,10 @@ class TestRunInteractiveSession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-xyz"
 
-            with patch("lw_coder.claude_session.subprocess.run") as mock_subprocess:
+            with patch("weft.claude_session.subprocess.run") as mock_subprocess:
                 run_interactive_session(
                     worktree_path=worktree,
                     prompt="Test prompt",
@@ -274,7 +274,7 @@ class TestRunSdkOnlySession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-only-123"
 
             result = run_sdk_only_session(
@@ -294,9 +294,9 @@ class TestRunSdkOnlySession:
         sdk_settings = tmp_path / "sdk_settings.json"
         sdk_settings.write_text("{}")
 
-        from lw_coder.sdk_runner import SDKRunnerError
+        from weft.sdk_runner import SDKRunnerError
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.side_effect = SDKRunnerError("SDK error")
 
             with pytest.raises(ClaudeSessionError, match="SDK session failed"):
@@ -317,7 +317,7 @@ class TestRunSdkOnlySession:
 
         mock_agents = {"agent-1": MagicMock()}
 
-        with patch("lw_coder.claude_session.run_sdk_session_sync") as mock_sdk:
+        with patch("weft.claude_session.run_sdk_session_sync") as mock_sdk:
             mock_sdk.return_value = "session-123"
 
             run_sdk_only_session(

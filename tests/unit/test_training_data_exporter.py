@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.training_data_exporter import (
+from weft.training_data_exporter import (
     TrainingDataExportError,
     copy_code_trace,
     copy_human_feedback,
@@ -25,7 +25,7 @@ class TestCopyPlanFile:
     def test_copies_plan_file_to_staging(self, tmp_path: Path) -> None:
         """Copies plan file to staging directory."""
         # Create plan file
-        tasks_dir = tmp_path / ".lw_coder" / "tasks"
+        tasks_dir = tmp_path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
         plan_file = tasks_dir / "test-plan.md"
         plan_file.write_text("# Test Plan\n\nThis is the plan.")
@@ -54,7 +54,7 @@ class TestCopyCodeTrace:
     def test_copies_trace_to_staging(self, tmp_path: Path) -> None:
         """Copies code trace to staging directory."""
         # Create trace file
-        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         code_dir.mkdir(parents=True)
         trace_file = code_dir / "trace.md"
         trace_file.write_text("# Code Trace\n\nThis is the trace.")
@@ -86,7 +86,7 @@ class TestCopyAiPatch:
     def test_copies_patch_to_staging(self, tmp_path: Path) -> None:
         """Copies AI patch file to staging."""
         # Create code directory with patch file
-        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         code_dir.mkdir(parents=True)
 
         patch_content = "diff --git a/test.txt b/test.txt\n+new content"
@@ -95,7 +95,7 @@ class TestCopyAiPatch:
         staging = tmp_path / "staging"
         staging.mkdir()
 
-        from lw_coder.training_data_exporter import copy_ai_patch
+        from weft.training_data_exporter import copy_ai_patch
         copy_ai_patch("test-plan", tmp_path, staging)
 
         copied = staging / "ai_changes.patch"
@@ -105,13 +105,13 @@ class TestCopyAiPatch:
     def test_raises_when_patch_missing(self, tmp_path: Path) -> None:
         """Raises TrainingDataExportError when patch file missing."""
         # Don't create the patch file
-        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         code_dir.mkdir(parents=True)
 
         staging = tmp_path / "staging"
         staging.mkdir()
 
-        from lw_coder.training_data_exporter import copy_ai_patch, TrainingDataExportError
+        from weft.training_data_exporter import copy_ai_patch, TrainingDataExportError
         with pytest.raises(TrainingDataExportError, match="AI patch file not found"):
             copy_ai_patch("test-plan", tmp_path, staging)
 
@@ -122,7 +122,7 @@ class TestCopyTestResults:
     def test_copies_after_tests(self, tmp_path: Path) -> None:
         """Copies after-test results to staging."""
         # Create eval directory with test results
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
 
         after_results = {"command": "pytest", "exit_code": 0, "total_tests": 10}
@@ -139,7 +139,7 @@ class TestCopyTestResults:
 
     def test_copies_before_tests_when_available(self, tmp_path: Path) -> None:
         """Copies before-test results when they exist."""
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
 
         after_results = {"command": "pytest", "exit_code": 0, "total_tests": 10}
@@ -157,7 +157,7 @@ class TestCopyTestResults:
 
     def test_raises_when_after_tests_missing(self, tmp_path: Path) -> None:
         """Raises TrainingDataExportError when after-test results missing."""
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
 
         staging = tmp_path / "staging"
@@ -172,7 +172,7 @@ class TestCopyJudgeResults:
 
     def test_copies_all_judge_files(self, tmp_path: Path) -> None:
         """Copies all judge JSON and markdown files."""
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
 
         # Create judge files
@@ -193,7 +193,7 @@ class TestCopyJudgeResults:
 
     def test_raises_when_no_judge_files(self, tmp_path: Path) -> None:
         """Raises TrainingDataExportError when no judge files exist."""
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
 
         staging = tmp_path / "staging"
@@ -208,7 +208,7 @@ class TestCopyHumanFeedback:
 
     def test_copies_feedback_to_staging(self, tmp_path: Path) -> None:
         """Copies human feedback to staging directory."""
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         (eval_dir / "human_feedback.md").write_text("# Feedback\n\nGreat work!")
 
@@ -296,16 +296,16 @@ class TestCreateTrainingData:
     def test_creates_training_data_directory(self, tmp_path: Path) -> None:
         """Creates training data directory with all files."""
         # Set up source files
-        tasks_dir = tmp_path / ".lw_coder" / "tasks"
+        tasks_dir = tmp_path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
         (tasks_dir / "test-plan.md").write_text("# Plan")
 
-        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         code_dir.mkdir(parents=True)
         (code_dir / "trace.md").write_text("# Trace")
         (code_dir / "ai_changes.patch").write_text("diff --git a/test.txt b/test.txt")
 
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         (eval_dir / "test_results_after.json").write_text('{"exit_code": 0}')
         (eval_dir / "judge_test.json").write_text('{"score": 0.85}')
@@ -325,7 +325,7 @@ class TestCreateTrainingData:
 
     def test_skips_when_already_exists(self, tmp_path: Path) -> None:
         """Returns existing directory when training data already exists."""
-        training_dir = tmp_path / ".lw_coder" / "training_data" / "test-plan"
+        training_dir = tmp_path / ".weft" / "training_data" / "test-plan"
         training_dir.mkdir(parents=True)
         (training_dir / "plan.md").write_text("# Existing")
 
@@ -337,11 +337,11 @@ class TestCreateTrainingData:
     def test_atomic_operation_on_failure(self, tmp_path: Path, monkeypatch) -> None:
         """Does not create training_data directory if any copy fails."""
         # Set up only plan file (missing everything else)
-        tasks_dir = tmp_path / ".lw_coder" / "tasks"
+        tasks_dir = tmp_path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
         (tasks_dir / "test-plan.md").write_text("# Plan")
 
-        training_dir = tmp_path / ".lw_coder" / "training_data" / "test-plan"
+        training_dir = tmp_path / ".weft" / "training_data" / "test-plan"
 
         # Mock input to continue past missing code trace prompt
         monkeypatch.setattr("builtins.input", lambda _: "y")
@@ -355,16 +355,16 @@ class TestCreateTrainingData:
     def test_warns_on_missing_code_trace(self, tmp_path: Path, monkeypatch) -> None:
         """Warns but continues when code trace is missing."""
         # Set up required files except code trace
-        tasks_dir = tmp_path / ".lw_coder" / "tasks"
+        tasks_dir = tmp_path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
         (tasks_dir / "test-plan.md").write_text("# Plan")
 
-        code_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        code_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         code_dir.mkdir(parents=True)
         (code_dir / "ai_changes.patch").write_text("diff --git a/test.txt b/test.txt")
         # No code trace
 
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         (eval_dir / "test_results_after.json").write_text('{"exit_code": 0}')
         (eval_dir / "judge_test.json").write_text('{"score": 0.85}')
@@ -392,16 +392,16 @@ class TestPruningBehavior:
     def test_training_data_not_in_sessions(self, tmp_path: Path) -> None:
         """Training data is stored separately from sessions (which get pruned)."""
         # Create both training_data and sessions
-        training_dir = tmp_path / ".lw_coder" / "training_data" / "test-plan"
+        training_dir = tmp_path / ".weft" / "training_data" / "test-plan"
         training_dir.mkdir(parents=True)
 
-        sessions_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan"
+        sessions_dir = tmp_path / ".weft" / "sessions" / "test-plan"
         sessions_dir.mkdir(parents=True)
 
-        # Get the relative paths within .lw_coder to verify structure
-        lw_coder_base = tmp_path / ".lw_coder"
-        training_relative = training_dir.relative_to(lw_coder_base)
-        sessions_relative = sessions_dir.relative_to(lw_coder_base)
+        # Get the relative paths within .weft to verify structure
+        weft_base = tmp_path / ".weft"
+        training_relative = training_dir.relative_to(weft_base)
+        sessions_relative = sessions_dir.relative_to(weft_base)
 
         # Training data should be under training_data/, not sessions/
         assert str(training_relative).startswith("training_data")
@@ -416,10 +416,10 @@ class TestPruningBehavior:
         import os
         import time
 
-        from lw_coder.session_manager import SESSION_RETENTION_DAYS, prune_old_sessions
+        from weft.session_manager import SESSION_RETENTION_DAYS, prune_old_sessions
 
         # Create old session directory (will be pruned)
-        old_plan_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan"
+        old_plan_dir = tmp_path / ".weft" / "sessions" / "test-plan"
         old_session_dir = old_plan_dir / "code"
         old_session_dir.mkdir(parents=True)
         (old_session_dir / "trace.md").write_text("# Old trace")
@@ -430,7 +430,7 @@ class TestPruningBehavior:
         os.utime(old_plan_dir, (old_timestamp, old_timestamp))
 
         # Create training_data directory (must NEVER be pruned)
-        training_dir = tmp_path / ".lw_coder" / "training_data" / "test-plan"
+        training_dir = tmp_path / ".weft" / "training_data" / "test-plan"
         training_dir.mkdir(parents=True)
         (training_dir / "plan.md").write_text("# Training data plan")
         (training_dir / "code_trace.md").write_text("# Training data trace")

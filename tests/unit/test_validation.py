@@ -19,8 +19,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lw_coder.cli import main
-from lw_coder.train_command import TrainCommandError, _validate_parameters
+from weft.cli import main
+from weft.train_command import TrainCommandError, _validate_parameters
 
 
 class TestTrainCommandValidation:
@@ -125,7 +125,7 @@ class TestCodeCommandValidation:
 
         # Mock run_code_command - should not be called due to validation error
         mock_run = MagicMock()
-        monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
+        monkeypatch.setattr("weft.code_command.run_code_command", mock_run)
 
         caplog.set_level(logging.ERROR)
 
@@ -170,7 +170,7 @@ class TestCodeCommandValidation:
 
         # Mock run_code_command - should not be called due to validation error
         mock_run = MagicMock()
-        monkeypatch.setattr("lw_coder.code_command.run_code_command", mock_run)
+        monkeypatch.setattr("weft.code_command.run_code_command", mock_run)
 
         caplog.set_level(logging.ERROR)
 

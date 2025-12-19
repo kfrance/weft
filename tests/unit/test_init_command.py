@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.init_command import (
+from weft.init_command import (
     InitCommandError,
     calculate_file_hash,
     detect_customizations,
@@ -26,12 +26,12 @@ from lw_coder.init_command import (
 
 @pytest.fixture
 def initialized_repo(git_repo):
-    """Repository with .lw_coder already initialized.
+    """Repository with .weft already initialized.
 
     Creates initial state by running init_command.
     """
-    # Run init command to create .lw_coder directory
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    # Run init command to create .weft directory
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
         assert result == 0
 
@@ -48,7 +48,7 @@ def test_load_version_file(tmp_path):
     version_file = tmp_path / "VERSION"
     version_data = {
         "template_version": "1.0.0",
-        "lw_coder_version": "0.1.0",
+        "weft_version": "0.1.0",
         "frozen_date": "2025-01-01",
         "files": {"judges/test.md": {"hash": "sha256:abc123"}},
     }
@@ -85,8 +85,8 @@ def test_load_version_file_error_cases(tmp_path, setup_file):
 
 def test_detect_customizations(tmp_path):
     """Test detect_customizations finds modified files."""
-    lw_coder_dir = tmp_path / ".lw_coder"
-    judges_dir = lw_coder_dir / "judges"
+    weft_dir = tmp_path / ".weft"
+    judges_dir = weft_dir / "judges"
     judges_dir.mkdir(parents=True)
 
     # Create a test file
@@ -103,15 +103,15 @@ def test_detect_customizations(tmp_path):
     test_file.write_text("modified content", encoding="utf-8")
 
     # Should detect the modification
-    customized = detect_customizations(lw_coder_dir, version_data, "judges")
+    customized = detect_customizations(weft_dir, version_data, "judges")
 
     assert "judges/test.md" in customized
 
 
 def test_detect_customizations_no_changes(tmp_path):
     """Test detect_customizations returns empty list when no changes."""
-    lw_coder_dir = tmp_path / ".lw_coder"
-    judges_dir = lw_coder_dir / "judges"
+    weft_dir = tmp_path / ".weft"
+    judges_dir = weft_dir / "judges"
     judges_dir.mkdir(parents=True)
 
     # Create a test file
@@ -125,16 +125,16 @@ def test_detect_customizations_no_changes(tmp_path):
     }
 
     # Should not detect any modifications
-    customized = detect_customizations(lw_coder_dir, version_data, "judges")
+    customized = detect_customizations(weft_dir, version_data, "judges")
 
     assert customized == []
 
 
 def test_detect_customizations_filters_by_category(tmp_path):
     """Test detect_customizations only checks files in specified category."""
-    lw_coder_dir = tmp_path / ".lw_coder"
-    judges_dir = lw_coder_dir / "judges"
-    prompts_dir = lw_coder_dir / "optimized_prompts"
+    weft_dir = tmp_path / ".weft"
+    judges_dir = weft_dir / "judges"
+    prompts_dir = weft_dir / "optimized_prompts"
     judges_dir.mkdir(parents=True)
     prompts_dir.mkdir(parents=True)
 
@@ -157,19 +157,19 @@ def test_detect_customizations_filters_by_category(tmp_path):
     judge_file.write_text("modified judge", encoding="utf-8")
 
     # Check judges category - should find the modification
-    judges_customized = detect_customizations(lw_coder_dir, version_data, "judges")
+    judges_customized = detect_customizations(weft_dir, version_data, "judges")
     assert "judges/test.md" in judges_customized
 
     # Check prompts category - should not find the judge modification
     # Note: uses "prompts/active" for new directory structure
-    prompts_customized = detect_customizations(lw_coder_dir, version_data, "prompts/active")
+    prompts_customized = detect_customizations(weft_dir, version_data, "prompts/active")
     assert prompts_customized == []
 
 
 def test_detect_customizations_deleted_file(tmp_path):
     """Test detect_customizations reports deleted files as customizations."""
-    lw_coder_dir = tmp_path / ".lw_coder"
-    judges_dir = lw_coder_dir / "judges"
+    weft_dir = tmp_path / ".weft"
+    judges_dir = weft_dir / "judges"
     judges_dir.mkdir(parents=True)
 
     # Create a file and get its hash
@@ -186,7 +186,7 @@ def test_detect_customizations_deleted_file(tmp_path):
     test_file.unlink()
 
     # Should detect the deletion as a customization
-    customized = detect_customizations(lw_coder_dir, version_data, "judges")
+    customized = detect_customizations(weft_dir, version_data, "judges")
     assert "judges/test.md" in customized
 
 
@@ -195,22 +195,22 @@ def test_detect_customizations_deleted_file(tmp_path):
 # =============================================================================
 
 
-def test_init_creates_lw_coder_directory(git_repo):
-    """Test init creates .lw_coder directory at repository root."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+def test_init_creates_weft_directory(git_repo):
+    """Test init creates .weft directory at repository root."""
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
-    assert (git_repo.path / ".lw_coder").exists()
+    assert (git_repo.path / ".weft").exists()
 
 
 def test_init_copies_judges(git_repo):
     """Test init copies judges directory."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
-    judges_dir = git_repo.path / ".lw_coder" / "judges"
+    judges_dir = git_repo.path / ".weft" / "judges"
     assert judges_dir.exists()
     assert (judges_dir / "code-reuse.md").exists()
     assert (judges_dir / "plan-compliance.md").exists()
@@ -218,11 +218,11 @@ def test_init_copies_judges(git_repo):
 
 def test_init_copies_optimized_prompts(git_repo):
     """Test init copies prompts to prompts/active/ directory."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
-    prompts_dir = git_repo.path / ".lw_coder" / "prompts" / "active"
+    prompts_dir = git_repo.path / ".weft" / "prompts" / "active"
     assert prompts_dir.exists()
     assert (prompts_dir / "claude-code-cli" / "sonnet" / "main.md").exists()
     assert (prompts_dir / "claude-code-cli" / "opus" / "main.md").exists()
@@ -231,21 +231,21 @@ def test_init_copies_optimized_prompts(git_repo):
 
 def test_init_copies_version_file(git_repo):
     """Test init copies VERSION file."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
-    version_file = git_repo.path / ".lw_coder" / "VERSION"
+    version_file = git_repo.path / ".weft" / "VERSION"
     assert version_file.exists()
 
 
 def test_init_version_file_includes_hashes(git_repo):
     """Test VERSION file includes hashes for all template files."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
-    version_file = git_repo.path / ".lw_coder" / "VERSION"
+    version_file = git_repo.path / ".weft" / "VERSION"
     version_data = json.loads(version_file.read_text(encoding="utf-8"))
 
     assert "files" in version_data
@@ -259,13 +259,13 @@ def test_init_version_file_includes_hashes(git_repo):
 
 def test_init_preserves_directory_structure(git_repo):
     """Test init preserves the exact directory structure of templates."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
 
     # Check that the full hierarchy exists
-    lw_coder_dir = git_repo.path / ".lw_coder"
+    weft_dir = git_repo.path / ".weft"
     expected_paths = [
         "judges/code-reuse.md",
         "judges/plan-compliance.md",
@@ -278,22 +278,22 @@ def test_init_preserves_directory_structure(git_repo):
     ]
 
     for rel_path in expected_paths:
-        full_path = lw_coder_dir / rel_path
+        full_path = weft_dir / rel_path
         assert full_path.exists(), f"Expected {rel_path} to exist"
 
 
 def test_init_version_file_valid_json(git_repo):
     """Test VERSION file contains valid JSON with required fields."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
-    version_file = git_repo.path / ".lw_coder" / "VERSION"
+    version_file = git_repo.path / ".weft" / "VERSION"
     version_data = json.loads(version_file.read_text(encoding="utf-8"))
 
     # Check required fields
     assert "template_version" in version_data
-    assert "lw_coder_version" in version_data
+    assert "weft_version" in version_data
     assert "frozen_date" in version_data
     assert "files" in version_data
 
@@ -304,8 +304,8 @@ def test_init_version_file_valid_json(git_repo):
 
 
 def test_init_fails_when_exists_without_force(initialized_repo):
-    """Test init fails when .lw_coder exists and --force not provided."""
-    with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+    """Test init fails when .weft exists and --force not provided."""
+    with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 1
@@ -321,7 +321,7 @@ def test_init_force_prompts_for_overwrite(initialized_repo, monkeypatch):
 
     monkeypatch.setattr("builtins.input", mock_input)
 
-    with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
         result = run_init_command(force=True, yes=False)
 
     assert result == 0
@@ -339,7 +339,7 @@ def test_init_force_yes_overwrites_without_prompt(initialized_repo, monkeypatch)
 
     monkeypatch.setattr("builtins.input", mock_input)
 
-    with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
         result = run_init_command(force=True, yes=True)
 
     assert result == 0
@@ -350,7 +350,7 @@ def test_init_force_yes_overwrites_without_prompt(initialized_repo, monkeypatch)
 def test_init_force_respects_no_to_judges(initialized_repo, monkeypatch):
     """Test init --force respects 'no' to overwrite judges."""
     # Modify a judge to detect if it gets overwritten
-    judge_file = initialized_repo.path / ".lw_coder" / "judges" / "code-reuse.md"
+    judge_file = initialized_repo.path / ".weft" / "judges" / "code-reuse.md"
     modified_content = "# MODIFIED CONTENT"
     judge_file.write_text(modified_content, encoding="utf-8")
 
@@ -361,7 +361,7 @@ def test_init_force_respects_no_to_judges(initialized_repo, monkeypatch):
 
     monkeypatch.setattr("builtins.input", mock_input)
 
-    with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
         result = run_init_command(force=True, yes=False)
 
     assert result == 0
@@ -372,7 +372,7 @@ def test_init_force_respects_no_to_judges(initialized_repo, monkeypatch):
 def test_init_force_respects_no_to_prompts(initialized_repo, monkeypatch):
     """Test init --force respects 'no' to overwrite prompts."""
     # Modify a prompt to detect if it gets overwritten
-    prompt_file = initialized_repo.path / ".lw_coder" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
+    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
     modified_content = "# MODIFIED PROMPT"
     prompt_file.write_text(modified_content, encoding="utf-8")
 
@@ -383,7 +383,7 @@ def test_init_force_respects_no_to_prompts(initialized_repo, monkeypatch):
 
     monkeypatch.setattr("builtins.input", mock_input)
 
-    with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
         result = run_init_command(force=True, yes=False)
 
     assert result == 0
@@ -394,9 +394,9 @@ def test_init_force_respects_no_to_prompts(initialized_repo, monkeypatch):
 def test_init_force_respects_no_to_both(initialized_repo, monkeypatch, capsys):
     """Test init --force respects 'no' to both judges and prompts."""
     # Modify files to detect if they get overwritten
-    judge_file = initialized_repo.path / ".lw_coder" / "judges" / "code-reuse.md"
-    prompt_file = initialized_repo.path / ".lw_coder" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
-    version_file = initialized_repo.path / ".lw_coder" / "VERSION"
+    judge_file = initialized_repo.path / ".weft" / "judges" / "code-reuse.md"
+    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
+    version_file = initialized_repo.path / ".weft" / "VERSION"
 
     modified_judge = "# MODIFIED JUDGE"
     modified_prompt = "# MODIFIED PROMPT"
@@ -413,7 +413,7 @@ def test_init_force_respects_no_to_both(initialized_repo, monkeypatch, capsys):
 
     monkeypatch.setattr("builtins.input", mock_input)
 
-    with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
         result = run_init_command(force=True, yes=False)
 
     assert result == 0
@@ -439,11 +439,11 @@ def test_init_force_respects_no_to_both(initialized_repo, monkeypatch, capsys):
 def test_init_detects_customized_judges(initialized_repo, capsys):
     """Test init --force detects and warns about customized judges."""
     # Modify a judge
-    judge_file = initialized_repo.path / ".lw_coder" / "judges" / "code-reuse.md"
+    judge_file = initialized_repo.path / ".weft" / "judges" / "code-reuse.md"
     judge_file.write_text("# CUSTOMIZED", encoding="utf-8")
 
     with patch("builtins.input", return_value="n"):
-        with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+        with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
             run_init_command(force=True, yes=False)
 
     captured = capsys.readouterr()
@@ -454,13 +454,13 @@ def test_init_detects_customized_judges(initialized_repo, capsys):
 def test_init_detects_customized_prompts(initialized_repo, capsys):
     """Test init --force detects and warns about customized prompts."""
     # Modify a prompt (at the new location)
-    prompt_file = initialized_repo.path / ".lw_coder" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
+    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
     prompt_file.write_text("# CUSTOMIZED", encoding="utf-8")
 
     responses = iter(["n", "n"])  # No to both
 
     with patch("builtins.input", lambda x: next(responses)):
-        with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+        with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
             run_init_command(force=True, yes=False)
 
     captured = capsys.readouterr()
@@ -476,13 +476,13 @@ def test_init_detects_customized_prompts(initialized_repo, capsys):
 def test_init_warns_about_customizations(initialized_repo, capsys, monkeypatch):
     """Test init --force displays customization warnings."""
     # Modify a judge
-    judge_file = initialized_repo.path / ".lw_coder" / "judges" / "code-reuse.md"
+    judge_file = initialized_repo.path / ".weft" / "judges" / "code-reuse.md"
     judge_file.write_text("# CUSTOMIZED CONTENT", encoding="utf-8")
 
     # Mock input to return "n" to skip overwriting
     monkeypatch.setattr("builtins.input", lambda x: "n")
 
-    with patch("lw_coder.init_command.find_repo_root", return_value=initialized_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=initialized_repo.path):
         run_init_command(force=True, yes=False)
 
     captured = capsys.readouterr()
@@ -653,16 +653,16 @@ def test_init_fails_outside_git_repo(tmp_path, monkeypatch):
 
 
 def test_init_from_subdirectory(git_repo):
-    """Test init works from subdirectory and creates .lw_coder at repo root."""
+    """Test init works from subdirectory and creates .weft at repo root."""
     # Create a subdirectory
     subdir = git_repo.path / "src" / "module"
     subdir.mkdir(parents=True)
 
     # Mock find_repo_root to return the git repo root
-    with patch("lw_coder.init_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
         result = run_init_command(force=False, yes=True)
 
     assert result == 0
-    # .lw_coder should be at repo root, not in subdirectory
-    assert (git_repo.path / ".lw_coder").exists()
-    assert not (subdir / ".lw_coder").exists()
+    # .weft should be at repo root, not in subdirectory
+    assert (git_repo.path / ".weft").exists()
+    assert not (subdir / ".weft").exists()

@@ -6,16 +6,16 @@ Accepted
 
 ## Context
 
-lw_coder needs a hook system to execute user-configured commands at key workflow points (e.g., opening an editor after plan creation, sending notifications after code completion). The question is how to handle command execution securely.
+weft needs a hook system to execute user-configured commands at key workflow points (e.g., opening an editor after plan creation, sending notifications after code completion). The question is how to handle command execution securely.
 
-Traditional web applications must sanitize all user input to prevent command injection attacks. However, lw_coder is a local CLI tool where the "user" configuring hooks is the same developer who will be affected by any commands executed.
+Traditional web applications must sanitize all user input to prevent command injection attacks. However, weft is a local CLI tool where the "user" configuring hooks is the same developer who will be affected by any commands executed.
 
 ## Decision
 
 **Trust developer-controlled hook configurations and use `shell=True` for command execution.**
 
 The hook system will:
-1. Load commands from `~/.lw_coder/config.toml` (developer's home directory)
+1. Load commands from `~/.weft/config.toml` (developer's home directory)
 2. Execute commands using `subprocess.Popen(..., shell=True)`
 3. Use `string.Template` for `${variable}` substitution
 4. Not attempt to sanitize, escape, or restrict commands
@@ -24,7 +24,7 @@ The hook system will:
 
 ### Developer is the user, not an attacker
 
-The developer creates their own `~/.lw_coder/config.toml` on their own machine. Any "malicious" command would only affect themselves. This is identical to:
+The developer creates their own `~/.weft/config.toml` on their own machine. Any "malicious" command would only affect themselves. This is identical to:
 
 - **Git hooks**: `.git/hooks/` scripts run arbitrary code
 - **Shell aliases**: `~/.bashrc` aliases execute any command
@@ -38,7 +38,7 @@ All of these are trusted without sanitization because the developer controls the
 
 The hook command comes from:
 1. The developer's home directory config file
-2. Variable values (paths) from lw_coder internals
+2. Variable values (paths) from weft internals
 
 There is no external, untrusted input that could inject malicious commands. The developer would have to intentionally write a malicious config to attack themselves.
 
@@ -71,8 +71,8 @@ The alternative (argument list parsing with `shlex.split`) adds complexity witho
 
 ```
 TRUSTED BOUNDARY
-├── ~/.lw_coder/config.toml (developer-created)
-├── Variable values (lw_coder internal paths)
+├── ~/.weft/config.toml (developer-created)
+├── Variable values (weft internal paths)
 └── Result: Commands execute with developer's permissions
 
 UNTRUSTED (not applicable in this system)
@@ -103,9 +103,9 @@ UNTRUSTED (not applicable in this system)
 
 ### 4. No project-level config (accepted limitation)
 
-- Project-level `.lw_coder/config.toml` could be malicious
-- Clone repo, run lw_coder, execute attacker's commands
-- Solution: Only support global `~/.lw_coder/config.toml`
+- Project-level `.weft/config.toml` could be malicious
+- Clone repo, run weft, execute attacker's commands
+- Solution: Only support global `~/.weft/config.toml`
 - Future: Could add project config with explicit approval workflow
 
 ## References

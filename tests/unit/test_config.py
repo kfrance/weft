@@ -1,4 +1,4 @@
-"""Tests for config module - configuration loading from ~/.lw_coder/config.toml."""
+"""Tests for config module - configuration loading from ~/.weft/config.toml."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.config import (
+from weft.config import (
     CONFIG_PATH,
     VALID_MODELS,
     get_model_defaults,
@@ -20,9 +20,9 @@ class TestLoadConfig:
 
     def test_load_config_valid_toml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test loading a valid TOML config file."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(
@@ -51,9 +51,9 @@ enabled = true
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test loading config with [defaults] + [hooks.*] in same file."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(
@@ -84,7 +84,7 @@ enabled = false
     ) -> None:
         """Test that missing config file returns empty dict with no error logged."""
         # Point to a non-existent config file
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
 
         config = load_config()
 
@@ -97,9 +97,9 @@ enabled = false
         """Test that corrupted TOML returns empty dict and logs ERROR with guidance."""
         import logging
 
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text("invalid [ toml syntax")
@@ -120,9 +120,9 @@ enabled = false
         """Test that permission/IO errors return empty dict with warning."""
         import logging
 
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text("[defaults]\nplan_model = 'opus'")
@@ -148,9 +148,9 @@ class TestGetModelDefaults:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test extracting [defaults] section successfully."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(
@@ -172,9 +172,9 @@ finalize_model = "haiku"
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test handling incomplete defaults (e.g., only plan_model set)."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(
@@ -194,7 +194,7 @@ plan_model = "opus"
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test returns empty dict when no config file exists."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
 
         defaults = get_model_defaults()
 
@@ -204,9 +204,9 @@ plan_model = "opus"
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test returns empty dict when [defaults] section is missing."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(
@@ -227,9 +227,9 @@ enabled = true
         """Test logs warning for invalid model values (e.g., 'gpt-4')."""
         import logging
 
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(

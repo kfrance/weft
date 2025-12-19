@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.candidate_writer import (
+from weft.candidate_writer import (
     CandidateWriteError,
     get_next_candidate_number,
     write_candidate,
 )
-from lw_coder.training_types import CandidatePrompts, SubagentDefinition
+from weft.training_types import CandidatePrompts, SubagentDefinition
 
 
 class TestGetNextCandidateNumber:
@@ -25,7 +25,7 @@ class TestGetNextCandidateNumber:
     def test_get_next_candidate_number_sequential(self, tmp_path: Path) -> None:
         """Returns next number after existing."""
         candidates_dir = (
-            tmp_path / ".lw_coder" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
+            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
         )
         candidates_dir.mkdir(parents=True)
 
@@ -40,7 +40,7 @@ class TestGetNextCandidateNumber:
     def test_get_next_candidate_number_gaps(self, tmp_path: Path) -> None:
         """Returns number after highest, ignoring gaps."""
         candidates_dir = (
-            tmp_path / ".lw_coder" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
+            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
         )
         candidates_dir.mkdir(parents=True)
 
@@ -54,7 +54,7 @@ class TestGetNextCandidateNumber:
     def test_get_next_candidate_number_ignores_non_matching(self, tmp_path: Path) -> None:
         """Ignores directories that don't match pattern."""
         candidates_dir = (
-            tmp_path / ".lw_coder" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
+            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
         )
         candidates_dir.mkdir(parents=True)
 
@@ -155,7 +155,7 @@ class TestWriteCandidate:
 
         expected = (
             tmp_path
-            / ".lw_coder"
+            / ".weft"
             / "prompts"
             / "candidates"
             / "claude-code-cli"

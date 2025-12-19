@@ -20,16 +20,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import lw_coder.code_command as code_command
-from lw_coder.code_command import (
+import weft.code_command as code_command
+from weft.code_command import (
     _filter_env_vars,
     _check_sandbox_dependencies,
     run_code_command,
     SandboxDependencyError,
 )
-from lw_coder.patch_utils import EmptyPatchError, PatchCaptureError
-from lw_coder.plan_validator import PlanValidationError
-from lw_coder.worktree_utils import WorktreeError
+from weft.patch_utils import EmptyPatchError, PatchCaptureError
+from weft.plan_validator import PlanValidationError
+from weft.worktree_utils import WorktreeError
 from conftest import write_plan
 
 
@@ -297,7 +297,7 @@ class TestCodeCommandPatchCapture:
         monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
 
         # Create a mock worktree path
-        worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-empty-patch"
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-empty-patch"
         worktree_path.mkdir(parents=True, exist_ok=True)
 
         monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
@@ -336,7 +336,7 @@ class TestCodeCommandPatchCapture:
         }
         monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
 
-        worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-patch-error"
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-patch-error"
         worktree_path.mkdir(parents=True, exist_ok=True)
 
         monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
@@ -384,7 +384,7 @@ class TestCodeCommandPatchCapture:
 
         def mock_ensure_worktree(metadata: Any) -> Path:
             """Create a real worktree for the test."""
-            worktree_path = git_repo.path / ".lw_coder" / "worktrees" / metadata.plan_id
+            worktree_path = git_repo.path / ".weft" / "worktrees" / metadata.plan_id
             worktree_path.mkdir(parents=True, exist_ok=True)
 
             # Initialize as a git worktree
@@ -435,7 +435,7 @@ class TestCodeCommandPatchCapture:
         assert exit_code == 0, f"Expected success, got exit code {exit_code}"
 
         # Verify patch file exists in session directory
-        session_dir = git_repo.path / ".lw_coder" / "sessions" / "test-workflow" / "code"
+        session_dir = git_repo.path / ".weft" / "sessions" / "test-workflow" / "code"
         patch_path = session_dir / "ai_changes.patch"
         assert patch_path.exists(), f"Patch file should exist at {patch_path}"
 

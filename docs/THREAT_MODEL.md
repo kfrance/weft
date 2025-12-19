@@ -1,10 +1,10 @@
 # Threat Model & Security Assumptions
 
-This document describes the threat model, trust boundaries, and security design decisions for lw_coder.
+This document describes the threat model, trust boundaries, and security design decisions for weft.
 
 ## System Classification
 
-**lw_coder is a local developer CLI tool**, not a production web service or multi-tenant system. This classification fundamentally shapes our security posture.
+**weft is a local developer CLI tool**, not a production web service or multi-tenant system. This classification fundamentally shapes our security posture.
 
 ## Trust Boundaries & Assumptions
 
@@ -13,7 +13,7 @@ This document describes the threat model, trust boundaries, and security design 
 2. **Local Environment** - The developer's machine and user account are trusted
 3. **Local Filesystem** - Files within the repository and home directory are under user control
 4. **Dependencies** - We trust dependencies from PyPI (DSPy, python-dotenv, etc.)
-5. **Home Directory Configuration** - `~/.lw_coder/config.toml` is developer-controlled
+5. **Home Directory Configuration** - `~/.weft/config.toml` is developer-controlled
 
 ### Threat Model Scope
 
@@ -36,9 +36,9 @@ This document describes the threat model, trust boundaries, and security design 
 
 **Decision: Home-level configuration only**
 - **Rationale:** Secrets should be stored once in the user's home directory, not per-repository
-- **Risk Accepted:** All repositories using lw_coder share the same credentials
+- **Risk Accepted:** All repositories using weft share the same credentials
 - **Justification:** This matches standard CLI tool patterns (e.g., `~/.aws/credentials`, `~/.gitconfig`)
-- **Implementation:** Load from `~/.lw_coder/.env` with existence and readability validation
+- **Implementation:** Load from `~/.weft/.env` with existence and readability validation
 - **Benefit:** Prevents accidental credential commits to repositories
 
 ### Path Security
@@ -47,12 +47,12 @@ This document describes the threat model, trust boundaries, and security design 
 - **Rationale:** Using a single, predictable location simplifies configuration and reduces misconfiguration risk
 - **Risk Accepted:** Users cannot customize the configuration location
 - **Justification:** Standard home directory locations are well-understood and secure
-- **Implementation:** Use `Path.home() / ".lw_coder" / ".env"` with validation
+- **Implementation:** Use `Path.home() / ".weft" / ".env"` with validation
 - **Note:** No path traversal concerns since path is fixed
 
 ### Cache Security
 
-**Decision: Disk-based DSPy cache at `~/.lw_coder/dspy_cache` without encryption**
+**Decision: Disk-based DSPy cache at `~/.weft/dspy_cache` without encryption**
 - **Rationale:** Caching improves developer experience and reduces API costs
 - **Risk Accepted:** Cached LLM responses stored in plaintext on local filesystem
 - **Justification:** Local filesystem is trusted; cache data doesn't contain secrets if used properly
@@ -109,7 +109,7 @@ This document describes the threat model, trust boundaries, and security design 
 ### Hook Execution Security
 
 **Decision: Trust developer-controlled hook configurations**
-- **Rationale:** Hooks configured in `~/.lw_coder/config.toml` by developer on their own machine
+- **Rationale:** Hooks configured in `~/.weft/config.toml` by developer on their own machine
 - **Risk Accepted:** Hooks execute arbitrary commands with developer's permissions
 - **Justification:** Developer creates their own config on their own machine
   - Similar trust model to git hooks, shell aliases, npm scripts
@@ -144,7 +144,7 @@ These aren't security issues but are documented for completeness:
 - **Note:** Tests verify templates exist but they're not used in code
 
 **Decision: Non-atomic quick-fix ID generation (TOCTOU race condition accepted)**
-- **Risk Accepted:** Concurrent `lw_coder code --text` invocations (~20ms window) could generate duplicate IDs, causing silent file overwrite
+- **Risk Accepted:** Concurrent `weft code --text` invocations (~20ms window) could generate duplicate IDs, causing silent file overwrite
 - **Justification:** Single-developer CLI tool; race requires near-simultaneous execution; user can re-run if collision occurs
 
 ## Security Boundary Summary
@@ -155,15 +155,15 @@ These aren't security issues but are documented for completeness:
 │                                                     │
 │  ┌──────────────────────────────────────────────┐  │
 │  │ TRUSTED: Repository (user controlled)        │  │
-│  │  - .lw_coder/tasks/*.md (plan files)         │  │
+│  │  - .weft/tasks/*.md (plan files)         │  │
 │  │  - Source code                               │  │
 │  └──────────────────────────────────────────────┘  │
 │                                                     │
 │  ┌──────────────────────────────────────────────┐  │
 │  │ TRUSTED: User's home directory               │  │
-│  │  - ~/.lw_coder/.env (secrets)                │  │
-│  │  - ~/.lw_coder/config.toml (hook config)     │  │
-│  │  - ~/.lw_coder/dspy_cache                    │  │
+│  │  - ~/.weft/.env (secrets)                │  │
+│  │  - ~/.weft/config.toml (hook config)     │  │
+│  │  - ~/.weft/dspy_cache                    │  │
 │  └──────────────────────────────────────────────┘  │
 │                                                     │
 │  UNTRUSTED EXTERNAL:                               │
@@ -174,7 +174,7 @@ These aren't security issues but are documented for completeness:
 
 ## Future Considerations
 
-If lw_coder evolves into a different use case (multi-tenant service, production deployment, CI/CD integration), the following should be reconsidered:
+If weft evolves into a different use case (multi-tenant service, production deployment, CI/CD integration), the following should be reconsidered:
 
 1. **Cache encryption** - Protect sensitive data at rest
 2. **Environment variable isolation** - Use `dotenv_values()` or context managers

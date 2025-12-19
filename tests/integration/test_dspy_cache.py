@@ -15,18 +15,18 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.cache_sync import (
+from weft.cache_sync import (
     check_rsync_available,
     sync_cache_from_worktree,
     sync_cache_to_worktree,
 )
-from lw_coder.judge_executor import (
+from weft.judge_executor import (
     JudgeExecutionError,
     configure_dspy_cache,
     execute_judge,
     get_openrouter_api_key,
 )
-from lw_coder.judge_loader import JudgeConfig
+from weft.judge_loader import JudgeConfig
 
 
 def test_dspy_cache_creates_files(tmp_path: Path) -> None:
@@ -43,7 +43,7 @@ def test_dspy_cache_creates_files(tmp_path: Path) -> None:
         api_key = get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.fail(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run this integration test."
         )
 

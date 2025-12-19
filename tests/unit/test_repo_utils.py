@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.repo_utils import (
+from weft.repo_utils import (
     RepoUtilsError,
     find_repo_root,
     load_prompt_template,
@@ -72,9 +72,9 @@ def test_load_prompt_template_success(tmp_path: Path, monkeypatch) -> None:
     expected_content = "# Claude Code Finalize Template\nPlan: {PLAN_ID}"
     template_path.write_text(expected_content)
 
-    # Mock get_lw_coder_src_dir
+    # Mock get_weft_src_dir
     monkeypatch.setattr(
-        "lw_coder.host_runner.get_lw_coder_src_dir",
+        "weft.host_runner.get_weft_src_dir",
         lambda: src_dir
     )
 
@@ -91,9 +91,9 @@ def test_load_prompt_template_not_found(tmp_path: Path, monkeypatch) -> None:
     src_dir = tmp_path / "src"
     src_dir.mkdir(parents=True)
 
-    # Mock get_lw_coder_src_dir
+    # Mock get_weft_src_dir
     monkeypatch.setattr(
-        "lw_coder.host_runner.get_lw_coder_src_dir",
+        "weft.host_runner.get_weft_src_dir",
         lambda: src_dir
     )
 
@@ -119,9 +119,9 @@ def test_load_prompt_template_different_tools(tmp_path: Path, monkeypatch, tool:
     expected_content = f"# {tool} {template_name} template"
     template_path.write_text(expected_content)
 
-    # Mock get_lw_coder_src_dir
+    # Mock get_weft_src_dir
     monkeypatch.setattr(
-        "lw_coder.host_runner.get_lw_coder_src_dir",
+        "weft.host_runner.get_weft_src_dir",
         lambda: src_dir
     )
 

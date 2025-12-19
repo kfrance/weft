@@ -15,8 +15,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import lw_coder.finalize_command as finalize_command
-from lw_coder.finalize_command import (
+import weft.finalize_command as finalize_command
+from weft.finalize_command import (
     FinalizeCommandError,
     run_finalize_command,
 )
@@ -40,7 +40,7 @@ def test_move_plan_to_worktree_success(tmp_path: Path) -> None:
     finalize_command._move_plan_to_worktree(plan_path, worktree_path, "test-plan")
 
     # Assert
-    dest_file = worktree_path / ".lw_coder" / "tasks" / "test-plan.md"
+    dest_file = worktree_path / ".weft" / "tasks" / "test-plan.md"
     assert dest_file.exists()
     assert dest_file.read_text() == "# Test Plan"
     # Verify source file no longer exists
@@ -76,7 +76,7 @@ evaluation_notes: []
     monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: False)
 
     # Mock executor
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     mock_executor = mock_executor_factory("claude-code")
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 
@@ -99,7 +99,7 @@ def test_run_finalize_command_invalid_plan_file(monkeypatch, tmp_path: Path, cap
     monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
 
     # Mock executor
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     mock_executor = mock_executor_factory("claude-code")
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 
@@ -127,7 +127,7 @@ evaluation_notes: []
     plan_path.write_text(plan_content)
 
     # Mock executor with failing auth
-    from lw_coder.executors import ExecutorError, ExecutorRegistry
+    from weft.executors import ExecutorError, ExecutorRegistry
 
     def mock_check_auth():
         raise ExecutorError("Authentication failed: API key not found")
@@ -198,7 +198,7 @@ evaluation_notes: []
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
     # Mock executor
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     mock_executor = mock_executor_factory("claude-code")
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 
@@ -264,7 +264,7 @@ evaluation_notes: []
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
     # Mock executor
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     mock_executor = mock_executor_factory("claude-code")
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 
@@ -326,7 +326,7 @@ evaluation_notes: []
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
     # Mock executor
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     mock_executor = mock_executor_factory("claude-code")
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 
@@ -394,7 +394,7 @@ evaluation_notes: []
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: mock_result)
 
     # Mock executor
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     mock_executor = mock_executor_factory("claude-code")
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 
@@ -433,7 +433,7 @@ evaluation_notes: []
         cleanup_called.append((repo_root, plan_id))
         # Simulate idempotent behavior - logs but doesn't raise
         import logging
-        logging.getLogger("lw_coder.plan_backup").debug(f"Backup reference already deleted: refs/plan-backups/{plan_id}")
+        logging.getLogger("weft.plan_backup").debug(f"Backup reference already deleted: refs/plan-backups/{plan_id}")
 
     monkeypatch.setattr(finalize_command, "cleanup_backup", mock_cleanup_backup_idempotent)
 
@@ -462,7 +462,7 @@ evaluation_notes: []
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: mock_result)
 
     # Mock executor
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     mock_executor = mock_executor_factory("claude-code")
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 

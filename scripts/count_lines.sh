@@ -1,6 +1,6 @@
 #!/bin/bash
-# Lines of Code Counter for lw_coder project
-# Excludes: .venv, .git, build, __pycache__, .lw_coder, cache directories
+# Lines of Code Counter for weft project
+# Excludes: .venv, .git, build, __pycache__, .weft, cache directories
 
 set -e
 
@@ -9,7 +9,7 @@ EXCLUDE_PATHS=(
     '*/.git/*'
     '*/build/*'
     '*/__pycache__/*'
-    '*/.lw_coder/*'
+    '*/.weft/*'
     '*/.uv-cache/*'
     '*/.pytest_cache/*'
     '*/src/*.egg-info/*'

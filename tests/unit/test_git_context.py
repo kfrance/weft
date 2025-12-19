@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.git_context import GitContextError, gather_git_context
+from weft.git_context import GitContextError, gather_git_context
 
 
 def test_gather_git_context_basic(tmp_path: Path) -> None:

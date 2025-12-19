@@ -4,7 +4,7 @@
 
 **Decision**: Accept O(n) plan_id uniqueness checking by scanning repository files during validation.
 
-**Context**: `validate_plan()` in `src/lw_coder/plan_validator.py` ensures each plan_id is unique across the repository by scanning all `.md` files under `.lw_coder/tasks/`.
+**Context**: `validate_plan()` in `src/weft/plan_validator.py` ensures each plan_id is unique across the repository by scanning all `.md` files under `.weft/tasks/`.
 
 **Rationale**: Performance testing with 10,000 plans showed validation completes in ~750ms, which is acceptable for CLI usage. Chose filesystem scanning over maintaining an index to avoid:
 - Additional file/database for tracking plan IDs

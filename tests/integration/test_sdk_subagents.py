@@ -38,7 +38,7 @@ class TestSDKProgrammaticAgents:
         by the SDK. It does not test agent invocation (that would require
         a more complex prompt that triggers agent usage).
         """
-        from lw_coder.sdk_runner import run_sdk_session_sync
+        from weft.sdk_runner import run_sdk_session_sync
 
         # Create minimal sdk_settings.json
         settings_path = tmp_path / "sdk_settings.json"
@@ -69,7 +69,7 @@ class TestSDKProgrammaticAgents:
 
     def test_sdk_session_without_agents_also_works(self, tmp_path):
         """Verify SDK session works without agents (backward compatibility)."""
-        from lw_coder.sdk_runner import run_sdk_session_sync
+        from weft.sdk_runner import run_sdk_session_sync
 
         # Create minimal sdk_settings.json
         settings_path = tmp_path / "sdk_settings.json"

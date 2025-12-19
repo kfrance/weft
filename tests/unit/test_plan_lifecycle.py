@@ -5,13 +5,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lw_coder.plan_lifecycle import (
+from weft.plan_lifecycle import (
     PlanLifecycleError,
     get_current_head_sha,
     update_plan_fields,
     _split_front_matter,
 )
-from lw_coder.plan_validator import _extract_front_matter
+from weft.plan_validator import _extract_front_matter
 from tests.conftest import write_plan
 
 

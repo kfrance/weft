@@ -5,17 +5,17 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.home_env import HomeEnvError, load_home_env
+from weft.home_env import HomeEnvError, load_home_env
 
 
 def test_load_home_env_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test successful loading of ~/.lw_coder/.env."""
-    # Setup: Create home directory with .lw_coder/.env
+    """Test successful loading of ~/.weft/.env."""
+    # Setup: Create home directory with .weft/.env
     home_dir = tmp_path / "home"
     home_dir.mkdir()
-    lw_coder_dir = home_dir / ".lw_coder"
-    lw_coder_dir.mkdir()
-    env_file = lw_coder_dir / ".env"
+    weft_dir = home_dir / ".weft"
+    weft_dir.mkdir()
+    env_file = weft_dir / ".env"
     env_file.write_text("OPENROUTER_API_KEY=test-key-123\n")
 
     # Mock Path.home() to return our test home directory
@@ -35,15 +35,15 @@ def test_load_home_env_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 @pytest.mark.parametrize(
     "setup_func,test_desc",
     [
-        (lambda tmp_path: tmp_path / "home", "missing_lw_coder_dir"),
-        (lambda tmp_path: (tmp_path / "home", (tmp_path / "home" / ".lw_coder").mkdir(parents=True)), "missing_file"),
+        (lambda tmp_path: tmp_path / "home", "missing_weft_dir"),
+        (lambda tmp_path: (tmp_path / "home", (tmp_path / "home" / ".weft").mkdir(parents=True)), "missing_file"),
     ],
     ids=["missing_directory", "missing_file"]
 )
 def test_load_home_env_missing_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setup_func, test_desc: str
 ) -> None:
-    """Test error when ~/.lw_coder/.env or ~/.lw_coder directory doesn't exist."""
+    """Test error when ~/.weft/.env or ~/.weft directory doesn't exist."""
     # Setup based on test case
     result = setup_func(tmp_path)
     home_dir = result[0] if isinstance(result, tuple) else result
@@ -53,7 +53,7 @@ def test_load_home_env_missing_path(
     # Mock Path.home()
     monkeypatch.setattr("pathlib.Path.home", lambda: home_dir)
 
-    expected_path = home_dir / ".lw_coder" / ".env"
+    expected_path = home_dir / ".weft" / ".env"
 
     # Execute and assert
     with pytest.raises(HomeEnvError, match="Environment file not found") as exc_info:
@@ -62,19 +62,19 @@ def test_load_home_env_missing_path(
     # Verify error message includes expected path
     error_message = str(exc_info.value)
     assert str(expected_path) in error_message
-    assert "~/.lw_coder/.env" in error_message
+    assert "~/.weft/.env" in error_message
 
 
 def test_load_home_env_is_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test error when ~/.lw_coder/.env is a directory instead of a file."""
-    # Setup: Create ~/.lw_coder/.env as a directory
+    """Test error when ~/.weft/.env is a directory instead of a file."""
+    # Setup: Create ~/.weft/.env as a directory
     home_dir = tmp_path / "home"
     home_dir.mkdir()
-    lw_coder_dir = home_dir / ".lw_coder"
-    lw_coder_dir.mkdir()
-    env_path = lw_coder_dir / ".env"
+    weft_dir = home_dir / ".weft"
+    weft_dir.mkdir()
+    env_path = weft_dir / ".env"
     env_path.mkdir()  # Create as directory instead of file
 
     # Mock Path.home()
@@ -88,13 +88,13 @@ def test_load_home_env_is_directory(
 def test_load_home_env_unreadable_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test error when ~/.lw_coder/.env exists but is not readable."""
+    """Test error when ~/.weft/.env exists but is not readable."""
     # Setup: Create unreadable .env file
     home_dir = tmp_path / "home"
     home_dir.mkdir()
-    lw_coder_dir = home_dir / ".lw_coder"
-    lw_coder_dir.mkdir()
-    env_file = lw_coder_dir / ".env"
+    weft_dir = home_dir / ".weft"
+    weft_dir.mkdir()
+    env_file = weft_dir / ".env"
     env_file.write_text("TEST=1\n")
 
     # Make file unreadable
@@ -115,13 +115,13 @@ def test_load_home_env_unreadable_file(
 def test_load_home_env_with_multiple_variables(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test loading multiple environment variables from ~/.lw_coder/.env."""
+    """Test loading multiple environment variables from ~/.weft/.env."""
     # Setup
     home_dir = tmp_path / "home"
     home_dir.mkdir()
-    lw_coder_dir = home_dir / ".lw_coder"
-    lw_coder_dir.mkdir()
-    env_file = lw_coder_dir / ".env"
+    weft_dir = home_dir / ".weft"
+    weft_dir.mkdir()
+    env_file = weft_dir / ".env"
     env_file.write_text(
         """OPENROUTER_API_KEY=key-123
 ANTHROPIC_API_KEY=key-456
@@ -153,9 +153,9 @@ def test_load_home_env_respects_existing_variables(
     # Setup
     home_dir = tmp_path / "home"
     home_dir.mkdir()
-    lw_coder_dir = home_dir / ".lw_coder"
-    lw_coder_dir.mkdir()
-    env_file = lw_coder_dir / ".env"
+    weft_dir = home_dir / ".weft"
+    weft_dir.mkdir()
+    env_file = weft_dir / ".env"
     env_file.write_text("EXISTING_VAR=from-file\n")
 
     # Mock Path.home()
@@ -174,13 +174,13 @@ def test_load_home_env_respects_existing_variables(
 def test_load_home_env_empty_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that an empty ~/.lw_coder/.env file is handled gracefully."""
+    """Test that an empty ~/.weft/.env file is handled gracefully."""
     # Setup
     home_dir = tmp_path / "home"
     home_dir.mkdir()
-    lw_coder_dir = home_dir / ".lw_coder"
-    lw_coder_dir.mkdir()
-    env_file = lw_coder_dir / ".env"
+    weft_dir = home_dir / ".weft"
+    weft_dir.mkdir()
+    env_file = weft_dir / ".env"
     env_file.write_text("")  # Empty file
 
     # Mock Path.home()

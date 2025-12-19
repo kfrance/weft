@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.trace_summarizer import (
+from weft.trace_summarizer import (
     TraceSummarizationError,
     _format_structural_section,
     extract_structural_data,
@@ -265,7 +265,7 @@ class TestLoadSummarizationPrompt:
 
     def test_prompt_file_exists(self) -> None:
         """Summarization prompt file exists and is loadable."""
-        from lw_coder.trace_summarizer import _load_summarization_prompt
+        from weft.trace_summarizer import _load_summarization_prompt
 
         prompt = _load_summarization_prompt()
 

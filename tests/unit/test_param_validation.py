@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.param_validation import (
+from weft.param_validation import (
     COMMAND_DEFAULTS,
     ParameterValidationError,
     get_effective_model,
@@ -116,9 +116,9 @@ class TestGetEffectiveModel:
     ) -> None:
         """Test that config.toml overrides hardcoded defaults when no CLI flag."""
         # Set up config file with model default
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(f"[defaults]\n{command}_model = \"{config_model}\"")
@@ -146,7 +146,7 @@ class TestGetEffectiveModel:
         """Test fallback to hardcoded defaults when no CLI or config."""
         # Point to non-existent config
         monkeypatch.setattr(
-            "lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml"
+            "weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml"
         )
 
         # No CLI model (None), no config -> should use hardcoded default
@@ -175,9 +175,9 @@ class TestGetEffectiveModel:
         import logging
 
         # Set up config file with invalid model
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / ".lw_coder" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / ".weft" / "config.toml")
 
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir(parents=True)
         config_file = config_dir / "config.toml"
         config_file.write_text(f"[defaults]\n{command}_model = \"{invalid_config_model}\"")
@@ -199,7 +199,7 @@ class TestGetEffectiveModel:
 
         # Point to non-existent config
         monkeypatch.setattr(
-            "lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml"
+            "weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml"
         )
 
         caplog.set_level(logging.WARNING)

@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from lw_coder.worktree.file_sync import (
+from weft.worktree.file_sync import (
     ConfigValidationError,
     CopyError,
     FileSyncConfig,
@@ -436,7 +436,7 @@ class TestSyncFilesToWorktree:
         repo_root.mkdir()
         worktree.mkdir()
 
-        # No .lw_coder/config.toml exists
+        # No .weft/config.toml exists
         result = sync_files_to_worktree(repo_root, worktree)
 
         assert result == 0
@@ -449,7 +449,7 @@ class TestSyncFilesToWorktree:
         worktree.mkdir()
 
         # Create config with sync disabled
-        config_dir = repo_root / ".lw_coder"
+        config_dir = repo_root / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             """
@@ -477,7 +477,7 @@ patterns = [".env"]
         worktree.mkdir()
 
         # Create config with empty patterns list
-        config_dir = repo_root / ".lw_coder"
+        config_dir = repo_root / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             """
@@ -505,7 +505,7 @@ patterns = []
         worktree.mkdir()
 
         # Create config
-        config_dir = repo_root / ".lw_coder"
+        config_dir = repo_root / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             """
@@ -547,7 +547,7 @@ patterns = [".env", "config/*.json"]
         worktree.mkdir()
 
         # Create config with pattern that won't match
-        config_dir = repo_root / ".lw_coder"
+        config_dir = repo_root / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             """
@@ -575,7 +575,7 @@ class TestFilesystemOperations:
         worktree.mkdir()
 
         # Create config
-        config_dir = repo_root / ".lw_coder"
+        config_dir = repo_root / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             """
@@ -608,7 +608,7 @@ patterns = [".env"]
         worktree.mkdir()
 
         # Create config
-        config_dir = repo_root / ".lw_coder"
+        config_dir = repo_root / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             """
@@ -683,7 +683,7 @@ patterns = ["../outside"]
         worktree.mkdir()
 
         # Create config
-        config_dir = repo_root / ".lw_coder"
+        config_dir = repo_root / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(config_content)
 
@@ -702,7 +702,7 @@ class TestLoadRepoConfig:
 
     def test_load_valid_config(self, tmp_path: Path) -> None:
         """Test loading a valid config file."""
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             """
@@ -724,7 +724,7 @@ patterns = [".env"]
 
     def test_invalid_toml_raises_error(self, tmp_path: Path) -> None:
         """Test that invalid TOML raises FileSyncError."""
-        config_dir = tmp_path / ".lw_coder"
+        config_dir = tmp_path / ".weft"
         config_dir.mkdir()
         (config_dir / "config.toml").write_text("invalid [ toml")
 

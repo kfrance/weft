@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.prompt_loader import (
+from weft.prompt_loader import (
     PromptLoadingError,
     _migrate_prompts_if_needed,
     load_current_prompts_for_training,
@@ -21,7 +21,7 @@ def create_prompts_at_location(base_dir: Path, location: str) -> None:
         base_dir: Repository root
         location: Either "optimized_prompts" (old) or "prompts/active" (new)
     """
-    prompts_dir = base_dir / ".lw_coder" / location / "claude-code-cli" / "sonnet"
+    prompts_dir = base_dir / ".weft" / location / "claude-code-cli" / "sonnet"
     prompts_dir.mkdir(parents=True)
 
     (prompts_dir / "main.md").write_text("Main prompt content")
@@ -52,7 +52,7 @@ class TestPromptMigration:
         assert result["main_prompt"] == "Main prompt content"
 
         # New location should now exist
-        new_location = tmp_path / ".lw_coder" / "prompts" / "active"
+        new_location = tmp_path / ".weft" / "prompts" / "active"
         assert new_location.exists()
 
     def test_load_prompts_deletes_old_after_migration(self, tmp_path: Path) -> None:
@@ -61,7 +61,7 @@ class TestPromptMigration:
 
         load_prompts(tmp_path, tool="claude-code-cli", model="sonnet")
 
-        old_location = tmp_path / ".lw_coder" / "optimized_prompts"
+        old_location = tmp_path / ".weft" / "optimized_prompts"
         assert not old_location.exists()
 
     def test_load_prompts_no_double_migration(self, tmp_path: Path) -> None:
@@ -70,7 +70,7 @@ class TestPromptMigration:
         create_prompts_at_location(tmp_path, "prompts/active")
 
         # Also create at old location (shouldn't be touched)
-        old_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / "sonnet"
+        old_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code-cli" / "sonnet"
         old_dir.mkdir(parents=True)
         (old_dir / "main.md").write_text("OLD content")
         (old_dir / "code-review-auditor.md").write_text("OLD content")
@@ -82,7 +82,7 @@ class TestPromptMigration:
         assert result["main_prompt"] == "Main prompt content"
 
         # Old location should still exist (wasn't migrated)
-        old_location = tmp_path / ".lw_coder" / "optimized_prompts"
+        old_location = tmp_path / ".weft" / "optimized_prompts"
         assert old_location.exists()
 
     def test_migrate_prompts_if_needed_no_old_location(self, tmp_path: Path) -> None:
@@ -125,7 +125,7 @@ class TestLoadCurrentPromptsForTraining:
 
     def test_load_current_prompts_for_training_missing_main(self, tmp_path: Path) -> None:
         """Raises error when main.md not found."""
-        prompts_dir = tmp_path / ".lw_coder" / "prompts" / "active" / "claude-code-cli" / "sonnet"
+        prompts_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet"
         prompts_dir.mkdir(parents=True)
         # Create subagent but not main.md
         (prompts_dir / "code-review-auditor.md").write_text("Review prompt")
@@ -137,7 +137,7 @@ class TestLoadCurrentPromptsForTraining:
 
     def test_load_current_prompts_for_training_no_subagents(self, tmp_path: Path) -> None:
         """Returns empty subagents when only main.md exists."""
-        prompts_dir = tmp_path / ".lw_coder" / "prompts" / "active" / "claude-code-cli" / "sonnet"
+        prompts_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet"
         prompts_dir.mkdir(parents=True)
         (prompts_dir / "main.md").write_text("Main prompt only")
 

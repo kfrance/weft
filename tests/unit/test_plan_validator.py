@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.plan_validator import PlanMetadata, PlanValidationError, load_plan_metadata
+from weft.plan_validator import PlanMetadata, PlanValidationError, load_plan_metadata
 PLACEHOLDER_SHA = "0" * 40
 
 from tests.conftest import write_plan

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Note**: For user-facing documentation on how to use lw_coder commands, see [README.md](README.md).
+**Note**: For user-facing documentation on how to use weft commands, see [README.md](README.md).
 
 ## Project Overview
 
@@ -14,7 +14,7 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 - **Run tests**: `uv run pytest` (runs unit tests only by default via testpaths)
 - **Run integration tests**: `uv run pytest tests/integration/` (makes real API calls)
 - **Run all tests**: `uv run pytest tests/`
-- **Run CLI**: `uv run lw_coder <command>`
+- **Run CLI**: `uv run weft <command>`
 - **Run specific test**: `uv run pytest tests/unit/test_<module>.py`
 
 ## Best Practices
@@ -29,7 +29,7 @@ This is an AI coding platform that orchestrates self-optimizing multi-agent codi
 
 - **Documentation is verified manually**: Avoid writing tests whose only purpose is to check for the existence of documentation pages or sections—keep effort focused on code behavior.
 
-- **Don't test interactive commands**: Avoid writing automated tests that run `lw_coder code` or `lw_coder plan` commands, as these launch interactive Claude Code sessions. Instead, test the underlying modules and functions directly with mock data or controlled inputs.
+- **Don't test interactive commands**: Avoid writing automated tests that run `weft code` or `weft plan` commands, as these launch interactive Claude Code sessions. Instead, test the underlying modules and functions directly with mock data or controlled inputs.
 
 ### Test Organization
 

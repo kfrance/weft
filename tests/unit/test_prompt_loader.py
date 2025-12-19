@@ -7,13 +7,13 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.prompt_loader import PromptLoadingError, load_prompts
+from weft.prompt_loader import PromptLoadingError, load_prompts
 
 
 def test_load_prompts_success(tmp_path: Path) -> None:
     """Test successful loading of all three prompts."""
     # Create test prompt structure in project-relative path
-    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / "sonnet"
+    prompts_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code-cli" / "sonnet"
     prompts_dir.mkdir(parents=True)
 
     main_content = "Main prompt for testing"
@@ -36,7 +36,7 @@ def test_load_prompts_all_models(tmp_path: Path) -> None:
     models = ["sonnet", "opus", "haiku"]
 
     for model in models:
-        prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / model
+        prompts_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code-cli" / model
         prompts_dir.mkdir(parents=True)
 
         (prompts_dir / "main.md").write_text(f"Main for {model}")
@@ -70,7 +70,7 @@ def test_load_prompts_invalid_model(tmp_path: Path) -> None:
 )
 def test_load_prompts_missing_file(tmp_path: Path, missing_file: str, other_files: list[str], model: str) -> None:
     """Test error when a required prompt file is missing."""
-    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / model
+    prompts_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code-cli" / model
     prompts_dir.mkdir(parents=True)
 
     # Create only the other files, not the missing one
@@ -86,7 +86,7 @@ def test_load_prompts_missing_file(tmp_path: Path, missing_file: str, other_file
 
 def test_load_prompts_file_read_error(tmp_path: Path) -> None:
     """Test error handling when file cannot be read."""
-    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / "sonnet"
+    prompts_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code-cli" / "sonnet"
     prompts_dir.mkdir(parents=True)
 
     # Create files but make the directory unreadable
@@ -105,7 +105,7 @@ def test_load_prompts_file_read_error(tmp_path: Path) -> None:
 def test_load_prompts_default_parameters(tmp_path: Path) -> None:
     """Test that load_prompts uses correct default parameters."""
     # Create structure for default tool and model
-    prompts_dir = tmp_path / ".lw_coder" / "optimized_prompts" / "claude-code-cli" / "sonnet"
+    prompts_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code-cli" / "sonnet"
     prompts_dir.mkdir(parents=True)
 
     (prompts_dir / "main.md").write_text("main")

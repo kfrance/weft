@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.judge_loader import (
+from weft.judge_loader import (
     JudgeConfig,
     JudgeLoaderError,
     discover_judges,

@@ -1,26 +1,26 @@
 # Configuration Guide
 
-This document describes the configuration for lw_coder.
+This document describes the configuration for weft.
 
 ## Configuration Location
 
-lw_coder loads secrets and credentials from `~/.lw_coder/.env` in your home directory.
+weft loads secrets and credentials from `~/.weft/.env` in your home directory.
 
 **This is the only configuration location.** There is no repository-level configuration file.
 
 ## Setup
 
-1. Create the `.lw_coder` directory in your home directory:
+1. Create the `.weft` directory in your home directory:
    ```bash
-   mkdir -p ~/.lw_coder
+   mkdir -p ~/.weft
    ```
 
 2. Create the `.env` file:
    ```bash
-   touch ~/.lw_coder/.env
+   touch ~/.weft/.env
    ```
 
-3. Add your API keys to `~/.lw_coder/.env`:
+3. Add your API keys to `~/.weft/.env`:
    ```bash
    # Required for DSPy to use OpenRouter
    OPENROUTER_API_KEY=your-api-key-here
@@ -29,20 +29,20 @@ lw_coder loads secrets and credentials from `~/.lw_coder/.env` in your home dire
    OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
 
    # Optional: Your app name for OpenRouter analytics
-   OPENROUTER_APP_NAME=lw_coder
+   OPENROUTER_APP_NAME=weft
    ```
 
-4. Run `lw_coder code <plan_path>` to generate prompts and execute coding tasks
+4. Run `weft code <plan_path>` to generate prompts and execute coding tasks
 
 ## Environment Variables for DSPy
 
-lw_coder uses DSPy for prompt generation and optimization. DSPy requires access to LLM providers via environment variables.
+weft uses DSPy for prompt generation and optimization. DSPy requires access to LLM providers via environment variables.
 
 ### OpenRouter Configuration
 
 The recommended LLM provider is OpenRouter, which provides access to multiple models through a single API.
 
-Set these variables in your `~/.lw_coder/.env` file:
+Set these variables in your `~/.weft/.env` file:
 
 ```bash
 # Required for DSPy to use OpenRouter
@@ -52,7 +52,7 @@ OPENROUTER_API_KEY=your-api-key-here
 OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
 
 # Optional: Your app name for OpenRouter analytics
-OPENROUTER_APP_NAME=lw_coder
+OPENROUTER_APP_NAME=weft
 ```
 
 ### DSPy Caching
@@ -60,8 +60,8 @@ OPENROUTER_APP_NAME=lw_coder
 DSPy caches LLM responses to improve performance and reduce API costs.
 
 **Cache Locations:**
-- Global cache: `~/.lw_coder/dspy_cache/`
-- Worktree cache: `<worktree>/.lw_coder/dspy_cache/`
+- Global cache: `~/.weft/dspy_cache/`
+- Worktree cache: `<worktree>/.weft/dspy_cache/`
 
 **How It Works:**
 - Cache entries are automatically synced to worktrees before command execution
@@ -80,7 +80,7 @@ DSPy caches LLM responses to improve performance and reduce API costs.
 - Commands continue to work without cache sync, just without worktree cache sharing
 
 **Manual Cache Management:**
-- Clear cache: `rm -rf ~/.lw_coder/dspy_cache`
+- Clear cache: `rm -rf ~/.weft/dspy_cache`
 - Verify rsync: `which rsync`
 
 **Troubleshooting:**
@@ -92,51 +92,51 @@ DSPy caches LLM responses to improve performance and reduce API costs.
 
 Configuration is validated when loading:
 
-- **Missing `~/.lw_coder/.env`**: Error raised with instructions to create the file
+- **Missing `~/.weft/.env`**: Error raised with instructions to create the file
 - **Unreadable file**: Error if the file exists but cannot be read
-- **Invalid path**: Error if `~/.lw_coder/.env` is a directory instead of a file
+- **Invalid path**: Error if `~/.weft/.env` is a directory instead of a file
 
 ### Error Messages
 
 The configuration loader provides actionable error messages:
 
 ```
-HomeEnvError: Environment file not found: /home/user/.lw_coder/.env
-Create ~/.lw_coder/.env with required secrets (e.g., OPENROUTER_API_KEY).
+HomeEnvError: Environment file not found: /home/user/.weft/.env
+Create ~/.weft/.env with required secrets (e.g., OPENROUTER_API_KEY).
 ```
 
 ```
-HomeEnvError: Environment path is not a file: /home/user/.lw_coder/.env
-~/.lw_coder/.env must be a regular file.
+HomeEnvError: Environment path is not a file: /home/user/.weft/.env
+~/.weft/.env must be a regular file.
 ```
 
 ```
-HomeEnvError: Cannot read environment file: /home/user/.lw_coder/.env
+HomeEnvError: Cannot read environment file: /home/user/.weft/.env
 Error: [Errno 13] Permission denied
 ```
 
 ## Security Considerations
 
-- The `~/.lw_coder/.env` file contains sensitive API keys and should not be committed to version control
-- Environment variables are loaded into the process environment when lw_coder runs
-- The DSPy cache at `~/.lw_coder/dspy_cache/` stores LLM responses in plaintext
+- The `~/.weft/.env` file contains sensitive API keys and should not be committed to version control
+- Environment variables are loaded into the process environment when weft runs
+- The DSPy cache at `~/.weft/dspy_cache/` stores LLM responses in plaintext
 - Standard filesystem permissions protect these files on single-user systems
-- On shared systems, consider setting restrictive permissions: `chmod 600 ~/.lw_coder/.env`
+- On shared systems, consider setting restrictive permissions: `chmod 600 ~/.weft/.env`
 
 ## Troubleshooting
 
 **Error: Environment file not found**
-- Ensure `~/.lw_coder/.env` exists
-- Check that you're running lw_coder as the correct user
-- Verify the path with `ls -la ~/.lw_coder/`
+- Ensure `~/.weft/.env` exists
+- Check that you're running weft as the correct user
+- Verify the path with `ls -la ~/.weft/`
 
 **Environment variables not loading**
 - Verify the `.env` file syntax (KEY=value format, one per line)
 - Check for typos in variable names
 - Ensure no extra spaces around the `=` sign
-- Test by running `cat ~/.lw_coder/.env`
+- Test by running `cat ~/.weft/.env`
 
 **Permission denied errors**
-- Check file permissions: `ls -l ~/.lw_coder/.env`
-- Ensure the file is readable: `chmod 644 ~/.lw_coder/.env`
-- Verify directory permissions: `chmod 755 ~/.lw_coder`
+- Check file permissions: `ls -l ~/.weft/.env`
+- Ensure the file is readable: `chmod 644 ~/.weft/.env`
+- Verify directory permissions: `chmod 755 ~/.weft`

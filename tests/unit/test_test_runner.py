@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lw_coder.test_runner import (
+from weft.test_runner import (
     TestRunnerError,
     get_plan_git_sha,
     run_after_tests,
@@ -243,8 +243,8 @@ class TestRunTestsViaSdk:
             }), encoding="utf-8")
             return expected_output
 
-        with patch("lw_coder.test_runner.run_headless_session", side_effect=mock_headless_session):
-            with patch("lw_coder.test_runner.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.test_runner.run_headless_session", side_effect=mock_headless_session):
+            with patch("weft.test_runner.get_weft_src_dir") as mock_src:
                 mock_src.return_value = tmp_path
                 (tmp_path / "sdk_settings.json").write_text("{}")
 
@@ -259,7 +259,7 @@ class TestRunTestsViaSdk:
         worktree = tmp_path / "worktree"
         worktree.mkdir()
 
-        with patch("lw_coder.test_runner.get_lw_coder_src_dir") as mock_src:
+        with patch("weft.test_runner.get_weft_src_dir") as mock_src:
             mock_src.return_value = tmp_path  # No sdk_settings.json
 
             with pytest.raises(TestRunnerError, match="SDK settings file not found"):
@@ -270,12 +270,12 @@ class TestRunTestsViaSdk:
         worktree = tmp_path / "worktree"
         worktree.mkdir()
 
-        from lw_coder.claude_session import ClaudeSessionError
+        from weft.claude_session import ClaudeSessionError
 
-        with patch("lw_coder.test_runner.run_headless_session") as mock_session:
+        with patch("weft.test_runner.run_headless_session") as mock_session:
             mock_session.side_effect = ClaudeSessionError("SDK error")
 
-            with patch("lw_coder.test_runner.get_lw_coder_src_dir") as mock_src:
+            with patch("weft.test_runner.get_weft_src_dir") as mock_src:
                 mock_src.return_value = tmp_path
                 (tmp_path / "sdk_settings.json").write_text("{}")
 
@@ -449,7 +449,7 @@ status: coding
 """, encoding="utf-8")
 
         # Create patch file with a simple change
-        patch_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        patch_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         patch_dir.mkdir(parents=True)
         patch_file = patch_dir / "ai_changes.patch"
         # Simple patch that creates a new file
@@ -466,7 +466,7 @@ new file mode 100644
         output_dir.mkdir()
 
         # Mock run_tests_via_sdk to verify it's called with temp worktree
-        with patch("lw_coder.test_runner.run_tests_via_sdk") as mock_run:
+        with patch("weft.test_runner.run_tests_via_sdk") as mock_run:
             mock_run.return_value = {
                 "command": "pytest",
                 "exit_code": 0,
@@ -491,7 +491,7 @@ new file mode 100644
         assert "test-plan-after" in str(worktree_arg)
 
         # Verify temp worktree was cleaned up
-        temp_worktree = tmp_path / ".lw_coder" / "temp-worktrees" / "test-plan-after"
+        temp_worktree = tmp_path / ".weft" / "temp-worktrees" / "test-plan-after"
         assert not temp_worktree.exists(), "Temp worktree should be cleaned up"
 
     def test_cleans_up_temp_worktree_on_failure(self, tmp_path: Path) -> None:
@@ -509,7 +509,7 @@ status: coding
 """, encoding="utf-8")
 
         # Create patch file
-        patch_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        patch_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         patch_dir.mkdir(parents=True)
         patch_file = patch_dir / "ai_changes.patch"
         patch_file.write_text("""diff --git a/new.txt b/new.txt
@@ -524,7 +524,7 @@ new file mode 100644
         output_dir.mkdir()
 
         # Mock run_tests_via_sdk to raise an error
-        with patch("lw_coder.test_runner.run_tests_via_sdk") as mock_run:
+        with patch("weft.test_runner.run_tests_via_sdk") as mock_run:
             mock_run.side_effect = TestRunnerError("Test execution failed")
 
             with pytest.raises(TestRunnerError):
@@ -537,7 +537,7 @@ new file mode 100644
                 )
 
         # Verify temp worktree was still cleaned up
-        temp_worktree = tmp_path / ".lw_coder" / "temp-worktrees" / "test-plan-after"
+        temp_worktree = tmp_path / ".weft" / "temp-worktrees" / "test-plan-after"
         assert not temp_worktree.exists(), "Temp worktree should be cleaned up even on failure"
 
     def test_raises_when_patch_conflicts(self, tmp_path: Path) -> None:
@@ -556,7 +556,7 @@ status: coding
 
         # Create a patch that modifies test.txt in a way that would conflict
         # with an invalid context (trying to modify a line that doesn't exist)
-        patch_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "code"
+        patch_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "code"
         patch_dir.mkdir(parents=True)
         patch_file = patch_dir / "ai_changes.patch"
         # Invalid patch - tries to modify content that doesn't exist

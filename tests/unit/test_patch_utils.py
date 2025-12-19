@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.patch_utils import (
+from weft.patch_utils import (
     EmptyPatchError,
     PatchApplicationError,
     PatchCaptureError,

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.sdk_runner import (
+from weft.sdk_runner import (
     run_sdk_session,
     SDKRunnerError,
 )

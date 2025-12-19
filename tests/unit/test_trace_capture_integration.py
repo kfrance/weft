@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.trace_capture import (
+from weft.trace_capture import (
     TraceCaptureError,
     capture_session_trace,
     find_project_folder,
@@ -389,7 +389,7 @@ def test_create_plan_trace_directory(tmp_path):
     # Verify directory was created
     assert trace_dir.exists()
     assert trace_dir.is_dir()
-    assert str(trace_dir).startswith(str(repo_root / ".lw_coder" / "plan-traces"))
+    assert str(trace_dir).startswith(str(repo_root / ".weft" / "plan-traces"))
 
 
 def test_create_plan_trace_directory_race_condition(tmp_path):
@@ -416,7 +416,7 @@ def test_prune_old_plan_traces(tmp_path):
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
 
-    traces_base = repo_root / ".lw_coder" / "plan-traces"
+    traces_base = repo_root / ".weft" / "plan-traces"
     traces_base.mkdir(parents=True)
 
     # Create old trace directory

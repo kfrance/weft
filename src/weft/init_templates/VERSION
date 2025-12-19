@@ -1,0 +1,41 @@
+{
+  "template_version": "1.0.0",
+  "weft_version": "0.1.0",
+  "frozen_date": "2025-12-19",
+  "description": "Initial frozen baseline templates",
+  "files": {
+    "judges/code-reuse.md": {
+      "hash": "sha256:e89f415b9b8e5c016f36ffb6045d3a09f94863fdb2506cfa4fd3e68663b19ee2"
+    },
+    "judges/plan-compliance.md": {
+      "hash": "sha256:bc0d20ae19f769110fb1834d326df3ead279457532c33e1f8832b48a811f1f03"
+    },
+    "prompts/claude-code-cli/haiku/code-review-auditor.md": {
+      "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
+    },
+    "prompts/claude-code-cli/haiku/main.md": {
+      "hash": "sha256:efc3ef975eee699987f3faea0ce4df9fb170eb00060002b74260bf31314dfc8e"
+    },
+    "prompts/claude-code-cli/haiku/plan-alignment-checker.md": {
+      "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
+    },
+    "prompts/claude-code-cli/opus/code-review-auditor.md": {
+      "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
+    },
+    "prompts/claude-code-cli/opus/main.md": {
+      "hash": "sha256:96e14de81bb057d4a55be3cdc918fff8571dff4871b5335b802ea4265c737956"
+    },
+    "prompts/claude-code-cli/opus/plan-alignment-checker.md": {
+      "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
+    },
+    "prompts/claude-code-cli/sonnet/code-review-auditor.md": {
+      "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
+    },
+    "prompts/claude-code-cli/sonnet/main.md": {
+      "hash": "sha256:3d6d49302b4aa8247aef20ee3c1c2cec0707f6c920505f1f3102e551610bdda6"
+    },
+    "prompts/claude-code-cli/sonnet/plan-alignment-checker.md": {
+      "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
+    }
+  }
+}

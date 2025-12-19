@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The lw_coder platform uses DSPy signatures and the GEPA optimizer to coordinate specialized subagents for improved code quality. To iterate on these prompts effectively, we need to capture conversation traces from coding sessions that show:
+The weft platform uses DSPy signatures and the GEPA optimizer to coordinate specialized subagents for improved code quality. To iterate on these prompts effectively, we need to capture conversation traces from coding sessions that show:
 
 - What conversations led to specific code decisions
 - How prompts performed across many sessions
@@ -17,7 +17,7 @@ These traces enable data-driven prompt improvement and systematic analysis of th
 
 ### Requirements
 
-1. **Automated Capture**: Traces must be captured automatically during `lw_coder plan` and `lw_coder code` sessions without user intervention
+1. **Automated Capture**: Traces must be captured automatically during `weft plan` and `weft code` sessions without user intervention
 2. **Clean Format**: Traces should be human-readable markdown files, not raw API logs
 3. **Selective Content**: Keep conversation flow and tool usage, but truncate large outputs to maintain readability
 4. **Subagent Visibility**: Separate sections for each subagent conversation
@@ -95,7 +95,7 @@ This section documents the observed internal structure for reference and future 
 
 ```
 ~/.claude/projects/
-├── -home-kfrance-lw-coder--lw-coder-worktrees-plan-id/
+├── -home-kfrance-weft--weft-worktrees-plan-id/
 │   ├── 4253c8e1-3da0-4ab3-812a-3e6b5267c497.jsonl    # Main conversation
 │   ├── agent-4c64dc30.jsonl                          # Subagent conversation
 │   ├── agent-6eb5b683.jsonl                          # Another subagent
@@ -106,7 +106,7 @@ This section documents the observed internal structure for reference and future 
 ### Folder Naming Convention
 
 - Algorithm: Strip leading `/`, replace `/`, `.`, `_` with `-`, then prefix with `-`
-- Example: `/home/user/lw_coder/.lw_coder/worktrees/foo` → `-home-user-lw-coder--lw-coder-worktrees-foo`
+- Example: `/home/user/weft/.weft/worktrees/foo` → `-home-user-weft--weft-worktrees-foo`
 - Appears consistent but undocumented (reverse-engineered)
 
 ### File Types
@@ -146,7 +146,7 @@ Each line is a JSON object representing one message. Common types:
     "parentUuid": "85122982-c9fd-4c53-a135-c41d28009d95",
     "isSidechain": false,
     "userType": "external",
-    "cwd": "/home/user/repo/.lw_coder/worktrees/plan-id",
+    "cwd": "/home/user/repo/.weft/worktrees/plan-id",
     "sessionId": "4253c8e1-3da0-4ab3-812a-3e6b5267c497",
     "version": "2.0.32",
     "gitBranch": "plan-id",
@@ -173,7 +173,7 @@ Each line is a JSON object representing one message. Common types:
 {
     "parentUuid": "3667ccd3-61ff-4c3e-aa4c-012b24b32fd2",
     "isSidechain": false,
-    "cwd": "/home/user/repo/.lw_coder/worktrees/plan-id",
+    "cwd": "/home/user/repo/.weft/worktrees/plan-id",
     "sessionId": "4253c8e1-3da0-4ab3-812a-3e6b5267c497",
     "message": {
         "model": "claude-sonnet-4-5-20250929",
@@ -302,7 +302,7 @@ Consider proposing to Anthropic:
 
 ## Implementation Notes
 
-- All trace logic isolated in `src/lw_coder/trace_capture.py`
+- All trace logic isolated in `src/weft/trace_capture.py`
 - Module-level comment references this ADR
 - Comprehensive error handling with fail-fast behavior
 - Non-blocking integration in `code_command.py` and `plan_command.py`
@@ -311,7 +311,7 @@ Consider proposing to Anthropic:
 
 ## References
 
-- Plan document: `.lw_coder/tasks/capture-session-traces.md`
-- Implementation: `src/lw_coder/trace_capture.py`
+- Plan document: `.weft/tasks/capture-session-traces.md`
+- Implementation: `src/weft/trace_capture.py`
 - Tests: `tests/test_trace_capture.py`, `tests/test_trace_capture_integration.py`
 - Claude Code: https://claude.ai/code

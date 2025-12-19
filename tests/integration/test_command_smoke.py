@@ -11,7 +11,7 @@ They catch:
 These tests would have caught the "droids directory not found" bug where
 code referenced a directory that had been moved during refactoring.
 
-NOTE: These tests run against the REAL lw_coder repository (not a temp repo)
+NOTE: These tests run against the REAL weft repository (not a temp repo)
 because they need access to real project files like prompts/active/.
 """
 
@@ -24,11 +24,11 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-import lw_coder.code_command as code_command
-import lw_coder.plan_command as plan_command
-from lw_coder.code_command import run_code_command
-from lw_coder.plan_command import run_plan_command
-from lw_coder.repo_utils import find_repo_root
+import weft.code_command as code_command
+import weft.plan_command as plan_command
+from weft.code_command import run_code_command
+from weft.plan_command import run_plan_command
+from weft.repo_utils import find_repo_root
 
 
 def _write_plan(path: Path, data: dict, body: str = "# Plan Body") -> None:
@@ -90,7 +90,7 @@ class TestPlanCommandSmoke:
 
 def _cleanup_worktree(repo_root: Path, plan_id: str) -> None:
     """Clean up worktree and branch created during test."""
-    worktree_path = repo_root / ".lw_coder" / "worktrees" / plan_id
+    worktree_path = repo_root / ".weft" / "worktrees" / plan_id
     if worktree_path.exists():
         subprocess.run(
             ["git", "worktree", "remove", "--force", str(worktree_path)],

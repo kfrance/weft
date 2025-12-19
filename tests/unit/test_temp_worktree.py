@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
+from weft.temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def test_create_temp_worktree(git_repo: Path) -> None:
     assert worktree_path.is_dir()
 
     # Verify it's in the expected location
-    assert worktree_path.parent == git_repo / ".lw_coder" / "worktrees"
+    assert worktree_path.parent == git_repo / ".weft" / "worktrees"
     assert worktree_path.name.startswith("temp-")
 
     # Verify worktree is registered
@@ -81,7 +81,7 @@ def test_remove_temp_worktree(git_repo: Path) -> None:
 
 def test_remove_nonexistent_worktree(git_repo: Path) -> None:
     """Test removing a worktree that doesn't exist."""
-    worktree_path = git_repo / ".lw_coder" / "worktrees" / "temp-nonexistent"
+    worktree_path = git_repo / ".weft" / "worktrees" / "temp-nonexistent"
 
     # Should not raise an error
     remove_temp_worktree(git_repo, worktree_path)
@@ -89,11 +89,11 @@ def test_remove_nonexistent_worktree(git_repo: Path) -> None:
 
 def test_create_temp_worktree_creates_parent_dirs(git_repo: Path) -> None:
     """Test that create_temp_worktree creates parent directories if needed."""
-    # Remove .lw_coder directory if it exists
-    lw_coder_dir = git_repo / ".lw_coder"
-    if lw_coder_dir.exists():
+    # Remove .weft directory if it exists
+    weft_dir = git_repo / ".weft"
+    if weft_dir.exists():
         import shutil
-        shutil.rmtree(lw_coder_dir)
+        shutil.rmtree(weft_dir)
 
     worktree_path = create_temp_worktree(git_repo)
 

@@ -31,8 +31,8 @@ class TestTabCompletionPerformance:
         # Initialize git repo
         subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
 
-        # Create .lw_coder/tasks directory with sample plans
-        tasks_dir = tmp_path / ".lw_coder" / "tasks"
+        # Create .weft/tasks directory with sample plans
+        tasks_dir = tmp_path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
 
         # Create a few sample plan files
@@ -81,7 +81,7 @@ This is a sample plan.
                 [
                     sys.executable,
                     "-c",
-                    "from lw_coder.completion.cache import get_active_plans; get_active_plans()",
+                    "from weft.completion.cache import get_active_plans; get_active_plans()",
                 ],
                 cwd=tmp_path,
                 capture_output=True,
@@ -113,7 +113,7 @@ This is a sample plan.
                 f"2. Imports in completion/cache.py or completers.py\n"
                 f"3. Heavy imports in plan_validator.py (use regex, not yaml)\n"
                 f"4. Import-time side effects in command modules\n\n"
-                f"Run: python -X importtime -c 'from lw_coder.completion.cache import get_active_plans'\n"
+                f"Run: python -X importtime -c 'from weft.completion.cache import get_active_plans'\n"
                 f"to identify which imports are slow."
             )
 
@@ -128,15 +128,15 @@ This is a sample plan.
 import sys
 
 # Import the cli module
-from lw_coder import cli
+from weft import cli
 
 # Check that heavy command modules are NOT imported
 heavy_modules = [
-    'lw_coder.code_command',
-    'lw_coder.finalize_command',
-    'lw_coder.plan_command',
-    'lw_coder.recover_command',
-    'lw_coder.eval_command',
+    'weft.code_command',
+    'weft.finalize_command',
+    'weft.plan_command',
+    'weft.recover_command',
+    'weft.eval_command',
 ]
 
 imported_heavy = [m for m in heavy_modules if m in sys.modules]

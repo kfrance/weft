@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from lw_coder.training_types import (
+from weft.training_types import (
     CandidatePrompts,
     CurrentPrompts,
     SubagentDefinition,

@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.judge_executor import JudgeExecutionError, JudgeResult
-from lw_coder.judge_loader import JudgeConfig
-from lw_coder.judge_orchestrator import (
+from weft.judge_executor import JudgeExecutionError, JudgeResult
+from weft.judge_loader import JudgeConfig
+from weft.judge_orchestrator import (
     JudgeOrchestrationError,
     execute_judges_parallel,
 )
@@ -50,7 +50,7 @@ def test_execute_judges_parallel_fail_fast(tmp_path: Path) -> None:
             weight=judge.weight,
         )
 
-    with patch("lw_coder.judge_orchestrator.execute_judge", side_effect=mock_execute_judge):
+    with patch("weft.judge_orchestrator.execute_judge", side_effect=mock_execute_judge):
         with pytest.raises(JudgeOrchestrationError, match="Judge 'judge-1' failed"):
             execute_judges_parallel(
                 judges, plan_content, git_changes, api_key, cache_dir
@@ -88,7 +88,7 @@ def test_execute_judges_parallel_unexpected_error(tmp_path: Path) -> None:
     def mock_execute_judge(judge, plan, changes, key, cache):
         raise RuntimeError("Unexpected error")
 
-    with patch("lw_coder.judge_orchestrator.execute_judge", side_effect=mock_execute_judge):
+    with patch("weft.judge_orchestrator.execute_judge", side_effect=mock_execute_judge):
         with pytest.raises(JudgeOrchestrationError, match="Unexpected error"):
             execute_judges_parallel(
                 judges, plan_content, git_changes, api_key, cache_dir

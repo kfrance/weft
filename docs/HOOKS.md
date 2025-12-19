@@ -1,10 +1,10 @@
 # Configurable Hooks
 
-lw_coder supports configurable hooks that execute commands at key workflow points. This allows you to automate actions like opening editors, sending notifications, or running custom scripts.
+weft supports configurable hooks that execute commands at key workflow points. This allows you to automate actions like opening editors, sending notifications, or running custom scripts.
 
 ## Configuration
 
-Hooks are configured in `~/.lw_coder/config.toml` in your home directory. This is a global configuration file that applies to all repositories.
+Hooks are configured in `~/.weft/config.toml` in your home directory. This is a global configuration file that applies to all repositories.
 
 ### Basic Structure
 
@@ -24,7 +24,7 @@ enabled = true
 
 # Send desktop notification when code generation completes
 [hooks.code_sdk_complete]
-command = "notify-send 'lw_coder' 'Code complete for ${plan_id}'"
+command = "notify-send 'weft' 'Code complete for ${plan_id}'"
 enabled = true
 
 # Open file manager after evaluation
@@ -37,7 +37,7 @@ enabled = true
 
 ### plan_file_created
 
-**Triggered:** When a plan file is created during an interactive `lw_coder plan` session.
+**Triggered:** When a plan file is created during an interactive `weft plan` session.
 
 **Timing:** During the plan session, when Claude creates a `.md` file in the tasks directory.
 
@@ -69,7 +69,7 @@ enabled = true
 
 ### code_sdk_complete
 
-**Triggered:** After the SDK session completes during `lw_coder code`, before the CLI resume session starts.
+**Triggered:** After the SDK session completes during `weft code`, before the CLI resume session starts.
 
 **Timing:** Between the initial SDK code generation and the interactive CLI session.
 
@@ -126,7 +126,7 @@ Variables use the `${variable}` syntax, similar to shell variables.
 
 ```toml
 [hooks.code_sdk_complete]
-command = "echo 'Plan ${plan_id} in ${repo_root}' | tee -a ~/lw_coder.log"
+command = "echo 'Plan ${plan_id} in ${repo_root}' | tee -a ~/weft.log"
 enabled = true
 ```
 
@@ -134,7 +134,7 @@ enabled = true
 
 - **Asynchronous:** Hooks run in the background and don't block the main workflow
 - **Non-blocking:** Hook failures don't fail the main command
-- **Logged:** Hook executions are logged via the standard lw_coder logging system
+- **Logged:** Hook executions are logged via the standard weft logging system
 - **Shell execution:** Commands are executed with `shell=True` for full shell syntax support
 
 ### Console Feedback
@@ -156,8 +156,8 @@ If a hook fails:
 Use the `--no-hooks` flag:
 
 ```bash
-lw_coder plan --text "my idea" --no-hooks
-lw_coder code my-plan --no-hooks
+weft plan --text "my idea" --no-hooks
+weft code my-plan --no-hooks
 ```
 
 ### Permanently (per hook)
@@ -172,7 +172,7 @@ enabled = false
 
 ### Completely
 
-Remove or rename `~/.lw_coder/config.toml`.
+Remove or rename `~/.weft/config.toml`.
 
 ## Troubleshooting
 
@@ -201,13 +201,13 @@ which code-oss
 **Hook not triggering:**
 - Check that `enabled = true` is set
 - Verify the config file syntax with a TOML validator
-- Run lw_coder with `--verbose` to see debug output
+- Run weft with `--verbose` to see debug output
 
 ## Security Considerations
 
-Hooks execute commands from your `~/.lw_coder/config.toml` file. This is similar to shell aliases, git hooks, or npm scripts - developer-controlled configurations that are inherently trusted.
+Hooks execute commands from your `~/.weft/config.toml` file. This is similar to shell aliases, git hooks, or npm scripts - developer-controlled configurations that are inherently trusted.
 
-**Important:** There is no project-level hook configuration. This prevents malicious repositories from executing commands when you run lw_coder.
+**Important:** There is no project-level hook configuration. This prevents malicious repositories from executing commands when you run weft.
 
 For detailed security rationale, see [ADR 002: Hook Command Injection Trust Model](adr/002-hook-injection-trust.md).
 
@@ -237,12 +237,12 @@ enabled = true
 ```toml
 # Linux (notify-send)
 [hooks.code_sdk_complete]
-command = "notify-send 'lw_coder' 'Code generation complete for ${plan_id}'"
+command = "notify-send 'weft' 'Code generation complete for ${plan_id}'"
 enabled = true
 
 # macOS (osascript)
 [hooks.code_sdk_complete]
-command = "osascript -e 'display notification \"Code complete\" with title \"lw_coder\"'"
+command = "osascript -e 'display notification \"Code complete\" with title \"weft\"'"
 enabled = true
 ```
 
@@ -260,6 +260,6 @@ enabled = true
 ```toml
 # Append to a log file
 [hooks.plan_file_created]
-command = "echo \"$(date): Plan ${plan_id} created\" >> ~/.lw_coder/activity.log"
+command = "echo \"$(date): Plan ${plan_id} created\" >> ~/.weft/activity.log"
 enabled = true
 ```

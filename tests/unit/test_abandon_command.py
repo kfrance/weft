@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.abandon_command import (
+from weft.abandon_command import (
     AbandonCommandError,
     CleanupResult,
     PlanArtifacts,
@@ -21,7 +21,7 @@ from lw_coder.abandon_command import (
     _show_confirmation_prompt,
     run_abandon_command,
 )
-from lw_coder.plan_backup import create_backup
+from weft.plan_backup import create_backup
 
 from conftest import GitRepo, write_plan
 
@@ -29,7 +29,7 @@ from conftest import GitRepo, write_plan
 def test_detect_plan_artifacts_all_present(git_repo: GitRepo) -> None:
     """Test artifact detection when all artifacts exist."""
     # Setup: Create plan file, backup, worktree, and branch
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -45,7 +45,7 @@ def test_detect_plan_artifacts_all_present(git_repo: GitRepo) -> None:
 
     # Create branch and worktree
     git_repo.run("branch", "test-plan", "HEAD")
-    worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-plan"
+    worktree_path = git_repo.path / ".weft" / "worktrees" / "test-plan"
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     git_repo.run("worktree", "add", str(worktree_path), "test-plan")
 
@@ -74,7 +74,7 @@ def test_detect_plan_artifacts_none_present(git_repo: GitRepo) -> None:
 def test_detect_plan_artifacts_partial(git_repo: GitRepo) -> None:
     """Test artifact detection with some artifacts missing."""
     # Setup: Create only plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -102,7 +102,7 @@ def test_cleanup_worktree_success(git_repo: GitRepo) -> None:
     """Test successful worktree cleanup."""
     # Setup: Create branch and worktree
     git_repo.run("branch", "test-plan", "HEAD")
-    worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-plan"
+    worktree_path = git_repo.path / ".weft" / "worktrees" / "test-plan"
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     git_repo.run("worktree", "add", str(worktree_path), "test-plan")
     assert worktree_path.exists()
@@ -166,7 +166,7 @@ def test_cleanup_branch_already_clean(git_repo: GitRepo) -> None:
 def test_cleanup_plan_file_success(git_repo: GitRepo) -> None:
     """Test successful plan file cleanup."""
     # Setup: Create plan file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -204,7 +204,7 @@ def test_cleanup_plan_file_already_clean(git_repo: GitRepo) -> None:
 def test_move_backup_to_abandoned_success(git_repo: GitRepo) -> None:
     """Test successful backup move to abandoned namespace."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -273,7 +273,7 @@ def test_log_abandonment_creates_file(git_repo: GitRepo) -> None:
     _log_abandonment(git_repo.path, "test-plan", "Test reason for abandonment")
 
     # Verify: Log file created
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     assert log_file.exists()
 
     content = log_file.read_text(encoding="utf-8")
@@ -290,7 +290,7 @@ def test_log_abandonment_appends(git_repo: GitRepo) -> None:
     _log_abandonment(git_repo.path, "second-plan", "Second reason")
 
     # Verify: Both entries present
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     content = log_file.read_text(encoding="utf-8")
     assert "## first-plan" in content
     assert "First reason" in content
@@ -301,7 +301,7 @@ def test_log_abandonment_appends(git_repo: GitRepo) -> None:
 def test_run_abandon_command_with_all_artifacts(git_repo: GitRepo, monkeypatch) -> None:
     """Test abandon command with all artifacts present."""
     # Setup: Create plan file, backup, worktree, and branch
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     commit_sha = git_repo.latest_commit()
@@ -318,12 +318,12 @@ def test_run_abandon_command_with_all_artifacts(git_repo: GitRepo, monkeypatch) 
 
     # Create branch and worktree
     git_repo.run("branch", "test-plan", commit_sha)
-    worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-plan"
+    worktree_path = git_repo.path / ".weft" / "worktrees" / "test-plan"
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     git_repo.run("worktree", "add", str(worktree_path), "test-plan")
 
     # Execute: Run abandon command with --yes
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command(plan_file, reason="Test abandonment", skip_confirmation=True)
 
     # Verify: Success
@@ -344,7 +344,7 @@ def test_run_abandon_command_with_all_artifacts(git_repo: GitRepo, monkeypatch) 
     assert check_abandoned.returncode == 0
 
     # Verify: Reason logged
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     assert log_file.exists()
     assert "Test abandonment" in log_file.read_text(encoding="utf-8")
 
@@ -352,7 +352,7 @@ def test_run_abandon_command_with_all_artifacts(git_repo: GitRepo, monkeypatch) 
 def test_run_abandon_command_no_artifacts(git_repo: GitRepo, capsys) -> None:
     """Test abandon command when no artifacts exist."""
     # Execute: Run abandon command for non-existent plan
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command("nonexistent-plan", skip_confirmation=True)
 
     # Verify: Success (nothing to clean up)
@@ -366,7 +366,7 @@ def test_run_abandon_command_no_artifacts(git_repo: GitRepo, capsys) -> None:
 def test_run_abandon_command_cancelled_by_user(git_repo: GitRepo, monkeypatch, capsys) -> None:
     """Test abandon command cancellation via user input."""
     # Setup: Create plan file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -383,7 +383,7 @@ def test_run_abandon_command_cancelled_by_user(git_repo: GitRepo, monkeypatch, c
     monkeypatch.setattr("builtins.input", lambda prompt: "n")
 
     # Execute: Run abandon command without --yes
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command(plan_file, skip_confirmation=False)
 
     # Verify: Cancelled
@@ -398,7 +398,7 @@ def test_run_abandon_command_cancelled_by_user(git_repo: GitRepo, monkeypatch, c
 def test_run_abandon_command_confirmed_by_user(git_repo: GitRepo, monkeypatch) -> None:
     """Test abandon command confirmation via user input."""
     # Setup: Create plan file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -421,7 +421,7 @@ def test_run_abandon_command_confirmed_by_user(git_repo: GitRepo, monkeypatch) -
     monkeypatch.setattr("builtins.input", mock_input)
 
     # Execute: Run abandon command without --yes
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command(plan_file, skip_confirmation=False)
 
     # Verify: Success
@@ -438,7 +438,7 @@ def test_run_abandon_command_confirmed_by_user(git_repo: GitRepo, monkeypatch) -
 def test_run_abandon_command_without_reason_no_log(git_repo: GitRepo) -> None:
     """Test that no log entry is created when --reason not provided."""
     # Setup: Create plan file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -452,21 +452,21 @@ def test_run_abandon_command_without_reason_no_log(git_repo: GitRepo) -> None:
     )
 
     # Execute: Run abandon command without --reason
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command(plan_file, reason=None, skip_confirmation=True)
 
     # Verify: Success
     assert exit_code == 0
 
     # Verify: No log file created
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     assert not log_file.exists()
 
 
 def test_run_abandon_command_by_plan_id(git_repo: GitRepo) -> None:
     """Test abandon command using plan ID instead of path."""
     # Setup: Create plan file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -480,7 +480,7 @@ def test_run_abandon_command_by_plan_id(git_repo: GitRepo) -> None:
     )
 
     # Execute: Run abandon command using plan ID
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_abandon_command("test-plan", skip_confirmation=True)
 
     # Verify: Success
@@ -544,7 +544,7 @@ def test_show_confirmation_prompt_no_artifacts(monkeypatch, capsys) -> None:
 def test_run_abandon_command_idempotent(git_repo: GitRepo) -> None:
     """Test that abandon command can be run multiple times safely."""
     # Setup: Create plan file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -558,14 +558,14 @@ def test_run_abandon_command_idempotent(git_repo: GitRepo) -> None:
     )
 
     # Execute: Run abandon command first time
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code1 = run_abandon_command("test-plan", skip_confirmation=True)
 
     # Verify: First run successful
     assert exit_code1 == 0
 
     # Execute: Run abandon command second time
-    with patch("lw_coder.abandon_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
         exit_code2 = run_abandon_command("test-plan", skip_confirmation=True)
 
     # Verify: Second run also successful (idempotent)
@@ -576,7 +576,7 @@ def test_cleanup_worktree_with_uncommitted_changes(git_repo: GitRepo) -> None:
     """Test worktree cleanup succeeds even with uncommitted changes."""
     # Setup: Create branch and worktree
     git_repo.run("branch", "test-plan", "HEAD")
-    worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-plan"
+    worktree_path = git_repo.path / ".weft" / "worktrees" / "test-plan"
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     git_repo.run("worktree", "add", str(worktree_path), "test-plan")
 

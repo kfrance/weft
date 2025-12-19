@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.trace_capture import (
+from weft.trace_capture import (
     truncate_content,
     filter_and_clean_messages,
     clean_tool_results,

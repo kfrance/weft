@@ -55,7 +55,7 @@ def real_trace_content() -> str:
 
     This fixture provides access to a real trace file for testing trace parsing
     and summarization. The trace file is committed in the repository at
-    .lw_coder/training_data/test-planner-subagent/code_trace.md
+    .weft/training_data/test-planner-subagent/code_trace.md
     """
     # Find the repo root by looking for pyproject.toml
     current = Path(__file__).parent
@@ -64,7 +64,7 @@ def real_trace_content() -> str:
             break
         current = current.parent
 
-    trace_path = current / ".lw_coder" / "training_data" / "test-planner-subagent" / "code_trace.md"
+    trace_path = current / ".weft" / "training_data" / "test-planner-subagent" / "code_trace.md"
     if not trace_path.exists():
         pytest.skip("Test trace file not available")
 

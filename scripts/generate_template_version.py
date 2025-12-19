@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate VERSION file for init_templates.
 
-This script scans all template files in src/lw_coder/init_templates and generates
+This script scans all template files in src/weft/init_templates and generates
 a VERSION file containing metadata and SHA256 hashes for each template.
 
 Usage:
@@ -20,11 +20,11 @@ from pathlib import Path
 # Add src directory to path for imports when running as script
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lw_coder.init_command import calculate_file_hash  # noqa: E402
+from weft.init_command import calculate_file_hash  # noqa: E402
 
 
-def get_lw_coder_version() -> str:
-    """Read lw_coder version from pyproject.toml.
+def get_weft_version() -> str:
+    """Read weft version from pyproject.toml.
 
     Returns:
         Version string from pyproject.toml.
@@ -51,7 +51,7 @@ ALLOWED_EXTENSIONS = {".md"}
 
 def generate_version_file() -> None:
     """Generate VERSION file for init_templates."""
-    templates_dir = Path("src/lw_coder/init_templates")
+    templates_dir = Path("src/weft/init_templates")
 
     if not templates_dir.exists():
         print(f"Error: Templates directory not found: {templates_dir}")
@@ -74,7 +74,7 @@ def generate_version_file() -> None:
     # Build VERSION content
     version_data = {
         "template_version": "1.0.0",
-        "lw_coder_version": get_lw_coder_version(),
+        "weft_version": get_weft_version(),
         "frozen_date": date.today().isoformat(),
         "description": "Initial frozen baseline templates",
         "files": files_data,
@@ -89,7 +89,7 @@ def generate_version_file() -> None:
 
     print(f"Generated {version_path}")
     print(f"  Template version: {version_data['template_version']}")
-    print(f"  lw_coder version: {version_data['lw_coder_version']}")
+    print(f"  weft version: {version_data['weft_version']}")
     print(f"  Frozen date: {version_data['frozen_date']}")
     print(f"  Files indexed: {len(files_data)}")
 

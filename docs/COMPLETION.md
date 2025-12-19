@@ -1,13 +1,13 @@
 # Bash Tab Completion
 
-This document explains how to set up and use bash tab completion for the `lw_coder` CLI.
+This document explains how to set up and use bash tab completion for the `weft` CLI.
 
 ## Features
 
-The `lw_coder` CLI provides intelligent bash tab completion for:
+The `weft` CLI provides intelligent bash tab completion for:
 
 - **Commands**: `plan`, `code`, `finalize`, `completion`
-- **Plan files**: Complete plan IDs (e.g., `fix-bug`) and full paths (e.g., `.lw_coder/tasks/fix-bug.md`)
+- **Plan files**: Complete plan IDs (e.g., `fix-bug`) and full paths (e.g., `.weft/tasks/fix-bug.md`)
 - **Tools**: Dynamic completion from available executors (`claude-code`, `droid`)
 - **Models**: Dynamic completion for Claude Code CLI models (`sonnet`, `opus`, `haiku`)
 - **Smart filtering**: Model completions are suppressed when `--tool droid` is specified
@@ -37,16 +37,16 @@ activate-global-python-argcomplete
 - If using `pip`, you may need to use `pip3` instead of `pip` on some systems
 - If you encounter permission errors with `pip`, try `pip install --user argcomplete` or `sudo pip install argcomplete`
 
-### 2. Install lw_coder completion script
+### 2. Install weft completion script
 
-Run the `lw_coder` completion installer:
+Run the `weft` completion installer:
 
 ```bash
-lw_coder completion install
+weft completion install
 ```
 
 This command will:
-- Create `~/.bash_completion.d/lw_coder` with the completion script
+- Create `~/.bash_completion.d/weft` with the completion script
 - Add a source line to `~/.bashrc` if not already present
 - Display setup instructions
 
@@ -66,37 +66,37 @@ Once set up, tab completion works automatically:
 
 ### Complete commands
 ```bash
-lw_coder <TAB>
+weft <TAB>
 # Shows: plan  code  finalize  completion  --help  --debug
 ```
 
 ### Complete plan files
 ```bash
-lw_coder code <TAB>
-# Shows active plan IDs from .lw_coder/tasks/ (excludes plans with status: done)
+weft code <TAB>
+# Shows active plan IDs from .weft/tasks/ (excludes plans with status: done)
 
-lw_coder code fix-<TAB>
+weft code fix-<TAB>
 # Completes to matching plan IDs like: fix-bug  fix-auth  fix-cache
 ```
 
 ### Complete tools
 ```bash
-lw_coder code my-plan --tool <TAB>
+weft code my-plan --tool <TAB>
 # Shows: claude-code  droid
 ```
 
 ### Complete models
 ```bash
-lw_coder code my-plan --model <TAB>
+weft code my-plan --model <TAB>
 # Shows: sonnet  opus  haiku
 
-lw_coder code my-plan --tool droid --model <TAB>
+weft code my-plan --tool droid --model <TAB>
 # Shows nothing (model parameter not valid with droid)
 ```
 
 ### Complete with paths
 ```bash
-lw_coder code .lw_coder/tasks/<TAB>
+weft code .weft/tasks/<TAB>
 # Shows plan files in the directory
 ```
 
@@ -105,7 +105,7 @@ lw_coder code .lw_coder/tasks/<TAB>
 ### Plan File Discovery
 
 The completion system:
-1. Searches for `.lw_coder/tasks/*.md` files in your repository
+1. Searches for `.weft/tasks/*.md` files in your repository
 2. Parses front matter to check the `status` field
 3. Filters out plans where `status: done`
 4. Returns plan IDs (filenames without `.md` extension)
@@ -144,11 +144,11 @@ Tool and model completions are dynamically discovered from the executor registry
    ```bash
    grep argcomplete ~/.bashrc
    ```
-   You should see a line like `eval "$(register-python-argcomplete lw_coder)"` or global argcomplete activation.
+   You should see a line like `eval "$(register-python-argcomplete weft)"` or global argcomplete activation.
 
-3. **Verify lw_coder is in PATH**:
+3. **Verify weft is in PATH**:
    ```bash
-   which lw_coder
+   which weft
    ```
    If not found, ensure the package is installed in your environment.
 
@@ -172,7 +172,7 @@ The plan file may have malformed YAML front matter. Check that:
 
 This suggests left-to-right argument parsing. Make sure you're using the command format:
 ```bash
-lw_coder code plan-id --tool droid --model <TAB>
+weft code plan-id --tool droid --model <TAB>
 ```
 
 If the tool hasn't been parsed yet (e.g., you haven't typed `--tool droid` before `--model`), completions will still appear. This is a limitation of bash completion left-to-right parsing.
@@ -183,13 +183,13 @@ To remove bash completion:
 
 1. Remove the completion script:
    ```bash
-   rm ~/.bash_completion.d/lw_coder
+   rm ~/.bash_completion.d/weft
    ```
 
 2. Remove the source line from `~/.bashrc`:
    ```bash
    # Edit ~/.bashrc and remove the line:
-   # source ~/.bash_completion.d/lw_coder
+   # source ~/.bash_completion.d/weft
    ```
 
 3. Reload your shell:
@@ -239,7 +239,7 @@ The completion system consists of four main components:
 
 ### Component Details
 
-#### 1. CLI Integration (`src/lw_coder/cli.py`)
+#### 1. CLI Integration (`src/weft/cli.py`)
 
 The CLI is responsible for:
 - Creating the argparse parser with `create_parser()`
@@ -269,7 +269,7 @@ def main(argv):
 
 **Important:** `argcomplete.autocomplete()` must be called *before* `parse_args()`.
 
-#### 2. Completer Functions (`src/lw_coder/completion/completers.py`)
+#### 2. Completer Functions (`src/weft/completion/completers.py`)
 
 Completer functions are called by argcomplete during tab completion. They follow a specific signature:
 
@@ -291,7 +291,7 @@ def completer_function(prefix: str, parsed_args, **kwargs) -> list[str]:
 - **`complete_plan_files`**: Completes plan file paths and IDs
   - Uses `PlanCompletionCache` for performance
   - Filters to plans where `status != "done"`
-  - Supports both plan IDs (`fix-bug`) and paths (`.lw_coder/tasks/fix-bug.md`)
+  - Supports both plan IDs (`fix-bug`) and paths (`.weft/tasks/fix-bug.md`)
 
 - **`complete_tools`**: Completes tool names
   - Calls `ExecutorRegistry.list_executors()` dynamically
@@ -304,7 +304,7 @@ def completer_function(prefix: str, parsed_args, **kwargs) -> list[str]:
 
 **Error handling:** All completers catch exceptions and return empty lists on error. This prevents completion from breaking the shell experience.
 
-#### 3. Plan Completion Cache (`src/lw_coder/completion/cache.py`)
+#### 3. Plan Completion Cache (`src/weft/completion/cache.py`)
 
 The cache improves tab completion performance by avoiding repeated filesystem scans.
 
@@ -312,14 +312,14 @@ The cache improves tab completion performance by avoiding repeated filesystem sc
 - **TTL-based caching**: Default 2-second TTL balances freshness and performance
 - **YAML parsing**: Extracts `status` field from plan front matter
 - **Error resilience**: Handles malformed YAML, permission errors, missing files gracefully
-- **Repository-aware**: Finds `.lw_coder/tasks/` relative to git repo root
+- **Repository-aware**: Finds `.weft/tasks/` relative to git repo root
 
 **Cache invalidation:**
 ```python
-from lw_coder.completion.cache import get_active_plans
+from weft.completion.cache import get_active_plans
 
 # Invalidate cache manually (useful in tests)
-from lw_coder.completion.cache import _global_cache
+from weft.completion.cache import _global_cache
 _global_cache.invalidate()
 
 # Or create a new cache with custom TTL
@@ -329,14 +329,14 @@ plans = cache.get_active_plans()
 
 **Global cache:** The module exports `get_active_plans()` which uses a global cache instance. This is appropriate for CLI usage (short-lived, single-threaded processes).
 
-#### 4. Plan Resolver (`src/lw_coder/plan_resolver.py`)
+#### 4. Plan Resolver (`src/weft/plan_resolver.py`)
 
 The `PlanResolver` provides centralized path resolution logic used by both the CLI and completion system.
 
 **Resolution logic:**
 1. **Absolute path**: `/full/path/to/plan.md` → returned as-is (after validation)
 2. **Relative path**: `./plan.md` or `../tasks/plan.md` → resolved relative to cwd
-3. **Plan ID**: `fix-bug` → searches for `.lw_coder/tasks/fix-bug.md` from repo root
+3. **Plan ID**: `fix-bug` → searches for `.weft/tasks/fix-bug.md` from repo root
 
 **Error handling:**
 - Raises `FileNotFoundError` with helpful error messages
@@ -448,9 +448,9 @@ The completion system has comprehensive test coverage:
 
 **Completion not working in development:**
 - Install in editable mode: `pip install -e .`
-- Run `lw_coder completion install`
-- Check that `which lw_coder` points to your development version
-- Use `python -m lw_coder.cli` to bypass shell PATH issues
+- Run `weft completion install`
+- Check that `which weft` points to your development version
+- Use `python -m weft.cli` to bypass shell PATH issues
 
 **Global cache causing test interference:**
 - Use the `autouse` fixture to invalidate cache before each test

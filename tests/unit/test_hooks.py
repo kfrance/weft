@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lw_coder.hooks import (
+from weft.hooks import (
     HookConfigError,
     HookError,
     HookManager,
@@ -88,7 +88,7 @@ class TestHookManager:
     def test_load_config_missing_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test loading config when file doesn't exist."""
         # Monkeypatch the config module's CONFIG_PATH
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
         manager = HookManager()
         config = manager.load_config()
         assert config == {}
@@ -107,7 +107,7 @@ command = "echo done"
 enabled = false
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         manager = HookManager()
         config = manager.load_config()
@@ -125,7 +125,7 @@ enabled = false
 
         config_file = tmp_path / "config.toml"
         config_file.write_text("invalid [ toml syntax")
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         caplog.set_level(logging.ERROR)
         manager = HookManager()
@@ -145,7 +145,7 @@ command = "echo test"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         manager = HookManager()
         with pytest.raises(HookConfigError, match="Unknown hook"):
@@ -160,7 +160,7 @@ enabled = true
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         manager = HookManager()
         with pytest.raises(HookConfigError, match="missing required 'command'"):
@@ -176,7 +176,7 @@ command = "echo test"
 enabled = "yes"
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         manager = HookManager()
         with pytest.raises(HookConfigError, match="enabled must be a boolean"):
@@ -184,7 +184,7 @@ enabled = "yes"
 
     def test_execute_hook_not_configured(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test executing hook that isn't configured."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
 
         mock_executor = MockProcessExecutor()
         manager = HookManager(executor=mock_executor)
@@ -205,7 +205,7 @@ command = "code-oss ${worktree_path}"
 enabled = false
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         mock_executor = MockProcessExecutor()
         manager = HookManager(executor=mock_executor)
@@ -225,7 +225,7 @@ command = "code-oss ${worktree_path}"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         mock_executor = MockProcessExecutor()
         manager = HookManager(executor=mock_executor)
@@ -250,7 +250,7 @@ command = "notify-send 'Plan ${plan_id}' 'Created in ${repo_root}'"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         mock_executor = MockProcessExecutor()
         manager = HookManager(executor=mock_executor)
@@ -278,7 +278,7 @@ command = "echo test"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         mock_executor = MockProcessExecutor()
         # Mark process as still running
@@ -303,7 +303,7 @@ command = "echo test"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         manager = HookManager()
 
@@ -324,7 +324,7 @@ command = "echo test"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         manager = HookManager()
 
@@ -351,7 +351,7 @@ class TestTriggerHook:
 
     def test_trigger_hook_not_configured(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test trigger_hook with no config gracefully returns."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
 
         # Should not raise, just return silently
         trigger_hook(
@@ -370,7 +370,7 @@ command = "echo test"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         mock_executor = MockProcessExecutor()
         manager = HookManager(executor=mock_executor)
@@ -394,7 +394,7 @@ command = "echo ${undefined_var}"
 enabled = true
 """
         )
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("weft.config.CONFIG_PATH", config_file)
 
         # Should not raise, just log the error
         trigger_hook(
@@ -411,7 +411,7 @@ class TestCleanup:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test that prune_completed removes finished processes."""
-        monkeypatch.setattr("lw_coder.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
+        monkeypatch.setattr("weft.config.CONFIG_PATH", tmp_path / "nonexistent" / "config.toml")
 
         finished_process = MagicMock()
         finished_process.poll.return_value = 0  # Completed

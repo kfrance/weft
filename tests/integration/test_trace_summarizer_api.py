@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.judge_executor import JudgeExecutionError, get_openrouter_api_key
-from lw_coder.trace_summarizer import (
+from weft.judge_executor import JudgeExecutionError, get_openrouter_api_key
+from weft.trace_summarizer import (
     TraceSummarizationError,
     create_trace_summary,
     generate_narrative_summary,
 )
-from lw_coder.trace_parser import parse_subagent_sections
+from weft.trace_parser import parse_subagent_sections
 
 
 def _get_real_trace_path() -> Path:
@@ -30,7 +30,7 @@ def _get_real_trace_path() -> Path:
             break
         current = current.parent
 
-    return current / ".lw_coder" / "training_data" / "test-planner-subagent" / "code_trace.md"
+    return current / ".weft" / "training_data" / "test-planner-subagent" / "code_trace.md"
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ def test_create_trace_summary_end_to_end(real_trace_path: Path, tmp_path: Path) 
         get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.skip(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run this integration test."
         )
 
@@ -124,7 +124,7 @@ def test_generate_narrative_summary_preserves_subagent_feedback(
         get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.skip(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run this integration test."
         )
 
@@ -172,12 +172,12 @@ def test_summary_usable_in_training_loader(real_trace_path: Path, tmp_path: Path
         get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.skip(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run this integration test."
         )
 
     # Create training sample directory structure
-    sample_dir = tmp_path / ".lw_coder" / "training_data" / "test-sample"
+    sample_dir = tmp_path / ".weft" / "training_data" / "test-sample"
     sample_dir.mkdir(parents=True)
 
     # Copy trace file
@@ -193,7 +193,7 @@ def test_summary_usable_in_training_loader(real_trace_path: Path, tmp_path: Path
     )
 
     # Load training sample with model (triggers summary generation)
-    from lw_coder.training_data_loader import load_training_sample
+    from weft.training_data_loader import load_training_sample
 
     sample = load_training_sample(
         tmp_path,
@@ -227,7 +227,7 @@ def test_summary_file_not_rewritten_when_trace_unchanged(real_trace_path: Path, 
         get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.skip(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run this integration test."
         )
 
@@ -248,7 +248,7 @@ def test_summary_file_not_rewritten_when_trace_unchanged(real_trace_path: Path, 
     time.sleep(0.1)
 
     # Use _get_or_create_summary to verify caching
-    from lw_coder.training_data_loader import _get_or_create_summary
+    from weft.training_data_loader import _get_or_create_summary
 
     cached_content = _get_or_create_summary(
         tmp_path,

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.droid_auth import DroidAuthError, check_droid_auth
+from weft.droid_auth import DroidAuthError, check_droid_auth
 
 
 def test_check_droid_auth_missing_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

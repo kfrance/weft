@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lw-coder"
+name = "weft"
 version = "0.1.0"
 description = "Self-optimizing multi-agent AI coding assistant"
 readme = "README.md"
@@ -11,7 +11,7 @@ license = "AGPL-3.0-only"
 requires-python = ">=3.12"
 dependencies = [
     "argcomplete>=3.0.0",
-    "claude-agent-sdk>=0.1.10",
+    "claude-agent-sdk>=0.1.18",
     "dspy-ai>=3.0.3",
     "pytest>=8.4.2",
     "python-dotenv>=1.1.1",
@@ -20,10 +20,10 @@ dependencies = [
 ]
 
 [project.scripts]
-lw_coder = "lw_coder.cli:main"
+weft = "weft.cli:main"
 
 [tool.setuptools.package-data]
-lw_coder = ["droids/**/*.md", "prompts/**/*.md", "sdk_settings.json", "init_templates/**/*"]
+weft = ["droids/**/*.md", "prompts/**/*.md", "sdk_settings.json", "init_templates/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

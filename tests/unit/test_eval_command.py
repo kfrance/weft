@@ -9,13 +9,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lw_coder.eval_command import (
+from weft.eval_command import (
     format_judge_markdown,
     format_judge_results,
     run_eval_command,
     save_judge_results,
 )
-from lw_coder.judge_executor import JudgeResult
+from weft.judge_executor import JudgeResult
 
 
 def test_format_judge_results() -> None:
@@ -36,7 +36,7 @@ def test_format_judge_results() -> None:
     ]
 
     plan_id = "test-plan"
-    worktree_path = Path(".lw_coder/worktrees/test-plan")
+    worktree_path = Path(".weft/worktrees/test-plan")
 
     output = format_judge_results(results, plan_id, worktree_path)
 
@@ -69,7 +69,7 @@ def test_format_judge_results_weighted_score() -> None:
     ]
 
     plan_id = "test-plan"
-    worktree_path = Path(".lw_coder/worktrees/test-plan")
+    worktree_path = Path(".weft/worktrees/test-plan")
 
     output = format_judge_results(results, plan_id, worktree_path)
 
@@ -131,7 +131,7 @@ def test_run_eval_command_worktree_not_found(tmp_path: Path, monkeypatch) -> Non
     monkeypatch.chdir(tmp_path)
 
     # Create a plan file
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     plan_file.write_text(
@@ -164,7 +164,7 @@ def test_run_eval_command_no_judges(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     # Create plan file
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     plan_file.write_text(
@@ -178,7 +178,7 @@ status: coding
     )
 
     # Create worktree
-    worktree_dir = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
+    worktree_dir = tmp_path / ".weft" / "worktrees" / "test-plan"
     worktree_dir.mkdir(parents=True)
 
     # Initialize git repo in worktree
@@ -203,7 +203,7 @@ status: coding
     )
 
     # Create empty judges directory
-    judges_dir = tmp_path / ".lw_coder" / "judges"
+    judges_dir = tmp_path / ".weft" / "judges"
     judges_dir.mkdir(parents=True)
 
     exit_code = run_eval_command("test-plan")
@@ -231,7 +231,7 @@ def test_run_eval_command_judges_only(tmp_path: Path, monkeypatch, capsys) -> No
     )
 
     # Create plan file
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     plan_file.write_text(
@@ -254,7 +254,7 @@ status: coding
     )
 
     # Create worktree
-    worktree_dir = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
+    worktree_dir = tmp_path / ".weft" / "worktrees" / "test-plan"
     worktree_dir.mkdir(parents=True)
 
     # Initialize git repo
@@ -279,7 +279,7 @@ status: coding
     )
 
     # Create judges directory and judge file
-    judges_dir = tmp_path / ".lw_coder" / "judges"
+    judges_dir = tmp_path / ".weft" / "judges"
     judges_dir.mkdir(parents=True)
     judge_file = judges_dir / "test-judge.md"
     judge_file.write_text(
@@ -303,17 +303,17 @@ Test judge instructions.
     ]
 
     # Mock test runner and feedback collector to avoid SDK calls
-    with patch("lw_coder.eval_command.execute_judges_parallel", return_value=mock_results):
-        with patch("lw_coder.eval_command.get_openrouter_api_key", return_value="test_key"):
-            with patch("lw_coder.eval_command.run_before_tests", return_value=None):
-                with patch("lw_coder.eval_command.run_after_tests", return_value={
+    with patch("weft.eval_command.execute_judges_parallel", return_value=mock_results):
+        with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+            with patch("weft.eval_command.run_before_tests", return_value=None):
+                with patch("weft.eval_command.run_after_tests", return_value={
                     "command": "test",
                     "exit_code": 0,
                     "total_tests": 10,
                     "passed_tests": 10,
                     "failed_tests": 0,
                 }):
-                    with patch("lw_coder.eval_command.collect_human_feedback", return_value=None):
+                    with patch("weft.eval_command.collect_human_feedback", return_value=None):
                         exit_code = run_eval_command("test-plan")
 
     assert exit_code == 0
@@ -325,7 +325,7 @@ Test judge instructions.
     assert "0.85" in captured.out
 
     # Check judge result files were saved
-    eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+    eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
     json_path = eval_dir / "judge_test-judge.json"
     md_path = eval_dir / "judge_test-judge.md"
 
@@ -356,7 +356,7 @@ class TestEvalCommandIdempotency:
         )
 
         # Create plan file
-        tasks_dir = tmp_path / ".lw_coder" / "tasks"
+        tasks_dir = tmp_path / ".weft" / "tasks"
         tasks_dir.mkdir(parents=True)
         plan_file = tasks_dir / "test-plan.md"
         plan_file.write_text(
@@ -379,7 +379,7 @@ status: coding
         )
 
         # Create worktree
-        worktree_dir = tmp_path / ".lw_coder" / "worktrees" / "test-plan"
+        worktree_dir = tmp_path / ".weft" / "worktrees" / "test-plan"
         worktree_dir.mkdir(parents=True)
 
         # Initialize git repo in worktree
@@ -404,7 +404,7 @@ status: coding
         )
 
         # Create judges directory with judge
-        judges_dir = tmp_path / ".lw_coder" / "judges"
+        judges_dir = tmp_path / ".weft" / "judges"
         judges_dir.mkdir(parents=True)
         judge_file = judges_dir / "test-judge.md"
         judge_file.write_text(
@@ -425,7 +425,7 @@ Test judge instructions.
         monkeypatch.chdir(tmp_path)
 
         # Pre-create judge output file
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         judge_json = eval_dir / "judge_test-judge.json"
         judge_json.write_text(json.dumps({
@@ -438,14 +438,14 @@ Test judge instructions.
         # Mock execute_judges_parallel - should NOT be called
         mock_execute = MagicMock(return_value=[])
 
-        with patch("lw_coder.eval_command.execute_judges_parallel", mock_execute):
-            with patch("lw_coder.eval_command.get_openrouter_api_key", return_value="test_key"):
-                with patch("lw_coder.eval_command.run_before_tests", return_value=None):
-                    with patch("lw_coder.eval_command.run_after_tests", return_value={
+        with patch("weft.eval_command.execute_judges_parallel", mock_execute):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", return_value={
                         "command": "test", "exit_code": 0, "total_tests": 1,
                         "passed_tests": 1, "failed_tests": 0,
                     }):
-                        with patch("lw_coder.eval_command.collect_human_feedback", return_value=None):
+                        with patch("weft.eval_command.collect_human_feedback", return_value=None):
                             run_eval_command("test-plan")
 
         # execute_judges_parallel should not be called since output exists
@@ -462,7 +462,7 @@ Test judge instructions.
         monkeypatch.chdir(tmp_path)
 
         # Pre-create judge output file
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         judge_json = eval_dir / "judge_test-judge.json"
         judge_json.write_text(json.dumps({
@@ -480,14 +480,14 @@ Test judge instructions.
             weight=0.5,
         )
 
-        with patch("lw_coder.eval_command.execute_judges_parallel", return_value=[new_result]):
-            with patch("lw_coder.eval_command.get_openrouter_api_key", return_value="test_key"):
-                with patch("lw_coder.eval_command.run_before_tests", return_value=None):
-                    with patch("lw_coder.eval_command.run_after_tests", return_value={
+        with patch("weft.eval_command.execute_judges_parallel", return_value=[new_result]):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", return_value={
                         "command": "test", "exit_code": 0, "total_tests": 1,
                         "passed_tests": 1, "failed_tests": 0,
                     }):
-                        with patch("lw_coder.eval_command.collect_human_feedback", return_value=None):
+                        with patch("weft.eval_command.collect_human_feedback", return_value=None):
                             run_eval_command("test-plan", force=True)
 
         # Verify new result was written
@@ -500,7 +500,7 @@ Test judge instructions.
         monkeypatch.chdir(tmp_path)
 
         # Pre-create test result files
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         (eval_dir / "test_results_after.json").write_text(json.dumps({
             "command": "pytest", "exit_code": 0, "total_tests": 5,
@@ -514,11 +514,11 @@ Test judge instructions.
             judge_name="test-judge", score=0.85, feedback="Test", weight=0.5
         )]
 
-        with patch("lw_coder.eval_command.execute_judges_parallel", return_value=mock_results):
-            with patch("lw_coder.eval_command.get_openrouter_api_key", return_value="test_key"):
-                with patch("lw_coder.eval_command.run_before_tests", return_value=None):
-                    with patch("lw_coder.eval_command.run_after_tests", mock_after_tests):
-                        with patch("lw_coder.eval_command.collect_human_feedback", return_value=None):
+        with patch("weft.eval_command.execute_judges_parallel", return_value=mock_results):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", mock_after_tests):
+                        with patch("weft.eval_command.collect_human_feedback", return_value=None):
                             run_eval_command("test-plan")
 
         # run_after_tests should not be called since result file exists
@@ -530,7 +530,7 @@ Test judge instructions.
         monkeypatch.chdir(tmp_path)
 
         # Pre-create feedback file
-        eval_dir = tmp_path / ".lw_coder" / "sessions" / "test-plan" / "eval"
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
         eval_dir.mkdir(parents=True)
         (eval_dir / "human_feedback.md").write_text("# Existing Feedback\n\nPre-existing.")
         (eval_dir / "test_results_after.json").write_text(json.dumps({
@@ -545,14 +545,14 @@ Test judge instructions.
             judge_name="test-judge", score=0.85, feedback="Test", weight=0.5
         )]
 
-        with patch("lw_coder.eval_command.execute_judges_parallel", return_value=mock_results):
-            with patch("lw_coder.eval_command.get_openrouter_api_key", return_value="test_key"):
-                with patch("lw_coder.eval_command.run_before_tests", return_value=None):
-                    with patch("lw_coder.eval_command.run_after_tests", return_value={
+        with patch("weft.eval_command.execute_judges_parallel", return_value=mock_results):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", return_value={
                         "command": "test", "exit_code": 0, "total_tests": 1,
                         "passed_tests": 1, "failed_tests": 0,
                     }):
-                        with patch("lw_coder.eval_command.collect_human_feedback", mock_feedback):
+                        with patch("weft.eval_command.collect_human_feedback", mock_feedback):
                             run_eval_command("test-plan")
 
         # collect_human_feedback should not be called since file exists

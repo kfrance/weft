@@ -1,6 +1,6 @@
 """Unit tests for trace_parser module.
 
-Uses the committed trace file at .lw_coder/training_data/test-planner-subagent/code_trace.md
+Uses the committed trace file at .weft/training_data/test-planner-subagent/code_trace.md
 as a real-world test fixture (provided by conftest.py).
 """
 
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from lw_coder.trace_parser import (
+from weft.trace_parser import (
     TraceMetadata,
     ToolCall,
     count_tools_by_type,
@@ -34,7 +34,8 @@ class TestParseTraceMetadata:
         assert metadata.session_id == "8f88f3a8-a30f-4065-be5f-63fb6e62b2b1"
         assert metadata.command == "code"
         assert metadata.git_branch == "test-planner-subagent"
-        assert "lw_coder" in metadata.worktree
+        assert metadata.worktree != "unknown"
+        assert "worktrees" in metadata.worktree
 
     def test_parse_metadata_missing_fields(self) -> None:
         """Returns 'unknown' for missing fields."""

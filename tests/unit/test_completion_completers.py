@@ -7,8 +7,8 @@ from unittest.mock import PropertyMock, patch
 
 import pytest
 
-from lw_coder.completion.cache import _global_cache
-from lw_coder.completion.completers import (
+from weft.completion.cache import _global_cache
+from weft.completion.completers import (
     complete_models,
     complete_plan_files,
     complete_tools,
@@ -41,7 +41,7 @@ def test_complete_tools_with_prefix():
 
 def test_complete_tools_error_handling():
     """Test tool completion handles errors gracefully."""
-    with patch("lw_coder.completion.completers.ExecutorRegistry.list_executors") as mock:
+    with patch("weft.completion.completers.ExecutorRegistry.list_executors") as mock:
         mock.side_effect = Exception("Test error")
         result = complete_tools("", Namespace())
 
@@ -89,7 +89,7 @@ def test_complete_models_error_handling():
     are caught and return empty lists.
     """
     # Patch VALID_MODELS to raise an error when accessed
-    with patch("lw_coder.completion.completers.ClaudeCodeExecutor") as mock_executor:
+    with patch("weft.completion.completers.ClaudeCodeExecutor") as mock_executor:
         # Configure the mock to raise an exception when VALID_MODELS is accessed
         type(mock_executor).VALID_MODELS = PropertyMock(side_effect=Exception("Test error"))
         result = complete_models("", Namespace())
@@ -103,7 +103,7 @@ def test_complete_plan_files_empty_cache(tmp_path, monkeypatch):
     # Create real git repo with no plans
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     monkeypatch.chdir(tmp_path)
@@ -118,7 +118,7 @@ def test_complete_plan_files_with_plans(tmp_path, monkeypatch):
     # Create real git repo
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plans
@@ -138,7 +138,7 @@ def test_complete_plan_files_filters_by_prefix(tmp_path, monkeypatch):
     # Create real git repo
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plans
@@ -158,7 +158,7 @@ def test_complete_plan_files_with_path_prefix(tmp_path, monkeypatch):
     # Create real git repo
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plan
@@ -166,15 +166,15 @@ def test_complete_plan_files_with_path_prefix(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    result = complete_plan_files(".lw_coder/tasks/fix", Namespace())
+    result = complete_plan_files(".weft/tasks/fix", Namespace())
 
     # Should include full path completions
-    assert any(".lw_coder/tasks/fix-bug.md" in item for item in result)
+    assert any(".weft/tasks/fix-bug.md" in item for item in result)
 
 
 def test_complete_plan_files_error_handling():
     """Test plan file completion handles errors gracefully."""
-    with patch("lw_coder.completion.completers.get_active_plans") as mock:
+    with patch("weft.completion.completers.get_active_plans") as mock:
         mock.side_effect = Exception("Test error")
         result = complete_plan_files("", Namespace())
 
@@ -186,7 +186,7 @@ def test_complete_plan_files_excludes_done_plans(tmp_path, monkeypatch):
     # Create real git repo
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create active and done plans
@@ -206,7 +206,7 @@ def test_complete_plan_files_includes_implemented_plans(tmp_path, monkeypatch):
     # Create real git repo
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plans with different statuses

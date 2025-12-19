@@ -7,22 +7,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lw_coder.plan_command import (
+from weft.plan_command import (
     PlanCommandError,
     _ensure_placeholder_git_sha,
     _extract_idea_text,
     _write_plan_subagents,
 )
-from lw_coder.plan_file_copier import (
+from weft.plan_file_copier import (
     PlanFileCopyError,
     copy_plan_files,
     find_new_files,
     generate_unique_filename,
     get_existing_files,
 )
-from lw_coder.plan_validator import PLACEHOLDER_SHA, extract_front_matter
+from weft.plan_validator import PLACEHOLDER_SHA, extract_front_matter
 from conftest import write_plan
-import lw_coder.plan_command
+import weft.plan_command
 
 
 def test_extract_idea_text_from_text_input() -> None:
@@ -107,11 +107,11 @@ def test_ensure_placeholder_git_sha(tmp_path: Path) -> None:
 
 def test_run_plan_command_with_unknown_executor() -> None:
     """Test that run_plan_command fails with unknown executor."""
-    from lw_coder.plan_command import run_plan_command
+    from weft.plan_command import run_plan_command
     from unittest.mock import patch
 
-    with patch("lw_coder.plan_command.find_repo_root"):
-        with patch("lw_coder.plan_command._extract_idea_text", return_value="test"):
+    with patch("weft.plan_command.find_repo_root"):
+        with patch("weft.plan_command._extract_idea_text", return_value="test"):
             result = run_plan_command(None, "test idea", "unknown-executor")
             # Should fail due to unknown executor
             assert result != 0
@@ -388,9 +388,9 @@ def test_write_plan_subagents_droid(tmp_path: Path, monkeypatch) -> None:
     test_planner_prompt = prompts_dir / "test-planner.md"
     test_planner_prompt.write_text("Test planning guidance")
 
-    # Mock get_lw_coder_src_dir
+    # Mock get_weft_src_dir
     monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+        weft.plan_command, "get_weft_src_dir", lambda: fake_src_dir
     )
 
     # Create worktree path
@@ -436,9 +436,9 @@ def test_write_plan_subagents_claude_code(tmp_path: Path, monkeypatch) -> None:
     test_planner_prompt = prompts_dir / "test-planner.md"
     test_planner_prompt.write_text("Test planning guidance")
 
-    # Mock get_lw_coder_src_dir
+    # Mock get_weft_src_dir
     monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+        weft.plan_command, "get_weft_src_dir", lambda: fake_src_dir
     )
 
     # Create worktree path
@@ -488,9 +488,9 @@ def test_write_plan_subagents_different_models(tmp_path: Path, monkeypatch, mode
     test_planner_prompt = prompts_dir / "test-planner.md"
     test_planner_prompt.write_text("Test content")
 
-    # Mock get_lw_coder_src_dir
+    # Mock get_weft_src_dir
     monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+        weft.plan_command, "get_weft_src_dir", lambda: fake_src_dir
     )
 
     # Create worktree path
@@ -528,7 +528,7 @@ def test_write_plan_subagents_unknown_tool(tmp_path: Path, monkeypatch) -> None:
     fake_src_dir = tmp_path / "fake_src"
     fake_src_dir.mkdir()
     monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+        weft.plan_command, "get_weft_src_dir", lambda: fake_src_dir
     )
 
     worktree_path = tmp_path / "worktree"
@@ -594,9 +594,9 @@ def test_write_plan_subagents_errors(tmp_path: Path, monkeypatch, error_type: st
 
         monkeypatch.setattr(PathLib, "read_text", mock_read_text)
 
-    # Mock get_lw_coder_src_dir
+    # Mock get_weft_src_dir
     monkeypatch.setattr(
-        lw_coder.plan_command, "get_lw_coder_src_dir", lambda: fake_src_dir
+        weft.plan_command, "get_weft_src_dir", lambda: fake_src_dir
     )
 
     worktree_path = tmp_path / "worktree"
@@ -612,40 +612,40 @@ def test_write_plan_subagents_errors(tmp_path: Path, monkeypatch, error_type: st
 def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> None:
     """Test that create_backup is called after plan files are copied."""
     from unittest.mock import Mock, MagicMock
-    from lw_coder.plan_command import run_plan_command
+    from weft.plan_command import run_plan_command
 
     # Track calls to create_backup
     mock_create_backup = Mock()
-    monkeypatch.setattr("lw_coder.plan_command.create_backup", mock_create_backup)
+    monkeypatch.setattr("weft.plan_command.create_backup", mock_create_backup)
 
     # Mock all external dependencies
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
-    tasks_dir = repo_root / ".lw_coder" / "tasks"
+    tasks_dir = repo_root / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
-    monkeypatch.setattr("lw_coder.plan_command.find_repo_root", Mock(return_value=repo_root))
+    monkeypatch.setattr("weft.plan_command.find_repo_root", Mock(return_value=repo_root))
 
     # Mock temp worktree
     temp_worktree = tmp_path / "worktree"
     temp_worktree.mkdir()
-    worktree_tasks_dir = temp_worktree / ".lw_coder" / "tasks"
+    worktree_tasks_dir = temp_worktree / ".weft" / "tasks"
     worktree_tasks_dir.mkdir(parents=True)
 
     # Create a plan file in worktree
     (worktree_tasks_dir / "test-plan.md").write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
 
-    monkeypatch.setattr("lw_coder.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
-    monkeypatch.setattr("lw_coder.plan_command.remove_temp_worktree", Mock())
-    monkeypatch.setattr("lw_coder.plan_command.get_lw_coder_src_dir", Mock(return_value=tmp_path / "src"))
+    monkeypatch.setattr("weft.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("weft.plan_command.remove_temp_worktree", Mock())
+    monkeypatch.setattr("weft.plan_command.get_weft_src_dir", Mock(return_value=tmp_path / "src"))
 
     # Mock subagent setup
-    monkeypatch.setattr("lw_coder.plan_command._write_plan_subagents", Mock())
+    monkeypatch.setattr("weft.plan_command._write_plan_subagents", Mock())
 
     # Mock trace capture functions (now using session_manager)
-    monkeypatch.setattr("lw_coder.plan_command.prune_old_sessions", Mock())
-    monkeypatch.setattr("lw_coder.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
-    monkeypatch.setattr("lw_coder.plan_command.capture_session_trace", Mock(return_value=None))
+    monkeypatch.setattr("weft.plan_command.prune_old_sessions", Mock())
+    monkeypatch.setattr("weft.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
+    monkeypatch.setattr("weft.plan_command.capture_session_trace", Mock(return_value=None))
 
     # Mock copy_plan_files to return a file mapping indicating a plan was copied
     def mock_copy_plan_files(source_dir, dest_dir, existing_files):
@@ -654,24 +654,24 @@ def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> N
         plan_file.write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
         return {"test-plan.md": "test-plan.md"}
 
-    monkeypatch.setattr("lw_coder.plan_command.copy_plan_files", mock_copy_plan_files)
+    monkeypatch.setattr("weft.plan_command.copy_plan_files", mock_copy_plan_files)
 
     # Mock executor
     mock_executor = MagicMock()
     mock_executor.check_auth = Mock()
     mock_executor.build_command = Mock(return_value="echo test")
     mock_executor.get_env_vars = Mock(return_value={})
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     monkeypatch.setattr(ExecutorRegistry, "get_executor", Mock(return_value=mock_executor))
 
     # Mock host runner
-    monkeypatch.setattr("lw_coder.plan_command.host_runner_config", Mock(return_value={}))
-    monkeypatch.setattr("lw_coder.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
-    monkeypatch.setattr("lw_coder.plan_command.load_prompt_template", Mock(return_value="test template"))
+    monkeypatch.setattr("weft.plan_command.host_runner_config", Mock(return_value={}))
+    monkeypatch.setattr("weft.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+    monkeypatch.setattr("weft.plan_command.load_prompt_template", Mock(return_value="test template"))
 
     # Mock subprocess to succeed
     mock_result = MagicMock(returncode=0)
-    monkeypatch.setattr("lw_coder.plan_command.subprocess.run", Mock(return_value=mock_result))
+    monkeypatch.setattr("weft.plan_command.subprocess.run", Mock(return_value=mock_result))
 
     # Run the command
     exit_code = run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
@@ -688,43 +688,43 @@ def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> N
 def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatch, caplog) -> None:
     """Test that plan command succeeds even when backup creation fails (non-fatal)."""
     from unittest.mock import Mock, MagicMock
-    from lw_coder.plan_command import run_plan_command
-    from lw_coder.plan_backup import PlanBackupError
+    from weft.plan_command import run_plan_command
+    from weft.plan_backup import PlanBackupError
 
     # Mock create_backup to raise error
     def mock_create_backup_failing(repo_root, plan_id):
         raise PlanBackupError(f"Test backup failure for {plan_id}")
 
-    monkeypatch.setattr("lw_coder.plan_command.create_backup", mock_create_backup_failing)
+    monkeypatch.setattr("weft.plan_command.create_backup", mock_create_backup_failing)
 
     # Mock all external dependencies
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
-    tasks_dir = repo_root / ".lw_coder" / "tasks"
+    tasks_dir = repo_root / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
-    monkeypatch.setattr("lw_coder.plan_command.find_repo_root", Mock(return_value=repo_root))
+    monkeypatch.setattr("weft.plan_command.find_repo_root", Mock(return_value=repo_root))
 
     # Mock temp worktree
     temp_worktree = tmp_path / "worktree"
     temp_worktree.mkdir()
-    worktree_tasks_dir = temp_worktree / ".lw_coder" / "tasks"
+    worktree_tasks_dir = temp_worktree / ".weft" / "tasks"
     worktree_tasks_dir.mkdir(parents=True)
 
     # Create a plan file in worktree
     (worktree_tasks_dir / "test-plan.md").write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
 
-    monkeypatch.setattr("lw_coder.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
-    monkeypatch.setattr("lw_coder.plan_command.remove_temp_worktree", Mock())
-    monkeypatch.setattr("lw_coder.plan_command.get_lw_coder_src_dir", Mock(return_value=tmp_path / "src"))
+    monkeypatch.setattr("weft.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("weft.plan_command.remove_temp_worktree", Mock())
+    monkeypatch.setattr("weft.plan_command.get_weft_src_dir", Mock(return_value=tmp_path / "src"))
 
     # Mock subagent setup
-    monkeypatch.setattr("lw_coder.plan_command._write_plan_subagents", Mock())
+    monkeypatch.setattr("weft.plan_command._write_plan_subagents", Mock())
 
     # Mock trace capture functions (now using session_manager)
-    monkeypatch.setattr("lw_coder.plan_command.prune_old_sessions", Mock())
-    monkeypatch.setattr("lw_coder.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
-    monkeypatch.setattr("lw_coder.plan_command.capture_session_trace", Mock(return_value=None))
+    monkeypatch.setattr("weft.plan_command.prune_old_sessions", Mock())
+    monkeypatch.setattr("weft.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
+    monkeypatch.setattr("weft.plan_command.capture_session_trace", Mock(return_value=None))
 
     # Mock copy_plan_files to return a file mapping indicating a plan was copied
     def mock_copy_plan_files(source_dir, dest_dir, existing_files):
@@ -733,24 +733,24 @@ def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatc
         plan_file.write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
         return {"test-plan.md": "test-plan.md"}
 
-    monkeypatch.setattr("lw_coder.plan_command.copy_plan_files", mock_copy_plan_files)
+    monkeypatch.setattr("weft.plan_command.copy_plan_files", mock_copy_plan_files)
 
     # Mock executor
     mock_executor = MagicMock()
     mock_executor.check_auth = Mock()
     mock_executor.build_command = Mock(return_value="echo test")
     mock_executor.get_env_vars = Mock(return_value={})
-    from lw_coder.executors import ExecutorRegistry
+    from weft.executors import ExecutorRegistry
     monkeypatch.setattr(ExecutorRegistry, "get_executor", Mock(return_value=mock_executor))
 
     # Mock host runner
-    monkeypatch.setattr("lw_coder.plan_command.host_runner_config", Mock(return_value={}))
-    monkeypatch.setattr("lw_coder.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
-    monkeypatch.setattr("lw_coder.plan_command.load_prompt_template", Mock(return_value="test template"))
+    monkeypatch.setattr("weft.plan_command.host_runner_config", Mock(return_value={}))
+    monkeypatch.setattr("weft.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+    monkeypatch.setattr("weft.plan_command.load_prompt_template", Mock(return_value="test template"))
 
     # Mock subprocess to succeed
     mock_result = MagicMock(returncode=0)
-    monkeypatch.setattr("lw_coder.plan_command.subprocess.run", Mock(return_value=mock_result))
+    monkeypatch.setattr("weft.plan_command.subprocess.run", Mock(return_value=mock_result))
 
     # Run the command - should succeed despite backup error
     exit_code = run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")

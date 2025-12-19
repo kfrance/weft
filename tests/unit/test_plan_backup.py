@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from lw_coder.plan_backup import (
+from weft.plan_backup import (
     BackupExistsError,
     BackupNotFoundError,
     PlanBackupError,
@@ -26,7 +26,7 @@ from conftest import GitRepo, write_plan
 def test_create_backup_creates_orphan_commit_and_ref(git_repo: GitRepo) -> None:
     """Test that create_backup creates an orphan commit and reference."""
     # Setup: Create a plan file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -62,7 +62,7 @@ def test_create_backup_creates_orphan_commit_and_ref(git_repo: GitRepo) -> None:
 def test_create_backup_force_updates_on_subsequent_calls(git_repo: GitRepo) -> None:
     """Test that subsequent backups force-update the reference."""
     # Setup: Create initial plan and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -100,7 +100,7 @@ def test_create_backup_force_updates_on_subsequent_calls(git_repo: GitRepo) -> N
     assert first_commit != second_commit
 
     # Verify: New commit has modified content
-    result = git_repo.run("show", f"{second_commit}:.lw_coder/tasks/test-plan.md")
+    result = git_repo.run("show", f"{second_commit}:.weft/tasks/test-plan.md")
     assert "# Modified Body" in result.stdout
 
 
@@ -113,7 +113,7 @@ def test_create_backup_raises_error_on_missing_file(git_repo: GitRepo) -> None:
 def test_cleanup_backup_deletes_ref(git_repo: GitRepo) -> None:
     """Test that cleanup_backup deletes the backup reference."""
     # Setup: Create backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -158,7 +158,7 @@ def test_cleanup_backup_is_idempotent(git_repo: GitRepo) -> None:
 def test_list_backups_returns_correct_data(git_repo: GitRepo) -> None:
     """Test that list_backups returns correct metadata."""
     # Setup: Create multiple backups
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create first plan with existing file
@@ -218,7 +218,7 @@ def test_list_backups_returns_empty_when_no_backups(git_repo: GitRepo) -> None:
 def test_recover_backup_restores_file_content(git_repo: GitRepo) -> None:
     """Test that recover_backup restores plan file with correct content."""
     # Setup: Create backup then delete file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     expected_body = "# Expected Body Content"
@@ -248,7 +248,7 @@ def test_recover_backup_restores_file_content(git_repo: GitRepo) -> None:
 def test_recover_backup_fails_when_file_exists_without_force(git_repo: GitRepo) -> None:
     """Test that recover_backup raises error when file exists and force=False."""
     # Setup: Create backup with existing file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -270,7 +270,7 @@ def test_recover_backup_fails_when_file_exists_without_force(git_repo: GitRepo) 
 def test_recover_backup_succeeds_with_force_flag(git_repo: GitRepo) -> None:
     """Test that recover_backup overwrites with force=True."""
     # Setup: Create backup with different content
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -318,7 +318,7 @@ def test_recover_backup_raises_error_when_ref_doesnt_exist(git_repo: GitRepo) ->
 def test_move_backup_to_abandoned(git_repo: GitRepo) -> None:
     """Test moving backup from plan-backups to plan-abandoned namespace."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -347,7 +347,7 @@ def test_move_backup_to_abandoned(git_repo: GitRepo) -> None:
 def test_move_backup_to_abandoned_overwrites_existing(git_repo: GitRepo) -> None:
     """Test that move_backup_to_abandoned overwrites existing abandoned ref."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -407,7 +407,7 @@ def test_move_backup_to_abandoned_overwrites_existing(git_repo: GitRepo) -> None
 def test_move_abandoned_to_backup(git_repo: GitRepo) -> None:
     """Test moving backup from plan-abandoned back to plan-backups namespace."""
     # Setup: Create plan file, backup, and move to abandoned
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -437,7 +437,7 @@ def test_move_abandoned_to_backup(git_repo: GitRepo) -> None:
 def test_list_abandoned_plans_returns_correct_data(git_repo: GitRepo) -> None:
     """Test that list_abandoned_plans returns correct metadata."""
     # Setup: Create plans and move some to abandoned
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create and abandon first plan
@@ -498,7 +498,7 @@ def test_list_abandoned_plans_returns_empty_when_none(git_repo: GitRepo) -> None
 def test_backup_exists_in_namespace(git_repo: GitRepo) -> None:
     """Test backup_exists_in_namespace function."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -533,7 +533,7 @@ def test_backup_exists_in_namespace_nonexistent(git_repo: GitRepo) -> None:
 def test_recover_backup_from_abandoned_namespace(git_repo: GitRepo) -> None:
     """Test recovering a backup from the abandoned namespace."""
     # Setup: Create plan file, backup, and move to abandoned
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(
@@ -563,7 +563,7 @@ def test_recover_backup_from_abandoned_namespace(git_repo: GitRepo) -> None:
 def test_move_backup_to_abandoned_preserves_commit_sha(git_repo: GitRepo) -> None:
     """Test that moving to abandoned preserves the commit SHA."""
     # Setup: Create plan file and backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "test-plan.md"
     write_plan(

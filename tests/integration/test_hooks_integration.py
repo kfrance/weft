@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.file_watcher import PlanFileWatcher
-from lw_coder.hooks import HookManager, RealProcessExecutor
+from weft.file_watcher import PlanFileWatcher
+from weft.hooks import HookManager, RealProcessExecutor
 
 
 def test_hook_executes_real_subprocess_creates_marker_file(tmp_path: Path) -> None:

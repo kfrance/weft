@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.code_command import _write_sub_agents, AGENT_DESCRIPTIONS
+from weft.code_command import _write_sub_agents, AGENT_DESCRIPTIONS
 
 
 def test_write_sub_agents_creates_both_files(tmp_path: Path) -> None:

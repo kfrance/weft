@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.completion.cache import PlanCompletionCache
+from weft.completion.cache import PlanCompletionCache
 
 
 def test_cache_returns_empty_list_for_nonexistent_dir(tmp_path):
     """Test that cache returns empty list when tasks directory doesn't exist."""
     cache = PlanCompletionCache()
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
 
     result = cache.get_active_plans(tasks_dir)
     assert result == []
@@ -21,7 +21,7 @@ def test_cache_returns_empty_list_for_nonexistent_dir(tmp_path):
 
 def test_cache_returns_active_plans(tmp_path):
     """Test that cache returns plans with status != 'done'."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create active plan
@@ -53,7 +53,7 @@ status: done
 
 def test_cache_includes_implemented_status(tmp_path):
     """Test that cache includes plans with status 'implemented'."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plans with different statuses
@@ -74,7 +74,7 @@ def test_cache_includes_implemented_status(tmp_path):
 
 def test_cache_handles_malformed_yaml(tmp_path):
     """Test that cache gracefully handles malformed YAML."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plan with invalid YAML
@@ -96,7 +96,7 @@ invalid: {yaml: [unclosed
 
 def test_cache_handles_unreadable_files(tmp_path):
     """Test that cache skips unreadable files."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create readable plan
@@ -119,7 +119,7 @@ status: draft
 
 def test_cache_ttl_behavior(tmp_path):
     """Test that cache respects TTL."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create initial plan
@@ -162,7 +162,7 @@ status: draft
 
 def test_cache_invalidate(tmp_path):
     """Test cache invalidation."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     plan = tasks_dir / "plan.md"
@@ -200,7 +200,7 @@ status: draft
 
 def test_cache_sorts_results(tmp_path):
     """Test that cache returns sorted plan IDs."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plans in non-alphabetical order
@@ -222,7 +222,7 @@ status: draft
 
 def test_cache_filters_done_status_variations(tmp_path):
     """Test that cache filters various forms of 'done' status."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create plans with different status values
@@ -253,7 +253,7 @@ status: {status}
 
 def test_cache_handles_missing_status_field(tmp_path):
     """Test that cache includes plans with missing status field."""
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     plan = tasks_dir / "no-status.md"
@@ -278,7 +278,7 @@ def test_get_active_plans_discovers_repo_root(tmp_path, monkeypatch):
     import subprocess
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
 
-    tasks_dir = tmp_path / ".lw_coder" / "tasks"
+    tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     plan = tasks_dir / "plan.md"

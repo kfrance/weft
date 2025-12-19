@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.session_manager import (
+from weft.session_manager import (
     SESSION_RETENTION_DAYS,
     SessionManagerError,
     create_session_directory,
@@ -28,7 +28,7 @@ class TestCreateSessionDirectory:
 
         assert session_dir.exists()
         assert session_dir.is_dir()
-        assert ".lw_coder/sessions" in str(session_dir)
+        assert ".weft/sessions" in str(session_dir)
         assert plan_id in str(session_dir)
         assert session_dir.name == "code"
 
@@ -82,7 +82,7 @@ class TestCreateSessionDirectory:
         original_mkdir = Path.mkdir
 
         def failing_mkdir(self, *args, **kwargs):
-            if ".lw_coder/sessions" in str(self):
+            if ".weft/sessions" in str(self):
                 raise OSError("Permission denied")
             return original_mkdir(self, *args, **kwargs)
 
@@ -102,7 +102,7 @@ class TestGetSessionDirectory:
 
         path = get_session_directory(repo_root, plan_id, "eval")
 
-        assert path == repo_root / ".lw_coder" / "sessions" / "my-plan" / "eval"
+        assert path == repo_root / ".weft" / "sessions" / "my-plan" / "eval"
         # Note: doesn't create the directory
         assert not path.exists()
 
@@ -123,7 +123,7 @@ class TestPruneOldSessions:
         import os
 
         repo_root = tmp_path
-        sessions_dir = repo_root / ".lw_coder" / "sessions"
+        sessions_dir = repo_root / ".weft" / "sessions"
 
         # Create old plan directory
         old_plan_dir = sessions_dir / "old-plan"
@@ -148,7 +148,7 @@ class TestPruneOldSessions:
         import os
 
         repo_root = tmp_path
-        sessions_dir = repo_root / ".lw_coder" / "sessions"
+        sessions_dir = repo_root / ".weft" / "sessions"
 
         # Create old plan directory
         old_plan_dir = sessions_dir / "old-plan"
@@ -170,7 +170,7 @@ class TestPruneOldSessions:
         import shutil
 
         repo_root = tmp_path
-        sessions_dir = repo_root / ".lw_coder" / "sessions"
+        sessions_dir = repo_root / ".weft" / "sessions"
 
         # Create two old plan directories
         old_plan1 = sessions_dir / "old-plan-1"
@@ -203,7 +203,7 @@ class TestPruneOldSessions:
         import os
 
         repo_root = tmp_path
-        sessions_dir = repo_root / ".lw_coder" / "sessions"
+        sessions_dir = repo_root / ".weft" / "sessions"
 
         # Create old plan directory
         old_plan = sessions_dir / "old-plan"

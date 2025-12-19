@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.test_runner import (
+from weft.test_runner import (
     TEST_RESULT_SCHEMA,
     TestRunnerError,
     run_tests_via_sdk,

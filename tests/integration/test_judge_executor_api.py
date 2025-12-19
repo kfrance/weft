@@ -11,13 +11,13 @@ from pathlib import Path
 import dspy
 import pytest
 
-from lw_coder.judge_executor import (
+from weft.judge_executor import (
     JudgeExecutionError,
     execute_judge,
     get_cache_dir,
     get_openrouter_api_key,
 )
-from lw_coder.judge_loader import JudgeConfig
+from weft.judge_loader import JudgeConfig
 
 
 def test_execute_judge_with_real_llm(tmp_path: Path) -> None:
@@ -31,7 +31,7 @@ def test_execute_judge_with_real_llm(tmp_path: Path) -> None:
         api_key = get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.fail(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run this integration test."
         )
 

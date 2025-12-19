@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from lw_coder.plan_backup import create_backup, move_backup_to_abandoned
-from lw_coder.recover_command import run_recover_command, parse_abandoned_log
+from weft.plan_backup import create_backup, move_backup_to_abandoned
+from weft.recover_command import run_recover_command, parse_abandoned_log
 
 from conftest import GitRepo, write_plan
 
@@ -16,7 +16,7 @@ from conftest import GitRepo, write_plan
 def test_list_backups_displays_correct_format(git_repo: GitRepo, capsys) -> None:
     """Test that listing backups displays correct format."""
     # Setup: Create backups
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     plan1 = tasks_dir / "feature-auth.md"
@@ -45,7 +45,7 @@ def test_list_backups_displays_correct_format(git_repo: GitRepo, capsys) -> None
     plan2.unlink()  # Delete to show "missing" status
 
     # Execute: List backups (cwd must be inside repo)
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(plan_id=None, force=False)
 
     # Verify: Exit code 0
@@ -63,7 +63,7 @@ def test_list_backups_displays_correct_format(git_repo: GitRepo, capsys) -> None
 def test_list_backups_shows_empty_message(git_repo: GitRepo, capsys) -> None:
     """Test that listing shows message when no backups exist."""
     # Execute: List backups with no backups
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(plan_id=None, force=False)
 
     # Verify: Exit code 0
@@ -77,7 +77,7 @@ def test_list_backups_shows_empty_message(git_repo: GitRepo, capsys) -> None:
 def test_recovery_with_valid_plan_id(git_repo: GitRepo, capsys) -> None:
     """Test recovery with valid plan_id."""
     # Setup: Create backup then delete file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "my-feature.md"
     write_plan(
@@ -94,7 +94,7 @@ def test_recovery_with_valid_plan_id(git_repo: GitRepo, capsys) -> None:
     plan_file.unlink()
 
     # Execute: Recover plan
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(plan_id="my-feature", force=False)
 
     # Verify: Exit code 0
@@ -113,7 +113,7 @@ def test_recovery_with_valid_plan_id(git_repo: GitRepo, capsys) -> None:
 def test_recovery_strips_status_suffix_from_input(git_repo: GitRepo) -> None:
     """Test that recovery strips status suffix from tab completion input."""
     # Setup: Create backup then delete file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "my-feature.md"
     write_plan(
@@ -129,7 +129,7 @@ def test_recovery_strips_status_suffix_from_input(git_repo: GitRepo) -> None:
     plan_file.unlink()
 
     # Execute: Recover with status suffix
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(plan_id="my-feature (missing)", force=False)
 
     # Verify: Exit code 0
@@ -142,7 +142,7 @@ def test_recovery_strips_status_suffix_from_input(git_repo: GitRepo) -> None:
 def test_recovery_force_flag_behavior(git_repo: GitRepo) -> None:
     """Test --force flag overwrites existing file."""
     # Setup: Create backup with original content
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "my-feature.md"
     write_plan(
@@ -171,7 +171,7 @@ def test_recovery_force_flag_behavior(git_repo: GitRepo) -> None:
     )
 
     # Execute: Recover with force
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(plan_id="my-feature", force=True)
 
     # Verify: Exit code 0
@@ -184,7 +184,7 @@ def test_recovery_force_flag_behavior(git_repo: GitRepo) -> None:
 def test_recovery_error_for_missing_backup(git_repo: GitRepo, caplog) -> None:
     """Test error handling when backup doesn't exist."""
     # Execute: Try to recover non-existent backup
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(plan_id="nonexistent", force=False)
 
     # Verify: Exit code 1
@@ -197,7 +197,7 @@ def test_recovery_error_for_missing_backup(git_repo: GitRepo, caplog) -> None:
 def test_recovery_error_when_file_exists_without_force(git_repo: GitRepo, caplog) -> None:
     """Test error when file exists and --force not provided."""
     # Setup: Create backup with existing file
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "my-feature.md"
     write_plan(
@@ -212,7 +212,7 @@ def test_recovery_error_when_file_exists_without_force(git_repo: GitRepo, caplog
     create_backup(git_repo.path, "my-feature")
 
     # Execute: Try to recover without force
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(plan_id="my-feature", force=False)
 
     # Verify: Exit code 1
@@ -229,7 +229,7 @@ def test_recovery_error_when_file_exists_without_force(git_repo: GitRepo, caplog
 def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
     """Test --abandoned flag shows only abandoned plans."""
     # Setup: Create active backup and abandoned backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create and abandon first plan
@@ -261,7 +261,7 @@ def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
     create_backup(git_repo.path, "active-plan")
 
     # Execute: List with --abandoned flag
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id=None, force=False, show_abandoned=True, show_all=False
         )
@@ -278,7 +278,7 @@ def test_list_abandoned_plans_flag(git_repo: GitRepo, capsys) -> None:
 def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
     """Test --all flag shows both active and abandoned plans."""
     # Setup: Create active backup and abandoned backup
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
 
     # Create and abandon first plan
@@ -309,7 +309,7 @@ def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
     create_backup(git_repo.path, "active-plan")
 
     # Execute: List with --all flag
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id=None, force=False, show_abandoned=False, show_all=True
         )
@@ -327,7 +327,7 @@ def test_list_all_plans_flag(git_repo: GitRepo, capsys) -> None:
 def test_recover_from_abandoned_namespace(git_repo: GitRepo, capsys) -> None:
     """Test recovering a plan from the abandoned namespace."""
     # Setup: Create and abandon a plan
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "abandoned-feature.md"
     write_plan(
@@ -345,7 +345,7 @@ def test_recover_from_abandoned_namespace(git_repo: GitRepo, capsys) -> None:
     plan_file.unlink()
 
     # Execute: Recover from abandoned
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id="abandoned-feature", force=False, show_abandoned=True, show_all=False
         )
@@ -365,7 +365,7 @@ def test_recover_from_abandoned_namespace(git_repo: GitRepo, capsys) -> None:
 def test_recover_from_active_when_in_abandoned_shows_hint(git_repo: GitRepo, capsys) -> None:
     """Test that recovering from active namespace shows hint when plan is in abandoned."""
     # Setup: Create and abandon a plan
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "in-abandoned.md"
     write_plan(
@@ -382,7 +382,7 @@ def test_recover_from_active_when_in_abandoned_shows_hint(git_repo: GitRepo, cap
     plan_file.unlink()
 
     # Execute: Try to recover from active namespace (should fail with hint)
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id="in-abandoned", force=False, show_abandoned=False, show_all=False
         )
@@ -399,7 +399,7 @@ def test_recover_from_active_when_in_abandoned_shows_hint(git_repo: GitRepo, cap
 def test_list_empty_abandoned_shows_message(git_repo: GitRepo, capsys) -> None:
     """Test that listing abandoned with none shows appropriate message."""
     # Execute: List abandoned with no abandoned plans
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id=None, force=False, show_abandoned=True, show_all=False
         )
@@ -415,7 +415,7 @@ def test_list_empty_abandoned_shows_message(git_repo: GitRepo, capsys) -> None:
 def test_recovery_strips_abandoned_suffix(git_repo: GitRepo) -> None:
     """Test that recovery strips (abandoned) suffix from tab completion input."""
     # Setup: Create and abandon a plan
-    tasks_dir = git_repo.path / ".lw_coder" / "tasks"
+    tasks_dir = git_repo.path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)
     plan_file = tasks_dir / "suffix-test.md"
     write_plan(
@@ -432,7 +432,7 @@ def test_recovery_strips_abandoned_suffix(git_repo: GitRepo) -> None:
     plan_file.unlink()
 
     # Execute: Recover with (abandoned) suffix
-    with patch("lw_coder.recover_command.find_repo_root", return_value=git_repo.path):
+    with patch("weft.recover_command.find_repo_root", return_value=git_repo.path):
         exit_code = run_recover_command(
             plan_id="suffix-test (abandoned)", force=False, show_abandoned=True
         )
@@ -447,7 +447,7 @@ def test_recovery_strips_abandoned_suffix(git_repo: GitRepo) -> None:
 def test_parse_abandoned_log_finds_reason(git_repo: GitRepo) -> None:
     """Test that parse_abandoned_log finds the reason for a plan."""
     # Setup: Create log file
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     log_file.write_text(
         "## first-plan - 2025-01-01 12:00:00 -0800\nFirst reason\n\n"
@@ -468,7 +468,7 @@ def test_parse_abandoned_log_finds_reason(git_repo: GitRepo) -> None:
 def test_parse_abandoned_log_returns_none_when_not_found(git_repo: GitRepo) -> None:
     """Test that parse_abandoned_log returns None when plan not in log."""
     # Setup: Create log file without the plan we're looking for
-    log_file = git_repo.path / ".lw_coder" / "abandoned-plans.log"
+    log_file = git_repo.path / ".weft" / "abandoned-plans.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     log_file.write_text(
         "## other-plan - 2025-01-01 12:00:00 -0800\nSome reason\n\n",

@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.candidate_writer import write_candidate
-from lw_coder.judge_executor import JudgeExecutionError, get_cache_dir, get_openrouter_api_key
-from lw_coder.prompt_loader import load_current_prompts_for_training
-from lw_coder.prompt_trainer import run_prompt_trainer
-from lw_coder.training_data_loader import load_training_batch
+from weft.candidate_writer import write_candidate
+from weft.judge_executor import JudgeExecutionError, get_cache_dir, get_openrouter_api_key
+from weft.prompt_loader import load_current_prompts_for_training
+from weft.prompt_trainer import run_prompt_trainer
+from weft.training_data_loader import load_training_batch
 
 
 def create_test_training_data(repo_root: Path) -> None:
@@ -24,7 +24,7 @@ def create_test_training_data(repo_root: Path) -> None:
 
     Creates a single training sample with all required files.
     """
-    training_dir = repo_root / ".lw_coder" / "training_data" / "test-plan-001"
+    training_dir = repo_root / ".weft" / "training_data" / "test-plan-001"
     training_dir.mkdir(parents=True)
 
     # Plan content
@@ -127,12 +127,12 @@ The implementation addresses the core requirements but:
 
 def create_test_active_prompts(repo_root: Path) -> None:
     """Create minimal active prompts structure for testing."""
-    prompts_dir = repo_root / ".lw_coder" / "prompts" / "active" / "claude-code-cli" / "sonnet"
+    prompts_dir = repo_root / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet"
     prompts_dir.mkdir(parents=True)
 
     (prompts_dir / "main.md").write_text("""# Claude Code CLI Main Prompt (Sonnet)
 
-You are the primary implementation agent for lw_coder. Follow the plan in `plan.md` end-to-end.
+You are the primary implementation agent for weft. Follow the plan in `plan.md` end-to-end.
 
 ## Implementation Phase
 
@@ -179,7 +179,7 @@ def test_train_command_end_to_end(tmp_path: Path) -> None:
         api_key = get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.fail(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run integration tests."
         )
 
@@ -274,7 +274,7 @@ def test_train_command_multiple_samples(tmp_path: Path) -> None:
         api_key = get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.fail(
-            "OPENROUTER_API_KEY not found in ~/.lw_coder/.env. "
+            "OPENROUTER_API_KEY not found in ~/.weft/.env. "
             "Add it to run integration tests."
         )
 
@@ -282,7 +282,7 @@ def test_train_command_multiple_samples(tmp_path: Path) -> None:
     create_test_training_data(tmp_path)
 
     # Create second sample
-    training_dir2 = tmp_path / ".lw_coder" / "training_data" / "test-plan-002"
+    training_dir2 = tmp_path / ".weft" / "training_data" / "test-plan-002"
     training_dir2.mkdir(parents=True)
     (training_dir2 / "human_feedback.md").write_text("Agent completed task successfully.")
     (training_dir2 / "test_results_after.json").write_text('{"passed": 20, "failed": 0}')

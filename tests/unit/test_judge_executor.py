@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.judge_executor import (
+from weft.judge_executor import (
     get_cache_dir,
 )
 
@@ -22,14 +22,14 @@ def test_get_cache_dir_global(tmp_path: Path, monkeypatch) -> None:
 
     # When not in a worktree, should return global cache
     cache_dir = get_cache_dir()
-    assert cache_dir == Path.home() / ".lw_coder" / "dspy_cache"
+    assert cache_dir == Path.home() / ".weft" / "dspy_cache"
     assert isinstance(cache_dir, Path)
 
 
 def test_get_cache_dir_in_worktree(tmp_path: Path, monkeypatch) -> None:
     """Test cache directory returns worktree-local path when in worktree."""
     # Create a fake worktree path structure
-    worktree_path = tmp_path / "project" / ".lw_coder" / "worktrees" / "my-plan"
+    worktree_path = tmp_path / "project" / ".weft" / "worktrees" / "my-plan"
     worktree_path.mkdir(parents=True)
 
     # Change to the worktree directory
@@ -38,14 +38,14 @@ def test_get_cache_dir_in_worktree(tmp_path: Path, monkeypatch) -> None:
     cache_dir = get_cache_dir()
 
     # Should return worktree-local cache path
-    expected = worktree_path / ".lw_coder" / "dspy_cache"
+    expected = worktree_path / ".weft" / "dspy_cache"
     assert cache_dir == expected
 
 
 def test_get_cache_dir_in_worktree_subdirectory(tmp_path: Path, monkeypatch) -> None:
     """Test cache directory works from subdirectory within worktree."""
     # Create a fake worktree path structure with a subdirectory
-    worktree_root = tmp_path / "project" / ".lw_coder" / "worktrees" / "my-plan"
+    worktree_root = tmp_path / "project" / ".weft" / "worktrees" / "my-plan"
     subdir = worktree_root / "src" / "module"
     subdir.mkdir(parents=True)
 
@@ -55,5 +55,5 @@ def test_get_cache_dir_in_worktree_subdirectory(tmp_path: Path, monkeypatch) -> 
     cache_dir = get_cache_dir()
 
     # Should return worktree-local cache path (relative to worktree root)
-    expected = worktree_root / ".lw_coder" / "dspy_cache"
+    expected = worktree_root / ".weft" / "dspy_cache"
     assert cache_dir == expected

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.plan_validator import load_plan_metadata
-from lw_coder.worktree_utils import (
+from weft.plan_validator import load_plan_metadata
+from weft.worktree_utils import (
     WorktreeError,
     ensure_worktree,
     get_branch_name_from_plan_id,
@@ -18,7 +18,7 @@ from lw_coder.worktree_utils import (
     has_uncommitted_changes,
     is_git_worktree,
 )
-from tests.conftest import write_plan
+from conftest import write_plan
 
 
 def test_get_branch_name_from_plan_id():
@@ -27,7 +27,7 @@ def test_get_branch_name_from_plan_id():
 
 
 def test_is_git_worktree_nonexistent(git_repo):
-    path = git_repo.path / ".lw_coder" / "worktrees" / "nonexistent"
+    path = git_repo.path / ".weft" / "worktrees" / "nonexistent"
     assert not is_git_worktree(path, git_repo.path)
 
 
@@ -55,7 +55,7 @@ def test_ensure_worktree_creates_new(git_repo):
 
     assert worktree_path.exists()
     assert is_git_worktree(worktree_path, git_repo.path)
-    assert worktree_path == git_repo.path / ".lw_coder" / "worktrees" / "test-create-worktree"
+    assert worktree_path == git_repo.path / ".weft" / "worktrees" / "test-create-worktree"
 
     # Verify branch exists and is at correct commit
     branch_name = "test-create-worktree"
@@ -90,7 +90,7 @@ def test_ensure_worktree_reuses_existing(git_repo):
 def test_ensure_worktree_fails_on_non_worktree_directory(git_repo):
     # Create a non-worktree directory at the expected path
     plan_id = "test-non-worktree"
-    worktree_path = git_repo.path / ".lw_coder" / "worktrees" / plan_id
+    worktree_path = git_repo.path / ".weft" / "worktrees" / plan_id
     worktree_path.mkdir(parents=True)
     (worktree_path / "dummy.txt").write_text("not a worktree")
 
@@ -178,7 +178,7 @@ def test_get_branch_worktree_finds_existing(git_repo):
     branch_name = "test-find"
     git_repo.run("branch", branch_name, git_repo.latest_commit())
 
-    worktree_path = git_repo.path / ".lw_coder" / "worktrees" / "test-find"
+    worktree_path = git_repo.path / ".weft" / "worktrees" / "test-find"
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     git_repo.run("worktree", "add", str(worktree_path), branch_name)
 
@@ -205,7 +205,7 @@ def test_get_branch_tip_returns_none_for_nonexistent(git_repo):
 
 
 def test_ensure_worktree_creates_intermediate_directories(git_repo):
-    """Test that ensure_worktree creates .lw_coder/worktrees if it doesn't exist."""
+    """Test that ensure_worktree creates .weft/worktrees if it doesn't exist."""
     plan_path = git_repo.path / "plan.md"
     write_plan(
         plan_path,
@@ -217,8 +217,8 @@ def test_ensure_worktree_creates_intermediate_directories(git_repo):
         },
     )
 
-    # Ensure .lw_coder/worktrees doesn't exist
-    worktrees_dir = git_repo.path / ".lw_coder" / "worktrees"
+    # Ensure .weft/worktrees doesn't exist
+    worktrees_dir = git_repo.path / ".weft" / "worktrees"
     if worktrees_dir.exists():
         import shutil
         shutil.rmtree(worktrees_dir)
@@ -227,8 +227,8 @@ def test_ensure_worktree_creates_intermediate_directories(git_repo):
     worktree_path = ensure_worktree(metadata)
 
     assert worktree_path.exists()
-    assert worktree_path.parent.exists()  # .lw_coder/worktrees
-    assert worktree_path.parent.parent.exists()  # .lw_coder
+    assert worktree_path.parent.exists()  # .weft/worktrees
+    assert worktree_path.parent.parent.exists()  # .weft
 
 
 def test_get_worktree_path_rejects_path_traversal(git_repo):
@@ -247,13 +247,13 @@ def test_get_worktree_path_valid_plan_ids(git_repo):
     """Test that valid plan_ids work correctly."""
     # These should all work fine
     path1 = get_worktree_path(git_repo.path, "test-plan")
-    assert path1 == git_repo.path / ".lw_coder" / "worktrees" / "test-plan"
+    assert path1 == git_repo.path / ".weft" / "worktrees" / "test-plan"
 
     path2 = get_worktree_path(git_repo.path, "test_plan")
-    assert path2 == git_repo.path / ".lw_coder" / "worktrees" / "test_plan"
+    assert path2 == git_repo.path / ".weft" / "worktrees" / "test_plan"
 
     path3 = get_worktree_path(git_repo.path, "test.plan")
-    assert path3 == git_repo.path / ".lw_coder" / "worktrees" / "test.plan"
+    assert path3 == git_repo.path / ".weft" / "worktrees" / "test.plan"
 
 
 def test_has_uncommitted_changes_with_changes(tmp_path: Path) -> None:

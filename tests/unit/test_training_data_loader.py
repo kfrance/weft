@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lw_coder.training_data_loader import (
+from weft.training_data_loader import (
     TrainingDataLoadError,
     _get_or_create_summary,
     delete_trace_summaries,
@@ -20,7 +20,7 @@ from lw_coder.training_data_loader import (
 @pytest.fixture
 def training_data_dir(tmp_path: Path) -> Path:
     """Create a basic training data directory structure."""
-    training_dir = tmp_path / ".lw_coder" / "training_data"
+    training_dir = tmp_path / ".weft" / "training_data"
     training_dir.mkdir(parents=True)
     return training_dir
 
