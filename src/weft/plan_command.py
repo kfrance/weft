@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from .executors import ExecutorError, ExecutorRegistry
+from .headless import is_headless
 from .file_watcher import PlanFileWatcher
 from .hooks import get_hook_manager, trigger_hook
 from .host_runner import build_host_command, get_weft_src_dir, host_runner_config
@@ -260,7 +261,9 @@ def run_plan_command(
         # Build command using the executor
         # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (sonnet)
         effective_model = get_effective_model(model, "plan")
-        command = executor.build_command(prompt_file, model=effective_model)
+        command = executor.build_command(
+            prompt_file, model=effective_model, headless=is_headless()
+        )
 
         # Get executor-specific environment variables
         executor_env_vars = executor.get_env_vars(host_factory_dir)

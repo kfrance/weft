@@ -19,6 +19,7 @@ from pathlib import Path
 from claude_agent_sdk import AgentDefinition
 
 from .executors import ExecutorRegistry, ExecutorError
+from .headless import is_headless
 from .hooks import trigger_hook
 from .host_runner import build_host_command, get_weft_src_dir, host_runner_config
 from .logging_config import get_logger
@@ -676,6 +677,23 @@ def run_code_command(
                     "repo_root": metadata.repo_root,
                 },
             )
+
+        # In headless mode, skip CLI resume and exit after SDK phase
+        if is_headless():
+            logger.info("Headless mode: skipping CLI resume, exiting after SDK phase")
+            # Update status to implemented (same as successful CLI completion)
+            try:
+                update_plan_fields(plan_path, {"status": "implemented"})
+            except PlanLifecycleError as exc:
+                logger.warning("Failed to update plan status: %s", exc)
+
+            logger.info(
+                "Session complete. Worktree remains at: %s\n"
+                "Session artifacts saved to: %s",
+                worktree_path,
+                session_dir,
+            )
+            return 0
 
         # Build CLI resume command: claude -r <session_id> --model <model>
         command = f"claude -r {shlex.quote(session_id)} --model {shlex.quote(effective_model)}"

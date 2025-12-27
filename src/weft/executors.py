@@ -31,7 +31,7 @@ class Executor(ABC):
         """
 
     @abstractmethod
-    def build_command(self, prompt_path: Path, model: str) -> str:
+    def build_command(self, prompt_path: Path, model: str, headless: bool = False) -> str:
         """Build the command to run with the prompt file.
 
         Args:
@@ -40,6 +40,8 @@ class Executor(ABC):
                    Implementations may validate or ignore this parameter based
                    on their capabilities. ClaudeCodeExecutor validates and uses
                    it; other executors may ignore it.
+            headless: If True, build command for non-interactive execution.
+                     ClaudeCodeExecutor adds -p flag; other executors may ignore.
 
         Returns:
             Command string to execute (e.g., 'droid "$(cat /path/to/prompt.txt)"')
@@ -78,12 +80,13 @@ class DroidExecutor(Executor):
         except DroidAuthError as exc:
             raise ExecutorError(str(exc)) from exc
 
-    def build_command(self, prompt_path: Path, model: str) -> str:
+    def build_command(self, prompt_path: Path, model: str, headless: bool = False) -> str:
         """Build the droid command.
 
         Args:
             prompt_path: Path to the prompt file.
             model: Model variant to use (unused for Droid).
+            headless: Unused for Droid (always runs non-interactively).
 
         Returns:
             Droid command string with properly escaped paths.
@@ -120,12 +123,13 @@ class ClaudeCodeExecutor(Executor):
         """
         logger.debug("Claude Code CLI authentication check (no-op)")
 
-    def build_command(self, prompt_path: Path, model: str) -> str:
+    def build_command(self, prompt_path: Path, model: str, headless: bool = False) -> str:
         """Build the Claude Code command.
 
         Args:
             prompt_path: Path to the prompt file.
             model: Model variant to use (e.g., "sonnet", "opus", "haiku").
+            headless: If True, add -p flag for non-interactive execution.
 
         Returns:
             Claude Code CLI command string with properly escaped paths.
@@ -145,6 +149,9 @@ class ClaudeCodeExecutor(Executor):
 
         prompt_path_escaped = shlex.quote(str(prompt_path))
         model_escaped = shlex.quote(model)
+
+        if headless:
+            return f'claude -p --model {model_escaped} "$(cat {prompt_path_escaped})"'
         return f'claude --model {model_escaped} "$(cat {prompt_path_escaped})"'
 
     def get_env_vars(self, host_factory_dir: Path) -> dict[str, str] | None:
