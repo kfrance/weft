@@ -27,7 +27,7 @@ weft uses two types of configuration:
    OPENROUTER_API_KEY=your-api-key-here
 
    # Optional: Specify default model
-   OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
+   OPENROUTER_MODEL=x-ai/grok-4.1-fast
 
    # Optional: Your app name for OpenRouter analytics
    OPENROUTER_APP_NAME=weft
@@ -50,7 +50,7 @@ Set these variables in your `~/.weft/.env` file:
 OPENROUTER_API_KEY=your-api-key-here
 
 # Optional: Specify default model
-OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
+OPENROUTER_MODEL=x-ai/grok-4.1-fast
 
 # Optional: Your app name for OpenRouter analytics
 OPENROUTER_APP_NAME=weft

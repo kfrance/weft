@@ -117,6 +117,22 @@ Get started with weft in a new project:
    ```bash
    weft code <plan_id>
    ```
+6. **Merge to main**:
+   ```bash
+   weft finalize <plan_id>
+   ```
+
+## Workflow: Plan → Code → Finalize
+
+Weft uses a three-stage workflow for implementing features:
+
+1. **Plan** (`weft plan`): Interactively create an implementation plan with Claude. The plan is saved to `.weft/tasks/<plan_id>.md` and defines what will be built.
+
+2. **Code** (`weft code`): Execute the plan in an isolated Git worktree. Claude implements the plan, making changes in the worktree without affecting your main branch.
+
+3. **Finalize** (`weft finalize`): Commit, rebase onto main, and merge. This completes the workflow by integrating your changes and cleaning up the worktree.
+
+Each stage is independent—you can pause between stages, review changes, or abandon a plan at any point.
 
 ## Commands Overview
 
@@ -126,6 +142,7 @@ Weft provides a suite of commands for the complete development lifecycle:
 |---------|---------|---------|
 | `plan` | Interactively create implementation plans | [Plan Command](#plan-command-setup) |
 | `code` | Execute a plan using Claude Code CLI | [Code Command](#code-command) |
+| `finalize` | Commit, rebase, and merge completed plan | [Finalize Command](#finalize-command) |
 | `eval` | Evaluate code quality and create training data | [Eval Command](#eval-command) |
 | `train` | Generate improved prompt candidates from training data | [Train Command](#train-command) |
 | `init` | Initialize weft in a new project | [Init Command](#init-command) |
@@ -160,10 +177,13 @@ weft also requires OpenRouter API credentials for judges and training. Configure
    ```bash
    cat > ~/.weft/.env << EOF
    OPENROUTER_API_KEY=your-api-key-here
+
+   # Optional: Default model for DSPy operations (judges, training)
+   OPENROUTER_MODEL=x-ai/grok-4.1-fast
    EOF
    ```
 
-See [docs/code-config.md](docs/code-config.md) for detailed configuration options.
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed configuration options.
 
 ## Plan Command Setup
 
@@ -178,9 +198,19 @@ weft plan --text "Create a feature to export user metrics"
 
 # Use a specific model
 weft plan --text "Create a feature" --model opus
+
+# Disable hooks for this run
+weft plan idea.md --no-hooks
 ```
 
 The plan command opens an interactive Claude Code CLI session where you can discuss and refine your implementation plan. The resulting plan is saved to `.weft/tasks/<plan-id>.md`.
+
+### Parameters
+
+- `<plan_path>`: Path to idea file (optional if using `--text`)
+- `--text <text>`: Provide idea text directly instead of a file
+- `--model <model>`: Model variant to use. Options: `sonnet` (default), `opus`, `haiku`
+- `--no-hooks`: Disable hooks for this command
 
 ## Init Command
 
@@ -240,12 +270,20 @@ weft code plan.md
 # Use a specific model
 weft code plan.md --model opus
 weft code plan.md --model haiku
+
+# Provide plan text directly (creates plan inline)
+weft code --text "Add error handling to the API endpoints"
+
+# Disable hooks for this run
+weft code plan.md --no-hooks
 ```
 
 ### Parameters
 
-- `<plan_path>`: Path to the plan file to execute (required)
+- `<plan_path>`: Path to the plan file to execute (optional if using `--text`)
+- `--text <text>`: Provide plan text directly instead of a file
 - `--model <model>`: Model variant to use. Options: `sonnet` (default), `opus`, `haiku`
+- `--no-hooks`: Disable hooks for this command
 - `--debug`: Enable debug-level logging for troubleshooting
 
 ### Examples
@@ -274,7 +312,60 @@ schema_version = "1.0"
 patterns = [".env", ".env.*", "config/*.json"]
 ```
 
-Files are copied before execution and cleaned up after. See [docs/configuration.md](docs/configuration.md) for full configuration options.
+Files are copied before execution and cleaned up after. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full configuration options.
+
+## Finalize Command
+
+The `weft finalize` command completes the workflow by committing changes, rebasing onto main, and merging. It uses Claude Code CLI to handle the git operations automatically.
+
+### What It Does
+
+Running `weft finalize <plan_id>` will:
+1. Verify uncommitted changes exist in the worktree
+2. Move the plan file into the worktree (so it's included in the commit)
+3. Launch Claude Code to commit, rebase onto main, and merge
+4. Verify the merge succeeded
+5. Clean up the worktree and branch
+6. Remove the plan backup reference
+
+### Basic Usage
+
+```bash
+# Finalize a completed plan
+weft finalize my-feature
+
+# Use a specific model (default: haiku)
+weft finalize my-feature --model sonnet
+```
+
+### Parameters
+
+- `<plan_path>`: Path to plan file or plan ID (required)
+- `--model <model>`: Model variant to use. Options: `sonnet`, `opus`, `haiku` (default)
+- `--tool <tool>`: Coding tool to use (default: claude-code)
+
+### Example Workflow
+
+```bash
+# 1. Create a plan
+weft plan --text "Add user authentication"
+
+# 2. Implement the plan
+weft code add-user-authentication
+
+# 3. (Optional) Evaluate the implementation
+weft eval add-user-authentication
+
+# 4. Finalize and merge to main
+weft finalize add-user-authentication
+```
+
+### Notes
+
+- **Requires uncommitted changes**: The command fails if there are no changes to commit
+- **Automatic cleanup**: On success, the worktree and branch are removed automatically
+- **Plan file moves**: The plan file is moved into the worktree and committed with your changes
+- **Runs outside sandbox**: Git operations run without sandbox restrictions (no permission prompts)
 
 ## Eval Command
 
@@ -292,6 +383,9 @@ weft eval <plan_id> --model opus
 # Force re-run all steps (skip idempotency checks)
 weft eval <plan_id> --force
 
+# Disable hooks for this run
+weft eval <plan_id> --no-hooks
+
 # Examples
 weft eval my-feature
 weft eval quick-fix-2025.01-001
@@ -306,12 +400,14 @@ The eval command runs a comprehensive evaluation workflow:
 3. **Run After Tests**: Uses Claude Code SDK to run tests in the current worktree (after implementation)
 4. **Collect Human Feedback**: Opens an interactive Claude Code session to gather your feedback
 5. **Create Training Data**: Saves all evaluation artifacts to `.weft/training_data/<plan_id>/`
+6. **Trigger Hooks**: Runs the `eval_complete` hook after training data is created
 
 ### Parameters
 
 - `<plan_id>`: Plan identifier (from `.weft/tasks/<plan_id>.md`)
 - `--model <model>`: Model for test execution and feedback. Options: `sonnet` (default), `opus`, `haiku`
 - `--force`: Re-run all steps and overwrite existing results (skips idempotency checks)
+- `--no-hooks`: Disable hooks for this command
 - `--debug`: Enable debug-level logging
 
 ### Idempotency
@@ -490,6 +586,7 @@ The train command:
 - `--batch-size N`: Number of training samples to analyze per batch (default: 3, max: 10)
 - `--max-subagents N`: Maximum number of subagents to generate (default: 5, max: 10)
 - `--model MODEL`: OpenRouter model for generating candidates (default: x-ai/grok-4.1-fast)
+- `--regenerate-summaries`: Regenerate training data summaries even if they already exist
 - `--debug`: Enable debug-level logging
 
 ### Prerequisites
@@ -740,17 +837,23 @@ enabled = true
 [hooks.code_sdk_complete]
 command = "notify-send 'Code Complete' 'Ready for review'"
 enabled = true
+
+[hooks.eval_complete]
+command = "echo 'Training data ready at ${training_data_dir}'"
+enabled = true
 ```
 
 ### Hook Points
 
 - **plan_file_created**: Triggered when plan file is created during interactive session
 - **code_sdk_complete**: Triggered after SDK session completes, before CLI resume
+- **eval_complete**: Triggered after eval completes and training data is created
 
 ### Available Variables
 
 Use `${variable}` syntax in commands:
 - All hooks: `${worktree_path}`, `${plan_path}`, `${plan_id}`, `${repo_root}`
+- `eval_complete` only: `${training_data_dir}`
 
 ### Common Examples
 
@@ -764,6 +867,11 @@ enabled = true
 [hooks.code_sdk_complete]
 command = "notify-send 'weft' 'Code generation complete for ${plan_id}'"
 enabled = true
+
+# Notification when eval completes
+[hooks.eval_complete]
+command = "notify-send 'weft' 'Evaluation complete for ${plan_id}'"
+enabled = true
 ```
 
 ### Disabling Hooks
@@ -771,7 +879,9 @@ enabled = true
 Use the `--no-hooks` flag to disable all hooks for a single command:
 
 ```bash
+weft plan idea.md --no-hooks
 weft code plan.md --no-hooks
+weft eval my-feature --no-hooks
 ```
 
 For complete documentation, see [docs/HOOKS.md](docs/HOOKS.md).
@@ -813,3 +923,11 @@ The CLI uses Python's built-in `logging` module for all output:
   ```
 
 Log files rotate daily at midnight and maintain 30 days of history automatically.
+
+## Further Documentation
+
+For more detailed information, see:
+
+- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) - Complete configuration guide including environment variables, DSPy caching, and worktree file sync
+- [docs/HOOKS.md](docs/HOOKS.md) - Detailed hook configuration and examples
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) - Security considerations and threat analysis
