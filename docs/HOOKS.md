@@ -101,9 +101,9 @@ enabled = true
 
 ### eval_complete
 
-**Triggered:** After evaluation completes and training data is created.
+**Triggered:** After `weft eval` completes and training data is successfully created.
 
-**Note:** This hook requires the round-out-eval-command feature to be implemented.
+**Timing:** After all evaluation steps (judges, tests, feedback collection) complete and training data is exported.
 
 **Available Variables:**
 | Variable | Description |
@@ -113,6 +113,24 @@ enabled = true
 | `${plan_path}` | Path to the plan file |
 | `${plan_id}` | The plan ID |
 | `${repo_root}` | Path to the repository root |
+
+**Common Use Cases:**
+```toml
+# Open training data directory in file manager
+[hooks.eval_complete]
+command = "nautilus ${training_data_dir}"
+enabled = true
+
+# Send notification when evaluation completes
+[hooks.eval_complete]
+command = "notify-send 'weft' 'Evaluation complete for ${plan_id}'"
+enabled = true
+
+# Run custom post-evaluation script
+[hooks.eval_complete]
+command = "~/scripts/on-eval-complete.sh ${plan_id} ${training_data_dir}"
+enabled = true
+```
 
 ## Variable Substitution
 
@@ -158,6 +176,7 @@ Use the `--no-hooks` flag:
 ```bash
 weft plan --text "my idea" --no-hooks
 weft code my-plan --no-hooks
+weft eval my-plan --no-hooks
 ```
 
 ### Permanently (per hook)

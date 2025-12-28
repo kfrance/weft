@@ -249,6 +249,12 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Re-run all evaluation steps and overwrite existing results",
     )
+    eval_parser.add_argument(
+        "--no-hooks",
+        dest="no_hooks",
+        action="store_true",
+        help="Disable execution of configured hooks",
+    )
 
     # Train command
     train_parser = subparsers.add_parser(
@@ -458,7 +464,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         plan_id = args.plan_id
         model = args.model
         force = args.force
-        return run_eval_command(plan_id, model=model, force=force)
+        no_hooks = args.no_hooks
+        return run_eval_command(plan_id, model=model, force=force, no_hooks=no_hooks)
 
     # Train command
     if args.command == "train":

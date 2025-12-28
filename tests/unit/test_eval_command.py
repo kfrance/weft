@@ -339,89 +339,94 @@ Test judge instructions.
     assert json_data["feedback"] == "Test feedback"
 
 
-class TestEvalCommandIdempotency:
-    """Tests for eval command idempotency behavior."""
+def _setup_eval_environment(tmp_path: Path) -> Path:
+    """Set up a minimal eval test environment.
 
-    def _setup_eval_environment(self, tmp_path: Path) -> Path:
-        """Set up a minimal eval test environment."""
-        # Initialize main git repo
-        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=tmp_path,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True
-        )
+    Creates a git repo with a plan file, worktree, and judges directory.
+    Shared by TestEvalCommandIdempotency and TestEvalCompleteHook.
+    """
+    # Initialize main git repo
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True
+    )
 
-        # Create plan file
-        tasks_dir = tmp_path / ".weft" / "tasks"
-        tasks_dir.mkdir(parents=True)
-        plan_file = tasks_dir / "test-plan.md"
-        plan_file.write_text(
-            """---
+    # Create plan file
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    plan_file = tasks_dir / "test-plan.md"
+    plan_file.write_text(
+        """---
 plan_id: test-plan
 status: coding
 ---
 
 # Test Plan
 """
-        )
+    )
 
-        # Commit the plan file
-        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Add plan"],
-            cwd=tmp_path,
-            check=True,
-            capture_output=True,
-        )
+    # Commit the plan file
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Add plan"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
 
-        # Create worktree
-        worktree_dir = tmp_path / ".weft" / "worktrees" / "test-plan"
-        worktree_dir.mkdir(parents=True)
+    # Create worktree
+    worktree_dir = tmp_path / ".weft" / "worktrees" / "test-plan"
+    worktree_dir.mkdir(parents=True)
 
-        # Initialize git repo in worktree
-        subprocess.run(["git", "init"], cwd=worktree_dir, check=True, capture_output=True)
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=worktree_dir,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=worktree_dir, check=True
-        )
+    # Initialize git repo in worktree
+    subprocess.run(["git", "init"], cwd=worktree_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=worktree_dir,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"], cwd=worktree_dir, check=True
+    )
 
-        # Create plan.md and commit
-        (worktree_dir / "plan.md").write_text("# Test Plan Content")
-        subprocess.run(["git", "add", "plan.md"], cwd=worktree_dir, check=True)
-        subprocess.run(
-            ["git", "commit", "-m", "initial"],
-            cwd=worktree_dir,
-            check=True,
-            capture_output=True,
-        )
+    # Create plan.md and commit
+    (worktree_dir / "plan.md").write_text("# Test Plan Content")
+    subprocess.run(["git", "add", "plan.md"], cwd=worktree_dir, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "initial"],
+        cwd=worktree_dir,
+        check=True,
+        capture_output=True,
+    )
 
-        # Create judges directory with judge
-        judges_dir = tmp_path / ".weft" / "judges"
-        judges_dir.mkdir(parents=True)
-        judge_file = judges_dir / "test-judge.md"
-        judge_file.write_text(
-            """---
+    # Create judges directory with judge
+    judges_dir = tmp_path / ".weft" / "judges"
+    judges_dir.mkdir(parents=True)
+    judge_file = judges_dir / "test-judge.md"
+    judge_file.write_text(
+        """---
 weight: 0.5
 model: x-ai/grok-4.1-fast
 ---
 
 Test judge instructions.
 """
-        )
+    )
 
-        return tmp_path
+    return tmp_path
+
+
+class TestEvalCommandIdempotency:
+    """Tests for eval command idempotency behavior."""
 
     def test_skips_judges_when_output_exists(self, tmp_path: Path, monkeypatch) -> None:
         """Judges are skipped when their output files already exist."""
-        tmp_path = self._setup_eval_environment(tmp_path)
+        tmp_path = _setup_eval_environment(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         # Pre-create judge output file
@@ -458,7 +463,7 @@ Test judge instructions.
 
     def test_force_reruns_judges(self, tmp_path: Path, monkeypatch) -> None:
         """--force flag causes judges to re-run even when output exists."""
-        tmp_path = self._setup_eval_environment(tmp_path)
+        tmp_path = _setup_eval_environment(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         # Pre-create judge output file
@@ -496,7 +501,7 @@ Test judge instructions.
 
     def test_skips_tests_when_results_exist(self, tmp_path: Path, monkeypatch) -> None:
         """Test execution is skipped when result files already exist."""
-        tmp_path = self._setup_eval_environment(tmp_path)
+        tmp_path = _setup_eval_environment(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         # Pre-create test result files
@@ -526,7 +531,7 @@ Test judge instructions.
 
     def test_skips_feedback_when_file_exists(self, tmp_path: Path, monkeypatch) -> None:
         """Feedback collection is skipped when human_feedback.md exists."""
-        tmp_path = self._setup_eval_environment(tmp_path)
+        tmp_path = _setup_eval_environment(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         # Pre-create feedback file
@@ -557,3 +562,203 @@ Test judge instructions.
 
         # collect_human_feedback should not be called since file exists
         mock_feedback.assert_not_called()
+
+
+class TestEvalCompleteHook:
+    """Tests for eval_complete hook trigger functionality."""
+
+    def test_eval_command_triggers_hook_after_training_data_created(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Verify eval_complete hook is triggered with correct context after training data is created."""
+        tmp_path = _setup_eval_environment(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        # Pre-create test results and feedback files (required for training data creation)
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
+        eval_dir.mkdir(parents=True)
+        (eval_dir / "test_results_after.json").write_text(json.dumps({
+            "command": "pytest", "exit_code": 0, "total_tests": 5,
+            "passed_tests": 5, "failed_tests": 0,
+        }))
+        (eval_dir / "human_feedback.md").write_text("# Human Feedback\n\nGreat work!")
+
+        mock_results = [JudgeResult(
+            judge_name="test-judge", score=0.85, feedback="Test feedback", weight=0.5
+        )]
+
+        # Track trigger_hook calls
+        hook_calls = []
+
+        def mock_trigger_hook(hook_name: str, context: dict) -> None:
+            hook_calls.append((hook_name, context.copy()))
+
+        with patch("weft.eval_command.execute_judges_parallel", return_value=mock_results):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", return_value={
+                        "command": "test", "exit_code": 0, "total_tests": 5,
+                        "passed_tests": 5, "failed_tests": 0,
+                    }):
+                        with patch("weft.eval_command.collect_human_feedback", return_value=None):
+                            with patch("weft.eval_command.create_training_data"):
+                                with patch("weft.eval_command.trigger_hook", mock_trigger_hook):
+                                    exit_code = run_eval_command("test-plan")
+
+        assert exit_code == 0
+
+        # Verify trigger_hook was called exactly once with eval_complete
+        eval_complete_calls = [c for c in hook_calls if c[0] == "eval_complete"]
+        assert len(eval_complete_calls) == 1, "eval_complete hook should be called exactly once"
+
+        # Verify hook context contains all required variables with correct types
+        hook_context = eval_complete_calls[0][1]
+        assert "training_data_dir" in hook_context
+        assert "worktree_path" in hook_context
+        assert "plan_path" in hook_context
+        assert "plan_id" in hook_context
+        assert "repo_root" in hook_context
+
+        # Verify path types (should be Path objects)
+        assert isinstance(hook_context["training_data_dir"], Path)
+        assert isinstance(hook_context["worktree_path"], Path)
+        assert isinstance(hook_context["plan_path"], Path)
+        assert isinstance(hook_context["repo_root"], Path)
+
+        # Verify paths point to expected locations
+        assert "test-plan" in str(hook_context["training_data_dir"])
+        assert str(hook_context["worktree_path"]).endswith("test-plan")
+        assert hook_context["plan_id"] == "test-plan"
+
+    def test_eval_complete_hook_not_triggered_when_training_data_skipped(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Verify hook is NOT triggered when training data creation is skipped."""
+        tmp_path = _setup_eval_environment(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        # Create eval directory but WITHOUT human_feedback.md
+        # This means training data creation will be skipped
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
+        eval_dir.mkdir(parents=True)
+        (eval_dir / "test_results_after.json").write_text(json.dumps({
+            "command": "pytest", "exit_code": 0, "total_tests": 5,
+            "passed_tests": 5, "failed_tests": 0,
+        }))
+        # Note: deliberately NOT creating human_feedback.md
+
+        mock_results = [JudgeResult(
+            judge_name="test-judge", score=0.85, feedback="Test feedback", weight=0.5
+        )]
+
+        # Track trigger_hook calls
+        hook_calls = []
+
+        def mock_trigger_hook(hook_name: str, context: dict) -> None:
+            hook_calls.append((hook_name, context.copy()))
+
+        with patch("weft.eval_command.execute_judges_parallel", return_value=mock_results):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", return_value={
+                        "command": "test", "exit_code": 0, "total_tests": 5,
+                        "passed_tests": 5, "failed_tests": 0,
+                    }):
+                        # collect_human_feedback returns None (user cancelled)
+                        with patch("weft.eval_command.collect_human_feedback", return_value=None):
+                            with patch("weft.eval_command.trigger_hook", mock_trigger_hook):
+                                exit_code = run_eval_command("test-plan")
+
+        assert exit_code == 0
+
+        # Verify trigger_hook was NOT called
+        eval_complete_calls = [c for c in hook_calls if c[0] == "eval_complete"]
+        assert len(eval_complete_calls) == 0, "eval_complete hook should NOT be called when training data is skipped"
+
+    def test_eval_command_no_hooks_flag_prevents_eval_complete(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Verify --no-hooks flag prevents hook execution even when training data is created."""
+        tmp_path = _setup_eval_environment(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        # Pre-create all required files for training data creation
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
+        eval_dir.mkdir(parents=True)
+        (eval_dir / "test_results_after.json").write_text(json.dumps({
+            "command": "pytest", "exit_code": 0, "total_tests": 5,
+            "passed_tests": 5, "failed_tests": 0,
+        }))
+        (eval_dir / "human_feedback.md").write_text("# Human Feedback\n\nGreat work!")
+
+        mock_results = [JudgeResult(
+            judge_name="test-judge", score=0.85, feedback="Test feedback", weight=0.5
+        )]
+
+        # Track trigger_hook calls
+        hook_calls = []
+
+        def mock_trigger_hook(hook_name: str, context: dict) -> None:
+            hook_calls.append((hook_name, context.copy()))
+
+        with patch("weft.eval_command.execute_judges_parallel", return_value=mock_results):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", return_value={
+                        "command": "test", "exit_code": 0, "total_tests": 5,
+                        "passed_tests": 5, "failed_tests": 0,
+                    }):
+                        with patch("weft.eval_command.collect_human_feedback", return_value=None):
+                            with patch("weft.eval_command.create_training_data"):
+                                with patch("weft.eval_command.trigger_hook", mock_trigger_hook):
+                                    # Call with no_hooks=True
+                                    exit_code = run_eval_command("test-plan", no_hooks=True)
+
+        assert exit_code == 0
+
+        # Verify trigger_hook was NOT called when no_hooks=True
+        assert len(hook_calls) == 0, "trigger_hook should NOT be called when no_hooks=True"
+
+    def test_eval_command_succeeds_when_hook_raises_exception(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Verify eval command succeeds even when hook execution raises an exception.
+
+        This tests the non-blocking requirement: hook failures must not fail
+        the eval command. The trigger_hook function handles exceptions internally,
+        but this test documents and verifies the expected contract.
+        """
+        tmp_path = _setup_eval_environment(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        # Pre-create all required files for training data creation
+        eval_dir = tmp_path / ".weft" / "sessions" / "test-plan" / "eval"
+        eval_dir.mkdir(parents=True)
+        (eval_dir / "test_results_after.json").write_text(json.dumps({
+            "command": "pytest", "exit_code": 0, "total_tests": 5,
+            "passed_tests": 5, "failed_tests": 0,
+        }))
+        (eval_dir / "human_feedback.md").write_text("# Human Feedback\n\nGreat work!")
+
+        mock_results = [JudgeResult(
+            judge_name="test-judge", score=0.85, feedback="Test feedback", weight=0.5
+        )]
+
+        def failing_trigger_hook(hook_name: str, context: dict) -> None:
+            """Simulate a hook that raises an exception."""
+            raise RuntimeError("Hook execution failed unexpectedly")
+
+        with patch("weft.eval_command.execute_judges_parallel", return_value=mock_results):
+            with patch("weft.eval_command.get_openrouter_api_key", return_value="test_key"):
+                with patch("weft.eval_command.run_before_tests", return_value=None):
+                    with patch("weft.eval_command.run_after_tests", return_value={
+                        "command": "test", "exit_code": 0, "total_tests": 5,
+                        "passed_tests": 5, "failed_tests": 0,
+                    }):
+                        with patch("weft.eval_command.collect_human_feedback", return_value=None):
+                            with patch("weft.eval_command.create_training_data"):
+                                with patch("weft.eval_command.trigger_hook", failing_trigger_hook):
+                                    exit_code = run_eval_command("test-plan")
+
+        # Hook failure should NOT cause eval command to fail
+        assert exit_code == 0, "Eval command should succeed even when hook raises exception"

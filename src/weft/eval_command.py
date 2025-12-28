@@ -22,6 +22,7 @@ from .cache_sync import (
 from .feedback_collector import FeedbackCollectionError, collect_human_feedback
 from .fingerprint import compute_eval_fingerprint
 from .git_context import GitContextError, gather_git_context
+from .hooks import trigger_hook
 from .judge_executor import JudgeExecutionError, JudgeResult, get_cache_dir, get_openrouter_api_key
 from .judge_loader import JudgeLoaderError, discover_judges
 from .judge_orchestrator import JudgeOrchestrationError, execute_judges_parallel
@@ -123,6 +124,7 @@ def run_eval_command(
     plan_id: str,
     model: str = "sonnet",
     force: bool = False,
+    no_hooks: bool = False,
 ) -> int:
     """Run the eval command to evaluate code changes.
 
@@ -137,6 +139,7 @@ def run_eval_command(
         plan_id: Plan ID to evaluate
         model: Model to use for Claude Code SDK (default: sonnet)
         force: If True, re-run all steps and overwrite existing results
+        no_hooks: If True, disable execution of configured hooks
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -450,6 +453,24 @@ def run_eval_command(
                         shutil.rmtree(training_data_dir)
                     create_training_data(actual_plan_id, repo_root, eval_fingerprint)
                     logger.info("Training data created at: %s", training_data_dir)
+
+                    # Trigger eval_complete hook after successful training data creation
+                    # Note: trigger_hook handles exceptions internally, but we add
+                    # defense-in-depth to ensure hook failures never fail eval
+                    if not no_hooks:
+                        try:
+                            trigger_hook(
+                                "eval_complete",
+                                {
+                                    "training_data_dir": training_data_dir,
+                                    "worktree_path": worktree_path,
+                                    "plan_path": plan_path,
+                                    "plan_id": actual_plan_id,
+                                    "repo_root": repo_root,
+                                },
+                            )
+                        except Exception as hook_exc:
+                            logger.warning("eval_complete hook failed: %s", hook_exc)
                 except TrainingDataExportError as exc:
                     logger.error("Training data creation failed: %s", exc)
                     return 1
