@@ -10,7 +10,7 @@ import pytest
 from weft.plan_backup import create_backup, move_backup_to_abandoned
 from weft.recover_command import run_recover_command, parse_abandoned_log
 
-from conftest import GitRepo, write_plan
+from tests.helpers import GitRepo, write_plan
 
 
 def test_list_backups_displays_correct_format(git_repo: GitRepo, capsys) -> None:

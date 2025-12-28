@@ -12,7 +12,7 @@ import pytest
 from weft.plan_validator import load_plan_metadata
 from weft.quick_fix import QuickFixError, create_quick_fix_plan, generate_quick_fix_id
 
-from conftest import GitRepo
+from tests.helpers import GitRepo
 
 
 class TestGenerateQuickFixId:

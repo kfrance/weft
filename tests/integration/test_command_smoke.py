@@ -11,31 +11,79 @@ They catch:
 These tests would have caught the "droids directory not found" bug where
 code referenced a directory that had been moved during refactoring.
 
-NOTE: These tests run against the REAL weft repository (not a temp repo)
-because they need access to real project files like prompts/active/.
+ISOLATION: These tests use a temporary git repository (via git_repo fixture)
+and copy required prompt files to avoid operating on the real weft repository.
+This prevents accidental file creation/deletion in the real repo.
 """
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-
-import pytest
-import yaml
 
 import weft.code_command as code_command
 import weft.plan_command as plan_command
 from weft.code_command import run_code_command
 from weft.plan_command import run_plan_command
-from weft.repo_utils import find_repo_root
+
+# Import shared test helpers
+from tests.helpers import write_plan
 
 
-def _write_plan(path: Path, data: dict, body: str = "# Plan Body") -> None:
-    """Write a plan file with YAML front matter."""
-    yaml_block = yaml.safe_dump(data, sort_keys=False).strip()
-    content = f"---\n{yaml_block}\n---\n\n{body}\n"
-    path.write_text(content, encoding="utf-8")
+def _find_real_repo_root() -> Path:
+    """Find the real weft repository root for copying prompts.
+
+    This is only used to locate prompt files that need to be copied
+    to the test environment.
+
+    Returns:
+        Path to the real repository root.
+
+    Raises:
+        RuntimeError: If the repository root cannot be found.
+    """
+    current = Path(__file__).parent
+    while current != current.parent:
+        if (current / "pyproject.toml").exists():
+            return current
+        current = current.parent
+    raise RuntimeError("Could not find weft repository root")
+
+
+def _copy_prompts_to_repo(dest_repo: Path, real_repo: Path) -> None:
+    """Copy prompt files and SDK settings from real repo to test repo.
+
+    Copies:
+    - .weft/prompts/active/ directory (for claude-code-cli prompts)
+    - src/weft/prompts/ directory (for plan subagent prompts and templates)
+    - src/weft/sdk_settings.json (for SDK configuration)
+
+    Args:
+        dest_repo: Destination test repository path.
+        real_repo: Real weft repository root to copy from.
+    """
+    # Copy .weft/prompts/active/ for claude-code-cli
+    weft_prompts_src = real_repo / ".weft" / "prompts" / "active"
+    if weft_prompts_src.exists():
+        weft_prompts_dest = dest_repo / ".weft" / "prompts" / "active"
+        weft_prompts_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(weft_prompts_src, weft_prompts_dest)
+
+    # Copy src/weft/prompts/ for plan subagents and templates
+    src_prompts_src = real_repo / "src" / "weft" / "prompts"
+    if src_prompts_src.exists():
+        src_prompts_dest = dest_repo / "src" / "weft" / "prompts"
+        src_prompts_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src_prompts_src, src_prompts_dest)
+
+    # Copy sdk_settings.json for SDK configuration
+    sdk_settings_src = real_repo / "src" / "weft" / "sdk_settings.json"
+    if sdk_settings_src.exists():
+        sdk_settings_dest = dest_repo / "src" / "weft" / "sdk_settings.json"
+        sdk_settings_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(sdk_settings_src, sdk_settings_dest)
 
 
 def _get_head_sha(repo_root: Path) -> str:
@@ -53,7 +101,7 @@ def _get_head_sha(repo_root: Path) -> str:
 class TestPlanCommandSmoke:
     """Smoke tests for plan command setup phase."""
 
-    def test_plan_command_setup_completes(self, monkeypatch):
+    def test_plan_command_setup_completes(self, git_repo, monkeypatch):
         """Plan command setup completes without missing files/imports.
 
         This test exercises the full plan command initialization:
@@ -64,7 +112,43 @@ class TestPlanCommandSmoke:
         - Host command building
 
         If any imports fail or directories are missing, this test will fail.
+
+        Uses isolated git_repo fixture to avoid touching the real repository.
         """
+        # Setup isolated environment
+        real_repo = _find_real_repo_root()
+        _copy_prompts_to_repo(git_repo.path, real_repo)
+
+        # Mock find_repo_root to return the isolated repo
+        monkeypatch.setattr(
+            "weft.plan_command.find_repo_root",
+            lambda *args, **kwargs: git_repo.path
+        )
+
+        # Mock get_weft_src_dir to point to copied prompts
+        def mock_get_weft_src_dir():
+            return git_repo.path / "src" / "weft"
+        monkeypatch.setattr(
+            "weft.plan_command.get_weft_src_dir",
+            mock_get_weft_src_dir
+        )
+        monkeypatch.setattr(
+            "weft.host_runner.get_weft_src_dir",
+            mock_get_weft_src_dir
+        )
+
+        # Mock load_prompt_template to use copied prompts
+        def mock_load_prompt_template(tool: str, template_name: str) -> str:
+            template_path = git_repo.path / "src" / "weft" / "prompts" / tool / f"{template_name}.md"
+            if template_path.exists():
+                return template_path.read_text(encoding="utf-8")
+            # Fallback to a minimal template
+            return "Plan idea: {IDEA_TEXT}"
+        monkeypatch.setattr(
+            "weft.plan_command.load_prompt_template",
+            mock_load_prompt_template
+        )
+
         # Mock only subprocess.run in plan_command module (the interactive CLI part)
         # This allows git commands to still work via the real subprocess module
         subprocess_calls = []
@@ -88,27 +172,10 @@ class TestPlanCommandSmoke:
         assert len(subprocess_calls) > 0, "Expected subprocess.run to be called"
 
 
-def _cleanup_worktree(repo_root: Path, plan_id: str) -> None:
-    """Clean up worktree and branch created during test."""
-    worktree_path = repo_root / ".weft" / "worktrees" / plan_id
-    if worktree_path.exists():
-        subprocess.run(
-            ["git", "worktree", "remove", "--force", str(worktree_path)],
-            cwd=repo_root,
-            capture_output=True,
-        )
-    # Delete the branch
-    subprocess.run(
-        ["git", "branch", "-D", plan_id],
-        cwd=repo_root,
-        capture_output=True,
-    )
-
-
 class TestCodeCommandSmoke:
     """Smoke tests for code command setup phase."""
 
-    def test_code_command_setup_completes(self, monkeypatch, tmp_path):
+    def test_code_command_setup_completes(self, git_repo, monkeypatch):
         """Code command setup completes without missing files/imports.
 
         This test exercises the full code command initialization:
@@ -121,61 +188,116 @@ class TestCodeCommandSmoke:
         - Host command building
 
         If any imports fail or directories are missing, this test will fail.
+
+        Uses isolated git_repo fixture to avoid touching the real repository.
         """
-        # Use real repo for prompts, create plan file in it temporarily
-        repo_root = find_repo_root()
+        # Setup isolated environment
+        real_repo = _find_real_repo_root()
+        _copy_prompts_to_repo(git_repo.path, real_repo)
+
+        # Create plan file in isolated repo
         plan_id = "test-smoke-temp"
-        plan_path = repo_root / f"{plan_id}.md"
-        head_sha = _get_head_sha(repo_root)
+        plan_path = git_repo.path / f"{plan_id}.md"
+        head_sha = _get_head_sha(git_repo.path)
 
-        try:
-            _write_plan(plan_path, {
-                "plan_id": plan_id,
-                "git_sha": head_sha,
-                "status": "draft",
-            })
+        write_plan(plan_path, {
+            "plan_id": plan_id,
+            "git_sha": head_sha,
+            "status": "draft",
+        })
 
-            # Mock SDK session (the API call part)
-            monkeypatch.setattr(
-                code_command,
-                "run_sdk_session_sync",
-                lambda **kw: "mock-session-id"
-            )
+        # Create .weft/tasks directory
+        tasks_dir = git_repo.path / ".weft" / "tasks"
+        tasks_dir.mkdir(parents=True, exist_ok=True)
 
-            # Mock patch capture (SDK session would normally create file changes)
-            monkeypatch.setattr(
-                code_command,
-                "capture_ai_patch",
-                lambda worktree_path: "mock patch content"
-            )
-            monkeypatch.setattr(
-                code_command,
-                "save_patch",
-                lambda content, path: None
-            )
+        # Mock find_repo_root to return the isolated repo
+        # Must mock in all modules that use it in the code command's path
+        monkeypatch.setattr(
+            "weft.code_command.find_repo_root",
+            lambda *args, **kwargs: git_repo.path
+        )
+        monkeypatch.setattr(
+            "weft.plan_validator.find_repo_root",
+            lambda *args, **kwargs: git_repo.path
+        )
 
-            # Mock subprocess.run in code_command module (the interactive CLI part)
-            subprocess_calls = []
+        # Mock get_weft_src_dir to point to copied prompts
+        def mock_get_weft_src_dir():
+            return git_repo.path / "src" / "weft"
+        monkeypatch.setattr(
+            "weft.code_command.get_weft_src_dir",
+            mock_get_weft_src_dir
+        )
+        monkeypatch.setattr(
+            "weft.host_runner.get_weft_src_dir",
+            mock_get_weft_src_dir
+        )
 
-            def mock_subprocess_run(*args, **kwargs):
-                subprocess_calls.append((args, kwargs))
-                return SimpleNamespace(returncode=0)
+        # Mock load_prompts to use copied prompts
+        def mock_load_prompts(repo_root, tool, model):
+            prompts_base = git_repo.path / ".weft" / "prompts" / "active" / tool / model
+            prompts = {}
 
-            monkeypatch.setattr(code_command, "subprocess", SimpleNamespace(run=mock_subprocess_run))
+            main_prompt_path = prompts_base / "main.md"
+            if main_prompt_path.exists():
+                prompts["main_prompt"] = main_prompt_path.read_text(encoding="utf-8")
+            else:
+                prompts["main_prompt"] = "Implement the plan in plan.md"
 
-            exit_code = run_code_command(
-                plan_path=plan_path,
-                tool="claude-code",
-                no_hooks=True,
-            )
+            code_review_path = prompts_base / "code-review-auditor.md"
+            if code_review_path.exists():
+                prompts["code_review_auditor"] = code_review_path.read_text(encoding="utf-8")
+            else:
+                prompts["code_review_auditor"] = "Review the code for quality"
 
-            # If setup had missing imports/files, we'd get an exception before here
-            assert exit_code == 0
-            # Verify subprocess.run was actually called (command was built)
-            assert len(subprocess_calls) > 0, "Expected subprocess.run to be called"
-        finally:
-            # Clean up temporary plan file
-            if plan_path.exists():
-                plan_path.unlink()
-            # Clean up worktree and branch
-            _cleanup_worktree(repo_root, plan_id)
+            plan_alignment_path = prompts_base / "plan-alignment-checker.md"
+            if plan_alignment_path.exists():
+                prompts["plan_alignment_checker"] = plan_alignment_path.read_text(encoding="utf-8")
+            else:
+                prompts["plan_alignment_checker"] = "Check alignment with plan"
+
+            return prompts
+
+        monkeypatch.setattr(
+            "weft.code_command.load_prompts",
+            mock_load_prompts
+        )
+
+        # Mock SDK session (the API call part)
+        monkeypatch.setattr(
+            code_command,
+            "run_sdk_session_sync",
+            lambda **kw: "mock-session-id"
+        )
+
+        # Mock patch capture (SDK session would normally create file changes)
+        monkeypatch.setattr(
+            code_command,
+            "capture_ai_patch",
+            lambda worktree_path: "mock patch content"
+        )
+        monkeypatch.setattr(
+            code_command,
+            "save_patch",
+            lambda content, path: None
+        )
+
+        # Mock subprocess.run in code_command module (the interactive CLI part)
+        subprocess_calls = []
+
+        def mock_subprocess_run(*args, **kwargs):
+            subprocess_calls.append((args, kwargs))
+            return SimpleNamespace(returncode=0)
+
+        monkeypatch.setattr(code_command, "subprocess", SimpleNamespace(run=mock_subprocess_run))
+
+        exit_code = run_code_command(
+            plan_path=plan_path,
+            tool="claude-code",
+            no_hooks=True,
+        )
+
+        # If setup had missing imports/files, we'd get an exception before here
+        assert exit_code == 0
+        # Verify subprocess.run was actually called (command was built)
+        assert len(subprocess_calls) > 0, "Expected subprocess.run to be called"

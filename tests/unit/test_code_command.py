@@ -30,7 +30,7 @@ from weft.code_command import (
 from weft.patch_utils import EmptyPatchError, PatchCaptureError
 from weft.plan_validator import PlanValidationError
 from weft.worktree_utils import WorktreeError
-from conftest import write_plan
+from tests.helpers import write_plan
 
 
 def test_run_code_command_validation_failure(monkeypatch, caplog, tmp_path: Path) -> None:

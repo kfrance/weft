@@ -9,7 +9,7 @@ import pytest
 from weft.completion.completers import complete_backup_plans
 from weft.plan_backup import create_backup
 
-from conftest import GitRepo, write_plan
+from tests.helpers import GitRepo, write_plan
 
 
 def test_complete_backup_plans_returns_correct_format(git_repo: GitRepo) -> None:

@@ -18,7 +18,7 @@ from weft.worktree_utils import (
     has_uncommitted_changes,
     is_git_worktree,
 )
-from conftest import write_plan
+from tests.helpers import write_plan
 
 
 def test_get_branch_name_from_plan_id():

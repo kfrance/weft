@@ -21,7 +21,7 @@ from weft.plan_file_copier import (
     get_existing_files,
 )
 from weft.plan_validator import PLACEHOLDER_SHA, extract_front_matter
-from conftest import write_plan
+from tests.helpers import write_plan
 import weft.plan_command
 
 

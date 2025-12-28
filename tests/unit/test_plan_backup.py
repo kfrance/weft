@@ -20,7 +20,7 @@ from weft.plan_backup import (
     recover_backup,
 )
 
-from conftest import GitRepo, write_plan
+from tests.helpers import GitRepo, write_plan
 
 
 def test_create_backup_creates_orphan_commit_and_ref(git_repo: GitRepo) -> None:

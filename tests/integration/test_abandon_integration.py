@@ -17,7 +17,7 @@ from weft.plan_backup import (
 )
 from weft.recover_command import run_recover_command
 
-from conftest import GitRepo, write_plan
+from tests.helpers import GitRepo, write_plan
 
 
 def test_end_to_end_abandon_workflow(git_repo: GitRepo) -> None:

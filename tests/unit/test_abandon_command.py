@@ -23,7 +23,7 @@ from weft.abandon_command import (
 )
 from weft.plan_backup import create_backup
 
-from conftest import GitRepo, write_plan
+from tests.helpers import GitRepo, write_plan
 
 
 def test_detect_plan_artifacts_all_present(git_repo: GitRepo) -> None:

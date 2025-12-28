@@ -14,14 +14,24 @@ from weft.repo_utils import (
 )
 
 
-def test_find_repo_root_from_cwd(git_repo) -> None:
-    """Test find_repo_root from current working directory."""
-    # Execute (git_repo fixture is already in a git repository)
+def test_find_repo_root_from_cwd(git_repo, monkeypatch) -> None:
+    """Test find_repo_root from current working directory.
+
+    This test verifies that find_repo_root() correctly identifies the
+    repository root when called without arguments (using CWD).
+
+    The isolate_cwd autouse fixture changes CWD to tmp_path, so we must
+    explicitly change to the git_repo's directory to test this case.
+    """
+    # Setup - change to the test git repository
+    monkeypatch.chdir(git_repo.path)
+
+    # Execute
     result = find_repo_root()
 
-    # Assert - should return a valid path
+    # Assert - should find the isolated test repo, not the real weft repo
     assert isinstance(result, Path)
-    assert result.exists()
+    assert result == git_repo.path
     assert (result / ".git").exists()
 
 
