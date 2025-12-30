@@ -16,9 +16,24 @@ Run `git status` once to:
 1. Verify there are uncommitted changes - if the working directory is clean, **stop** and report an error
 2. Review the list of changed and untracked files to understand what was modified
 
-### 2. Generate commit message and commit
+### 2. Stage changes with review
 
-Generate a commit message based on the git status output, then stage and commit in a single command:
+Review the `git status` output and stage files explicitly:
+
+1. **Never use `git add -A` or `git add .`** - these stage untracked files blindly
+2. Stage changes in two steps:
+   - Use `git add -u` to stage all modified/deleted tracked files
+   - For new files, review each and add explicitly: `git add path/to/specific/file`
+3. Run `git status` again to verify what will be committed
+
+**Do NOT stage without explicit user confirmation:**
+- Large generated files (logs, caches, `__pycache__/`, `node_modules/`)
+- Editor/IDE config (`.idea/`, `.vscode/`, `*.swp`)
+- Environment/secret files (`.env`, `*.pem`, credentials)
+- Build artifacts (`dist/`, `build/`, `*.egg-info/`)
+- Temporary or debug files created during development
+
+### 3. Generate commit message and commit
 
 **Commit message format:**
 ```
@@ -35,14 +50,12 @@ Generate a commit message based on the git status output, then stage and commit 
 
 Aim for 10 lines total in body (maximum 15).
 
-**Execute immediately** after generating the message:
+**Commit** with your generated message:
 ```bash
-git add -A && git commit -m "<your generated commit message>"
+git commit -m "<your generated commit message>"
 ```
 
-This stages all changes (including the plan file at `.weft/tasks/{PLAN_ID}.md`) and commits them in one command.
-
-### 3. Rebase onto main
+### 4. Rebase onto main
 
 Run:
 ```bash
@@ -51,7 +64,7 @@ git rebase main
 
 If conflicts occur, work with the user to resolve them interactively, then continue the rebase with `git rebase --continue`.
 
-### 4. Switch to main repo and merge
+### 5. Switch to main repo and merge
 
 Navigate to the main repository root, checkout main, and merge in a single command chain:
 ```bash
