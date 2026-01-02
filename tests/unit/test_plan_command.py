@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from weft.plan_command import (
+    PLAN_SUBAGENT_CONFIGS,
     PlanCommandError,
     _ensure_placeholder_git_sha,
     _extract_idea_text,
@@ -385,8 +386,11 @@ def test_write_plan_subagents_droid(tmp_path: Path, monkeypatch) -> None:
     maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
     maintainability_prompt.write_text("Maintainability review guidance")
 
-    test_planner_prompt = prompts_dir / "test-planner.md"
-    test_planner_prompt.write_text("Test planning guidance")
+    test_reviewer_prompt = prompts_dir / "test-reviewer.md"
+    test_reviewer_prompt.write_text("Test review guidance")
+
+    test_discovery_prompt = prompts_dir / "test-discovery.md"
+    test_discovery_prompt.write_text("Test discovery guidance")
 
     # Mock get_weft_src_dir
     monkeypatch.setattr(
@@ -413,13 +417,21 @@ def test_write_plan_subagents_droid(tmp_path: Path, monkeypatch) -> None:
     assert "tools: read-only" in content
     assert "Maintainability review guidance" in content
 
-    # Verify test-planner file
-    dest_test_planner = dest_droids_dir / "test-planner.md"
-    assert dest_test_planner.exists()
-    content = dest_test_planner.read_text()
+    # Verify test-reviewer file
+    dest_test_reviewer = dest_droids_dir / "test-reviewer.md"
+    assert dest_test_reviewer.exists()
+    content = dest_test_reviewer.read_text()
     assert "model: gpt-5-codex" in content
     assert "tools: read-only" in content
-    assert "Test planning guidance" in content
+    assert "Test review guidance" in content
+
+    # Verify test-discovery file
+    dest_test_discovery = dest_droids_dir / "test-discovery.md"
+    assert dest_test_discovery.exists()
+    content = dest_test_discovery.read_text()
+    assert "model: gpt-5-codex" in content
+    assert "tools: read-only" in content
+    assert "Test discovery guidance" in content
 
 
 def test_write_plan_subagents_claude_code(tmp_path: Path, monkeypatch) -> None:
@@ -433,8 +445,11 @@ def test_write_plan_subagents_claude_code(tmp_path: Path, monkeypatch) -> None:
     maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
     maintainability_prompt.write_text("Maintainability review guidance")
 
-    test_planner_prompt = prompts_dir / "test-planner.md"
-    test_planner_prompt.write_text("Test planning guidance")
+    test_reviewer_prompt = prompts_dir / "test-reviewer.md"
+    test_reviewer_prompt.write_text("Test review guidance")
+
+    test_discovery_prompt = prompts_dir / "test-discovery.md"
+    test_discovery_prompt.write_text("Test discovery guidance")
 
     # Mock get_weft_src_dir
     monkeypatch.setattr(
@@ -461,13 +476,21 @@ def test_write_plan_subagents_claude_code(tmp_path: Path, monkeypatch) -> None:
     assert "tools:" not in content  # Should omit tools field for Claude Code
     assert "Maintainability review guidance" in content
 
-    # Verify test-planner file
-    dest_test_planner = dest_agents_dir / "test-planner.md"
-    assert dest_test_planner.exists()
-    content = dest_test_planner.read_text()
+    # Verify test-reviewer file
+    dest_test_reviewer = dest_agents_dir / "test-reviewer.md"
+    assert dest_test_reviewer.exists()
+    content = dest_test_reviewer.read_text()
     assert "model: sonnet" in content
     assert "tools:" not in content  # Should omit tools field for Claude Code
-    assert "Test planning guidance" in content
+    assert "Test review guidance" in content
+
+    # Verify test-discovery file
+    dest_test_discovery = dest_agents_dir / "test-discovery.md"
+    assert dest_test_discovery.exists()
+    content = dest_test_discovery.read_text()
+    assert "model: sonnet" in content
+    assert "tools:" not in content  # Should omit tools field for Claude Code
+    assert "Test discovery guidance" in content
 
 
 @pytest.mark.parametrize(
@@ -485,8 +508,11 @@ def test_write_plan_subagents_different_models(tmp_path: Path, monkeypatch, mode
     maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
     maintainability_prompt.write_text("Test content")
 
-    test_planner_prompt = prompts_dir / "test-planner.md"
-    test_planner_prompt.write_text("Test content")
+    test_reviewer_prompt = prompts_dir / "test-reviewer.md"
+    test_reviewer_prompt.write_text("Test content")
+
+    test_discovery_prompt = prompts_dir / "test-discovery.md"
+    test_discovery_prompt.write_text("Test content")
 
     # Mock get_weft_src_dir
     monkeypatch.setattr(
@@ -500,14 +526,17 @@ def test_write_plan_subagents_different_models(tmp_path: Path, monkeypatch, mode
     # Call the function for Claude Code with specified model
     _write_plan_subagents(worktree_path, "claude-code", model)
 
-    # Verify model is correctly set in both files
+    # Verify model is correctly set in all files
     dest_agents_dir = worktree_path / ".claude" / "agents"
 
     maintainability_content = (dest_agents_dir / "maintainability-reviewer.md").read_text()
     assert f"model: {model}" in maintainability_content
 
-    test_planner_content = (dest_agents_dir / "test-planner.md").read_text()
-    assert f"model: {model}" in test_planner_content
+    test_reviewer_content = (dest_agents_dir / "test-reviewer.md").read_text()
+    assert f"model: {model}" in test_reviewer_content
+
+    test_discovery_content = (dest_agents_dir / "test-discovery.md").read_text()
+    assert f"model: {model}" in test_discovery_content
 
     # Verify Droid always uses gpt-5-codex regardless of model parameter
     worktree_path_droid = tmp_path / "worktree_droid"
@@ -519,8 +548,11 @@ def test_write_plan_subagents_different_models(tmp_path: Path, monkeypatch, mode
     maintainability_content = (dest_droids_dir / "maintainability-reviewer.md").read_text()
     assert "model: gpt-5-codex" in maintainability_content
 
-    test_planner_content = (dest_droids_dir / "test-planner.md").read_text()
-    assert "model: gpt-5-codex" in test_planner_content
+    test_reviewer_content = (dest_droids_dir / "test-reviewer.md").read_text()
+    assert "model: gpt-5-codex" in test_reviewer_content
+
+    test_discovery_content = (dest_droids_dir / "test-discovery.md").read_text()
+    assert "model: gpt-5-codex" in test_discovery_content
 
 
 def test_write_plan_subagents_unknown_tool(tmp_path: Path, monkeypatch) -> None:
@@ -559,8 +591,11 @@ def test_write_plan_subagents_errors(tmp_path: Path, monkeypatch, error_type: st
         maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
         maintainability_prompt.write_text("Test content")
 
-        test_planner_prompt = prompts_dir / "test-planner.md"
-        test_planner_prompt.write_text("Test content")
+        test_reviewer_prompt = prompts_dir / "test-reviewer.md"
+        test_reviewer_prompt.write_text("Test content")
+
+        test_discovery_prompt = prompts_dir / "test-discovery.md"
+        test_discovery_prompt.write_text("Test content")
 
         # Mock Path.write_text to raise permission error
         from pathlib import Path as PathLib
@@ -579,8 +614,11 @@ def test_write_plan_subagents_errors(tmp_path: Path, monkeypatch, error_type: st
         maintainability_prompt = prompts_dir / "maintainability-reviewer.md"
         maintainability_prompt.write_text("Test content")
 
-        test_planner_prompt = prompts_dir / "test-planner.md"
-        test_planner_prompt.write_text("Test content")
+        test_reviewer_prompt = prompts_dir / "test-reviewer.md"
+        test_reviewer_prompt.write_text("Test content")
+
+        test_discovery_prompt = prompts_dir / "test-discovery.md"
+        test_discovery_prompt.write_text("Test content")
 
         # Mock Path.read_text to raise read error
         from pathlib import Path as PathLib
@@ -761,3 +799,65 @@ def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatc
     # Verify warning was logged about backup failure
     assert "backup(s) failed" in caplog.text
     assert "test-plan" in caplog.text
+
+
+# Tests for PLAN_SUBAGENT_CONFIGS module-level constant
+
+
+def test_plan_subagent_configs_is_module_constant() -> None:
+    """Test that PLAN_SUBAGENT_CONFIGS is accessible at module level."""
+    # Verify it's a dict
+    assert isinstance(PLAN_SUBAGENT_CONFIGS, dict)
+
+    # Verify expected keys exist
+    expected_keys = {"maintainability-reviewer", "test-discovery", "test-reviewer"}
+    assert set(PLAN_SUBAGENT_CONFIGS.keys()) == expected_keys
+
+    # Verify all values are non-empty strings (descriptions)
+    for key, value in PLAN_SUBAGENT_CONFIGS.items():
+        assert isinstance(value, str), f"Value for {key} should be a string"
+        assert len(value) > 0, f"Description for {key} should not be empty"
+
+
+def test_write_plan_subagents_creates_all_configured(tmp_path: Path, monkeypatch) -> None:
+    """Test that _write_plan_subagents creates files for all configured subagents."""
+    # Create fake source directory with prompt files for all configured subagents
+    fake_src_dir = tmp_path / "fake_src"
+    prompts_dir = fake_src_dir / "prompts" / "plan-subagents"
+    prompts_dir.mkdir(parents=True)
+
+    # Create a prompt file for each configured subagent
+    for subagent_name in PLAN_SUBAGENT_CONFIGS:
+        prompt_file = prompts_dir / f"{subagent_name}.md"
+        prompt_file.write_text(f"Prompt for {subagent_name}")
+
+    # Mock get_weft_src_dir
+    monkeypatch.setattr(
+        weft.plan_command, "get_weft_src_dir", lambda: fake_src_dir
+    )
+
+    # Create worktree path
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Call the function for Claude Code
+    _write_plan_subagents(worktree_path, "claude-code", "sonnet")
+
+    # Verify the number of created files matches the number of configured subagents
+    dest_agents_dir = worktree_path / ".claude" / "agents"
+    created_files = list(dest_agents_dir.glob("*.md"))
+    assert len(created_files) == len(PLAN_SUBAGENT_CONFIGS)
+
+    # Verify each configured subagent has a file
+    created_names = {f.stem for f in created_files}
+    assert created_names == set(PLAN_SUBAGENT_CONFIGS.keys())
+
+
+def test_plan_template_has_idea_placeholder() -> None:
+    """Test that restored plan templates contain {IDEA_TEXT} placeholder."""
+    from weft.repo_utils import load_prompt_template
+
+    # Test both tool variants
+    for tool in ["claude-code", "droid"]:
+        template = load_prompt_template(tool, "plan")
+        assert "{IDEA_TEXT}" in template, f"{tool}/plan.md should contain {{IDEA_TEXT}} placeholder"

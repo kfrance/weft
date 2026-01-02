@@ -46,7 +46,7 @@ Thumbs.db
 .weft/plan-traces/
 .weft/sessions/
 .weft/temp-worktrees/
-plan.md
+/plan.md
 .claude/agents/
 
 # Cleanup script (user-specific, not committed)

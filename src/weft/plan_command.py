@@ -36,6 +36,14 @@ from .trace_capture import (
 
 logger = get_logger(__name__)
 
+# Module-level constant for subagent configurations (single source of truth)
+# Used by _write_plan_subagents() and accessible for testing
+PLAN_SUBAGENT_CONFIGS = {
+    "maintainability-reviewer": "Evaluates plans from a long-term maintenance perspective",
+    "test-discovery": "Analyzes existing tests to inform testing questions during planning",
+    "test-reviewer": "Reviews plan test coverage and identifies gaps",
+}
+
 
 class PlanCommandError(Exception):
     """Raised when plan command operations fail."""
@@ -99,12 +107,6 @@ def _write_plan_subagents(worktree_path: Path, tool: str, model: str) -> None:
     except RuntimeError as exc:
         raise PlanCommandError(str(exc)) from exc
 
-    # Define subagent configurations (single source of truth)
-    subagent_configs = {
-        "maintainability-reviewer": "Evaluates plans from a long-term maintenance perspective",
-        "test-planner": "Plans comprehensive test coverage (only adds tests when appropriate)"
-    }
-
     # Determine destination directory and model based on tool
     if tool == "droid":
         dest_dir = worktree_path / ".factory" / "droids"
@@ -121,7 +123,7 @@ def _write_plan_subagents(worktree_path: Path, tool: str, model: str) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     # Write each subagent
-    for subagent_name, description in subagent_configs.items():
+    for subagent_name, description in PLAN_SUBAGENT_CONFIGS.items():
         # Load plain markdown prompt
         prompt_path = src_dir / "prompts" / "plan-subagents" / f"{subagent_name}.md"
         if not prompt_path.exists():
@@ -170,7 +172,7 @@ model: {effective_model}
                 f"Failed to write subagent to {dest_file}: {exc}"
             ) from exc
 
-    logger.info("Configured %s plan subagents in %s", len(subagent_configs), dest_dir)
+    logger.info("Configured %s plan subagents in %s", len(PLAN_SUBAGENT_CONFIGS), dest_dir)
 
 
 def run_plan_command(
