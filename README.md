@@ -21,10 +21,6 @@ In weaving, the **weft** is the thread that passes back and forth through the wa
 - **Claude Code CLI**
   - Website: [claude.ai/code](https://claude.ai/code)
   - Install with: `curl -fsSL https://claude.ai/install.sh | bash`
-- **rsync** (for DSPy cache synchronization in worktrees)
-  - Usually pre-installed on Linux
-  - Verify installation: `rsync --version`
-  - If unavailable, commands will run but cache synchronization will be disabled
 
 ## Installation
 

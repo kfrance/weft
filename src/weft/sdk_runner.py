@@ -15,8 +15,10 @@ may be light at this time.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -34,11 +36,54 @@ from claude_agent_sdk import (
 )
 
 from .logging_config import get_logger
+from .judge_executor import get_cache_dir
 
 logger = get_logger(__name__)
 
 # Pattern to match 'git' as a standalone word (same as referenced in plan)
 GIT_COMMAND_PATTERN = re.compile(r'\bgit\b')
+
+
+def generate_sdk_settings(base_settings_path: Path) -> dict[str, Any]:
+    """Generate SDK settings with dynamic DSPy cache path permissions.
+
+    Reads the base SDK settings file and adds permission rules for the
+    DSPy cache directory with absolute paths (since JSON doesn't expand ~).
+
+    Args:
+        base_settings_path: Path to the base sdk_settings.json file.
+
+    Returns:
+        Settings dict with cache directory permissions added.
+    """
+    # Read base settings
+    settings = json.loads(base_settings_path.read_text(encoding="utf-8"))
+
+    # Ensure sandbox and permissions sections exist
+    if "sandbox" not in settings:
+        settings["sandbox"] = {}
+    if "permissions" not in settings:
+        settings["permissions"] = {}
+    if "allow" not in settings["permissions"]:
+        settings["permissions"]["allow"] = []
+
+    # Add DSPy cache directory permissions with absolute path
+    cache_path = str(get_cache_dir())
+    cache_edit_rule = f"Edit({cache_path}/**)"
+    cache_write_rule = f"Write({cache_path}/**)"
+
+    # Only add if not already present
+    if cache_edit_rule not in settings["permissions"]["allow"]:
+        settings["permissions"]["allow"].append(cache_edit_rule)
+    if cache_write_rule not in settings["permissions"]["allow"]:
+        settings["permissions"]["allow"].append(cache_write_rule)
+
+    logger.debug(
+        "Generated SDK settings with DSPy cache permissions for %s",
+        cache_path,
+    )
+
+    return settings
 
 
 class SDKRunnerError(Exception):
@@ -90,7 +135,7 @@ async def run_sdk_session(
         worktree_path: Path to the worktree directory where the session runs.
         prompt_content: The main prompt content to execute.
         model: Model variant to use (e.g., "sonnet", "opus", "haiku").
-        sdk_settings_path: Path to the SDK settings JSON file.
+        sdk_settings_path: Path to the base SDK settings JSON file.
         agents: Optional dict of agent definitions for programmatic registration.
                 If None, agents are only available via filesystem discovery.
                 Note: SDK does not discover filesystem agents in .claude/agents/,
@@ -103,84 +148,118 @@ async def run_sdk_session(
         SDKRunnerError: If the session fails or session ID cannot be captured.
     """
     logger.info("Starting SDK session with model '%s' in %s", model, worktree_path)
-    logger.debug("SDK settings: %s", sdk_settings_path)
+    logger.debug("Base SDK settings: %s", sdk_settings_path)
 
-    # Save original NO_PROXY value for restoration after SDK session
-    # NO_PROXY is documented at https://code.claude.com/docs/en/settings
-    # Setting NO_PROXY="*" bypasses proxy for all network requests, enabling
-    # tools like WebFetch to function correctly during SDK execution
-    original_no_proxy = os.environ.get("NO_PROXY")
+    # Ensure DSPy cache directory exists
+    dspy_cache_dir = get_cache_dir()
+    dspy_cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Set NO_PROXY="*" to enable network access for SDK session
-    os.environ["NO_PROXY"] = "*"
-    logger.debug("Set NO_PROXY='*' for SDK session network access")
+    # Generate dynamic settings with DSPy cache permissions
+    settings = generate_sdk_settings(sdk_settings_path)
 
-    # Build options for the SDK client
-    # NOTE: agents parameter provides programmatic agent registration since
-    # SDK does not discover filesystem agents in .claude/agents/ directories.
-    options = ClaudeAgentOptions(
-        cwd=worktree_path,
-        model=model,
-        settings=str(sdk_settings_path),
-        permission_mode="default",
-        can_use_tool=_can_use_tool_callback,
-        agents=agents,
+    # Write settings to a temporary file (will be cleaned up in finally block)
+    temp_settings_path: Path | None = None
+    temp_settings_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".json",
+        prefix="sdk_settings_",
+        delete=False,
+        encoding="utf-8",
     )
-
-    session_id: str | None = None
-
     try:
-        async with ClaudeSDKClient(options=options) as client:
-            # Send the query
-            await client.query(prompt_content)
+        json.dump(settings, temp_settings_file, indent=2)
+        temp_settings_file.close()
+        temp_settings_path = Path(temp_settings_file.name)
+        logger.debug("Wrote dynamic SDK settings to %s", temp_settings_path)
 
-            # Receive all messages until ResultMessage
-            async for message in client.receive_response():
-                if isinstance(message, ResultMessage):
-                    session_id = message.session_id
-                    logger.info(
-                        "SDK session completed: session_id=%s, turns=%d, cost=$%.4f",
-                        session_id,
-                        message.num_turns,
-                        message.total_cost_usd or 0.0,
-                    )
-                    if message.is_error:
-                        raise SDKRunnerError(
-                            f"SDK session completed with error: {message.result}"
+        # Save original NO_PROXY value for restoration after SDK session
+        # NO_PROXY is documented at https://code.claude.com/docs/en/settings
+        # Setting NO_PROXY="*" bypasses proxy for all network requests, enabling
+        # tools like WebFetch to function correctly during SDK execution
+        original_no_proxy = os.environ.get("NO_PROXY")
+
+        # Set NO_PROXY="*" to enable network access for SDK session
+        os.environ["NO_PROXY"] = "*"
+        logger.debug("Set NO_PROXY='*' for SDK session network access")
+
+        # Build options for the SDK client
+        # NOTE: agents parameter provides programmatic agent registration since
+        # SDK does not discover filesystem agents in .claude/agents/ directories.
+        # add_dirs grants sandbox write access to the DSPy cache directory.
+        # permission_mode="acceptEdits" auto-accepts Edit/Write tool calls.
+        options = ClaudeAgentOptions(
+            cwd=worktree_path,
+            model=model,
+            settings=str(temp_settings_path),
+            permission_mode="acceptEdits",
+            can_use_tool=_can_use_tool_callback,
+            agents=agents,
+            add_dirs=[dspy_cache_dir],
+        )
+
+        session_id: str | None = None
+
+        try:
+            async with ClaudeSDKClient(options=options) as client:
+                # Send the query
+                await client.query(prompt_content)
+
+                # Receive all messages until ResultMessage
+                async for message in client.receive_response():
+                    if isinstance(message, ResultMessage):
+                        session_id = message.session_id
+                        logger.info(
+                            "SDK session completed: session_id=%s, turns=%d, cost=$%.4f",
+                            session_id,
+                            message.num_turns,
+                            message.total_cost_usd or 0.0,
                         )
-                elif isinstance(message, AssistantMessage):
-                    # Print assistant messages to terminal
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            print(block.text)
-                        elif isinstance(block, ToolUseBlock):
-                            desc = block.input.get("description", "")
-                            if desc:
-                                print(f"{block.name}: {desc}")
-                            else:
-                                print(block.name)
+                        if message.is_error:
+                            raise SDKRunnerError(
+                                f"SDK session completed with error: {message.result}"
+                            )
+                    elif isinstance(message, AssistantMessage):
+                        # Print assistant messages to terminal
+                        for block in message.content:
+                            if isinstance(block, TextBlock):
+                                print(block.text)
+                            elif isinstance(block, ToolUseBlock):
+                                desc = block.input.get("description", "")
+                                if desc:
+                                    print(f"{block.name}: {desc}")
+                                else:
+                                    print(block.name)
 
-    except SDKRunnerError:
-        # Re-raise our own errors
-        raise
-    except Exception as exc:
-        raise SDKRunnerError(f"SDK session failed: {exc}") from exc
+        except SDKRunnerError:
+            # Re-raise our own errors
+            raise
+        except Exception as exc:
+            raise SDKRunnerError(f"SDK session failed: {exc}") from exc
+        finally:
+            # Restore original NO_PROXY value to ensure environment is not polluted
+            # This guarantees cleanup even if SDK session raises exceptions
+            if original_no_proxy is None:
+                # NO_PROXY was not set originally, remove it
+                os.environ.pop("NO_PROXY", None)
+                logger.debug("Restored NO_PROXY to original value (unset)")
+            else:
+                # Restore to original value
+                os.environ["NO_PROXY"] = original_no_proxy
+                logger.debug("Restored NO_PROXY to original value: %s", original_no_proxy)
+
+        if not session_id:
+            raise SDKRunnerError("Failed to capture session ID from SDK session")
+
+        return session_id
+
     finally:
-        # Restore original NO_PROXY value to ensure environment is not polluted
-        # This guarantees cleanup even if SDK session raises exceptions
-        if original_no_proxy is None:
-            # NO_PROXY was not set originally, remove it
-            os.environ.pop("NO_PROXY", None)
-            logger.debug("Restored NO_PROXY to original value (unset)")
-        else:
-            # Restore to original value
-            os.environ["NO_PROXY"] = original_no_proxy
-            logger.debug("Restored NO_PROXY to original value: %s", original_no_proxy)
-
-    if not session_id:
-        raise SDKRunnerError("Failed to capture session ID from SDK session")
-
-    return session_id
+        # Clean up temporary settings file
+        if temp_settings_path is not None:
+            try:
+                temp_settings_path.unlink(missing_ok=True)
+                logger.debug("Cleaned up temporary SDK settings file")
+            except Exception as cleanup_exc:
+                logger.warning("Failed to clean up temporary settings file: %s", cleanup_exc)
 
 
 def run_sdk_session_sync(

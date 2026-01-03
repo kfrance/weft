@@ -12,13 +12,6 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-from .cache_sync import (
-    check_rsync_available,
-    get_global_cache_dir,
-    get_worktree_cache_dir,
-    sync_cache_from_worktree,
-    sync_cache_to_worktree,
-)
 from .feedback_collector import FeedbackCollectionError, collect_human_feedback
 from .fingerprint import compute_eval_fingerprint
 from .git_context import GitContextError, gather_git_context
@@ -183,20 +176,6 @@ def run_eval_command(
         except SessionManagerError as exc:
             logger.error("Failed to create eval session directory: %s", exc)
             return 1
-
-        # Sync cache to worktree before execution
-        global_cache = get_global_cache_dir()
-        worktree_cache = get_worktree_cache_dir(worktree_path)
-
-        rsync_available = check_rsync_available()
-        if not rsync_available:
-            logger.warning(
-                "rsync is not available. DSPy cache sync disabled. "
-                "Install rsync to enable cache synchronization between worktrees."
-            )
-        else:
-            logger.debug("Syncing DSPy cache to worktree...")
-            sync_cache_to_worktree(global_cache, worktree_cache)
 
         # =====================================================================
         # Step 1: Run judges
@@ -474,11 +453,6 @@ def run_eval_command(
                 except TrainingDataExportError as exc:
                     logger.error("Training data creation failed: %s", exc)
                     return 1
-
-        # Sync cache from worktree back to global
-        if rsync_available:
-            logger.debug("Syncing DSPy cache from worktree back to global...")
-            sync_cache_from_worktree(worktree_cache, global_cache)
 
         # Format and display summary
         output = format_judge_results(judge_results, actual_plan_id, worktree_path)

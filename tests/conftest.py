@@ -5,8 +5,11 @@ from __future__ import annotations
 import os
 os.environ["NO_PROXY"] = "*"
 
-# TEMPORARY: Disable DSPy cache to avoid cache-related issues during testing
-os.environ["DSPY_CACHEDIR"] = ""
+# TEMPORARY: Redirect DSPy cache to temp directory to avoid read-only issues
+# with ~/.weft/dspy_cache during testing in sandboxed environments
+import tempfile
+_dspy_test_cache = tempfile.mkdtemp(prefix="dspy_test_cache_")
+os.environ["DSPY_CACHEDIR"] = _dspy_test_cache
 
 import subprocess
 from pathlib import Path
@@ -166,6 +169,30 @@ def isolate_config(request, monkeypatch, tmp_path):
         "CONFIG_PATH",
         tmp_path / "nonexistent_config" / "config.toml"
     )
+
+
+@pytest.fixture(autouse=True)
+def isolate_logging(request, monkeypatch, tmp_path):
+    """Redirect logging to tmp_path to avoid sandbox write restrictions.
+
+    This prevents tests from failing when configure_logging() tries to
+    create ~/.weft/logs/weft.log which is read-only in sandboxed environments.
+
+    Integration tests (in tests/integration/) skip this isolation.
+    """
+    if _is_integration_test(request):
+        return
+
+    import weft.logging_config as logging_config
+
+    # Reset the configured flag so logging can be reconfigured
+    monkeypatch.setattr(logging_config, "_logger_configured", False)
+
+    # Redirect log directory to tmp_path
+    test_log_dir = tmp_path / "logs"
+    test_log_file = test_log_dir / "weft.log"
+    monkeypatch.setattr(logging_config, "_LOG_DIR", test_log_dir)
+    monkeypatch.setattr(logging_config, "_LOG_FILE", test_log_file)
 
 
 @pytest.fixture(autouse=True)

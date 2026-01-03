@@ -60,34 +60,26 @@ OPENROUTER_APP_NAME=weft
 
 DSPy caches LLM responses to improve performance and reduce API costs.
 
-**Cache Locations:**
+**Cache Location:**
 - Global cache: `~/.weft/dspy_cache/`
-- Worktree cache: `<worktree>/.weft/dspy_cache/`
 
 **How It Works:**
-- Cache entries are automatically synced to worktrees before command execution
-- Cache entries created in worktrees sync back to global cache after execution
-- This allows worktrees to benefit from existing cache while running in sandbox environments
+- Cache is stored in a single global location accessible from all worktrees
+- The SDK sandbox is configured to grant write access to the cache directory
+- DSPy writes cache entries directly without any synchronization needed
 
 **Cache behavior:**
 - Initial runs that generate new prompts will call the LLM API
 - Subsequent runs with the same plan will reuse cached responses
 - Cache is keyed by prompt content, so plan changes trigger new API calls
-- Cache persists across runs and is shared between worktrees
-
-**Requirements:**
-- `rsync` command must be available for cache synchronization
-- If rsync is not available, you'll see a warning and cache sync will be disabled
-- Commands continue to work without cache sync, just without worktree cache sharing
+- Cache persists across runs and is shared between all worktrees
 
 **Manual Cache Management:**
 - Clear cache: `rm -rf ~/.weft/dspy_cache`
-- Verify rsync: `which rsync`
 
 **Troubleshooting:**
-- If cache sync fails, check rsync installation with `rsync --version`
-- Cache sync failures are logged as warnings but don't block command execution
-- For permission issues, ensure write access to both cache directories
+- If cache appears not to be working, verify the directory exists with `ls -la ~/.weft/dspy_cache`
+- For permission issues, ensure write access to the cache directory
 
 ## Validation
 

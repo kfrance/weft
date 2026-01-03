@@ -196,27 +196,11 @@ def get_openrouter_api_key() -> str:
 def get_cache_dir() -> Path:
     """Get DSPy cache directory.
 
-    Returns local .weft/dspy_cache when in worktree,
-    global ~/.weft/dspy_cache otherwise.
+    Always returns the global cache directory at ~/.weft/dspy_cache/.
+    The SDK sandbox is configured to grant write access to this directory,
+    allowing DSPy to write cache entries directly without rsync.
 
     Returns:
-        Path to cache directory
+        Path to global cache directory
     """
-    cwd = Path.cwd()
-    cwd_resolved = str(cwd.resolve())
-
-    # Check if we're in a worktree
-    # Pattern: /path/to/project/.weft/worktrees/temp-xyz/...
-    if "/.weft/worktrees/" in cwd_resolved:
-        # Find worktree root and use local cache
-        parts = cwd.resolve().parts
-        try:
-            worktree_idx = parts.index("worktrees") + 1
-            if worktree_idx < len(parts):
-                worktree_root = Path(*parts[: worktree_idx + 1])
-                return worktree_root / ".weft" / "dspy_cache"
-        except (ValueError, IndexError):
-            pass  # Fall through to global cache
-
-    # Use global cache
     return Path.home() / ".weft" / "dspy_cache"
