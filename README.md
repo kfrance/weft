@@ -138,6 +138,7 @@ Weft provides a suite of commands for the complete development lifecycle:
 |---------|---------|---------|
 | `plan` | Interactively create implementation plans | [Plan Command](#plan-command-setup) |
 | `code` | Execute a plan using Claude Code CLI | [Code Command](#code-command) |
+| `judge` | Quick judge feedback while coding | [Judge Command](#judge-command) |
 | `finalize` | Commit, rebase, and merge completed plan | [Finalize Command](#finalize-command) |
 | `eval` | Evaluate code quality and create training data | [Eval Command](#eval-command) |
 | `train` | Generate improved prompt candidates from training data | [Train Command](#train-command) |
@@ -309,6 +310,87 @@ patterns = [".env", ".env.*", "config/*.json"]
 ```
 
 Files are copied before execution and cleaned up after. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full configuration options.
+
+## Judge Command
+
+The `weft judge` command provides quick feedback on code changes during the coding phase. Unlike `weft eval`, it only runs LLM judges without executing tests, collecting human feedback, or generating training data.
+
+### When to Use Judge vs Eval
+
+| Use Case | Command | What It Does |
+|----------|---------|--------------|
+| **Quick feedback while coding** | `weft judge` | Runs judges only, displays results |
+| **Full evaluation for training** | `weft eval` | Runs judges + tests + feedback + training data |
+
+**Recommended workflow:**
+
+```bash
+# 1. Create and implement a plan
+weft code my-feature
+
+# 2. Get quick feedback during iteration
+weft judge my-feature     # Fast - judges only
+# ... make improvements based on feedback ...
+weft judge my-feature     # Check again
+
+# 3. When ready, run full evaluation
+weft eval my-feature      # Full pipeline for training data
+
+# 4. Finalize and merge
+weft finalize my-feature
+```
+
+### Basic Usage
+
+```bash
+# Run judges and display results
+weft judge <plan_id>
+
+# Save results as markdown to a directory
+weft judge <plan_id> --output ./results
+
+# Examples
+weft judge my-feature
+weft judge quick-fix-2025.01-001 --output ./judge-results
+```
+
+### Parameters
+
+- `<plan_id>`: Plan identifier (from `.weft/tasks/<plan_id>.md`)
+- `--output <dir>`: Optional directory to save results as markdown file
+
+**Note**: The `--debug` flag is a global option available for all weft commands.
+
+### Output Format
+
+Results are displayed to stdout in this format:
+
+```
+Judge Results:
+
+code-reuse (score: 0.85, weight: 0.4)
+  The implementation properly reuses the existing validation
+  utilities rather than reimplementing them...
+
+plan-compliance (score: 0.92, weight: 0.6)
+  The changes align well with the plan requirements...
+
+Weighted average: 0.89
+```
+
+### Understanding the Output
+
+- **Score**: Each judge rates the code from 0.0 to 1.0
+- **Weight**: Relative importance of this judge (configured in judge file)
+- **Feedback**: Detailed analysis and recommendations
+- **Weighted average**: Overall score considering judge weights
+
+### Requirements
+
+- Must be run from within a weft-initialized repository
+- Worktree must exist (run `weft code <plan_id>` first)
+- `OPENROUTER_API_KEY` must be set in `~/.weft/.env`
+- At least one judge file in `.weft/judges/`
 
 ## Finalize Command
 

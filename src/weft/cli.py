@@ -256,6 +256,22 @@ def create_parser() -> argparse.ArgumentParser:
         help="Disable execution of configured hooks",
     )
 
+    # Judge command
+    judge_parser = subparsers.add_parser(
+        "judge",
+        help="Run judges for quick feedback while coding. Use `weft eval` for full evaluation with tests and training data.",
+    )
+    judge_plan_id_arg = judge_parser.add_argument(
+        "plan_id",
+        help="Plan ID to run judges against",
+    )
+    judge_plan_id_arg.completer = complete_plan_files
+    judge_parser.add_argument(
+        "--output",
+        dest="output",
+        help="Directory path to save results as markdown file",
+    )
+
     # Train command
     train_parser = subparsers.add_parser(
         "train",
@@ -466,6 +482,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         force = args.force
         no_hooks = args.no_hooks
         return run_eval_command(plan_id, model=model, force=force, no_hooks=no_hooks)
+
+    # Judge command
+    if args.command == "judge":
+        # Lazy import to avoid loading dspy (2+ seconds) during tab completion
+        from .judge_command import run_judge_command
+
+        plan_id = args.plan_id
+        output_dir = args.output
+        return run_judge_command(plan_id, output_dir=output_dir)
 
     # Train command
     if args.command == "train":
