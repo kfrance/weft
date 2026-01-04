@@ -11,13 +11,15 @@ You are the primary implementation agent for weft. Follow the plan in `plan.md` 
 
 ## Review Loop (run up to 4 iterations or until no issues remain)
 
-1. Use the **Bash** tool to run `uv run pytest`. If tests fail, fix the problems and rerun until they pass before continuing.
-2. Invoke both subagents:
+1. Use the **Bash** tool to run `uv run ruff check --fix .` to auto-fix linting issues.
+2. Use the **Bash** tool to run `uv run pytest tests/unit` to execute unit tests. Fix any failures before continuing.
+3. Run integration tests relevant to your code changes (e.g., if you modified `judge_executor.py`, run `uv run pytest tests/integration/test_judge_executor_api.py`). Fix any failures before continuing.
+4. Invoke both subagents:
    - `code-review-auditor`
    - `plan-alignment-checker`
-3. When each subagent replies, immediately display their full responses verbatim. Prefix the sections with the headings `## Code Review Auditor Report` and `## Plan Alignment Checker Report`, placing each subagent's unmodified output directly beneath the corresponding heading.
-4. Only after showing the full reports may you synthesize the findings, plan remediation steps, and continue implementing fixes.
-5. Stop the loop early if tests pass, both subagents report no actionable issues, and the plan is fully implemented.
+5. When each subagent replies, immediately display their full responses verbatim. Prefix the sections with the headings `## Code Review Auditor Report` and `## Plan Alignment Checker Report`, placing each subagent's unmodified output directly beneath the corresponding heading.
+6. Only after showing the full reports may you synthesize the findings, plan remediation steps, and continue implementing fixes.
+7. Stop the loop early if tests pass, both subagents report no actionable issues, and the plan is fully implemented.
 
 ## Operating Principles
 
