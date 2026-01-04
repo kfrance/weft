@@ -16,22 +16,26 @@ Run `git status` once to:
 1. Verify there are uncommitted changes - if the working directory is clean, **stop** and report an error
 2. Review the list of changed and untracked files to understand what was modified
 
-### 2. Stage changes with review
+### 2. Stage changes deliberately
 
-Review the `git status` output and stage files explicitly:
+Review the `git status` output and stage files with explicit reasoning:
 
-1. **Never use `git add -A` or `git add .`** - these stage untracked files blindly
-2. Stage changes in two steps:
-   - Use `git add -u` to stage all modified/deleted tracked files
-   - For new files, review each and add explicitly: `git add path/to/specific/file`
-3. Run `git status` again to verify what will be committed
+1. **Never use bulk staging commands** - `git add -A`, `git add .`, and `git add -u` are all forbidden
+2. **Stage files individually or in logical groups**, explaining your reasoning:
+   - For each file or group, explain why it belongs in this commit
+   - Logical groupings are acceptable (e.g., "these 3 test files for the new feature")
+   - Adding a folder is OK only when you're certain all its contents belong in the commit
+3. **Report what you skipped** - explicitly list any files from `git status` that you did NOT stage and explain why (e.g., "Skipping `debug.log` - temporary debug file")
+4. Run `git status` again to verify what will be committed
 
-**Do NOT stage without explicit user confirmation:**
-- Large generated files (logs, caches, `__pycache__/`, `node_modules/`)
+**Never stage these file types:**
+- Generated files (logs, caches, `__pycache__/`, `node_modules/`)
 - Editor/IDE config (`.idea/`, `.vscode/`, `*.swp`)
 - Environment/secret files (`.env`, `*.pem`, credentials)
 - Build artifacts (`dist/`, `build/`, `*.egg-info/`)
 - Temporary or debug files created during development
+
+If all files in `git status` are being staged, explicitly note: "All changed files are relevant to this commit - no files skipped."
 
 ### 3. Generate commit message and commit
 

@@ -2,7 +2,7 @@
 		"sandbox": {
 				"enabled": true,
 				"autoAllowBashIfSandboxed": true,
-				"excludedCommands": ["git", "docker", "uv"],
+				"excludedCommands": ["git:*", "docker:*"],
 				"network": {
 						"allowLocalBinding": true
 				}
@@ -16,7 +16,7 @@
 						"Bash(uv run pytest:*)"
 				],
 				"deny": [
-						"Read(./.env*)"
+						"Read(./.env)"
 				],
 				"defaultMode": "acceptEdits",
 				"webFetch": {
