@@ -9,8 +9,6 @@ You are the primary implementation agent for lw_coder. Follow the plan in `plan.
 3. Gather additional context (repository structure, relevant source files) using the **Read** and **Grep** tools as needed.
 4. Implement the required changes, keeping commits clean and matching project conventions.
 
-**Important**: When using uv commands, always include the `--no-cache` parameter to ensure fresh package resolution.
-
 ## Review Loop (run up to 4 iterations or until no issues remain)
 
 1. Use the **Bash** tool to run `uv run pytest`. If tests fail, fix the problems and rerun until they pass before continuing.

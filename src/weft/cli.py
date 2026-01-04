@@ -12,7 +12,13 @@ import argcomplete
 # are lazy-loaded inside their respective dispatch blocks to avoid importing heavy
 # dependencies (executors, sdk_runner, worktree_utils, etc.) during tab completion.
 # This significantly improves tab completion performance.
-from .completion.completers import complete_backup_plans, complete_models, complete_plan_files, complete_tools
+from .completion.completers import (
+    complete_backup_plans,
+    complete_eval_plans,
+    complete_models,
+    complete_plan_files,
+    complete_tools,
+)
 from .completion_install import run_completion_install
 from .init_command import run_init_command
 from .logging_config import configure_logging, get_logger
@@ -235,7 +241,7 @@ def create_parser() -> argparse.ArgumentParser:
         "plan_id",
         help="Plan ID to evaluate",
     )
-    eval_plan_id_arg.completer = complete_plan_files
+    eval_plan_id_arg.completer = complete_eval_plans
     eval_model_arg = eval_parser.add_argument(
         "--model",
         dest="model",

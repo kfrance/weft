@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from weft.completion.cache import PlanCompletionCache
+from weft.completion.cache import PlanCompletionCache, PlanInfo
 
 
 def test_cache_returns_empty_list_for_nonexistent_dir(tmp_path):
@@ -308,3 +308,191 @@ def test_get_active_plans_returns_empty_when_not_in_repo(tmp_path, monkeypatch):
     result = cache.get_active_plans(tasks_dir=None)
 
     assert result == []
+
+
+# Tests for include_finished parameter
+
+
+def test_include_finished_returns_done_plans(tmp_path):
+    """Test that include_finished=True returns both done and non-done plans."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create active and done plans
+    (tasks_dir / "active.md").write_text("---\nstatus: draft\n---\n# Active")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    cache = PlanCompletionCache()
+    result = cache.get_active_plans(tasks_dir, include_finished=True)
+
+    assert "active" in result
+    assert "done" in result
+    assert len(result) == 2
+
+
+def test_include_finished_false_excludes_done_plans(tmp_path):
+    """Test that include_finished=False excludes done plans (existing behavior)."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create active and done plans
+    (tasks_dir / "active.md").write_text("---\nstatus: draft\n---\n# Active")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    cache = PlanCompletionCache()
+    result = cache.get_active_plans(tasks_dir, include_finished=False)
+
+    assert "active" in result
+    assert "done" not in result
+
+
+def test_include_finished_default_maintains_backward_compatibility(tmp_path):
+    """Test default parameter maintains backward compatibility."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create active and done plans
+    (tasks_dir / "active.md").write_text("---\nstatus: draft\n---\n# Active")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    cache = PlanCompletionCache()
+    # Call without include_finished parameter
+    result = cache.get_active_plans(tasks_dir)
+
+    # Should exclude done plans (backward compatible)
+    assert "active" in result
+    assert "done" not in result
+
+
+def test_include_finished_with_mixed_statuses(tmp_path):
+    """Test include_finished with mix of statuses."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create plans with different statuses
+    statuses = [
+        ("plan-draft", "draft"),
+        ("plan-ready", "ready"),
+        ("plan-coding", "coding"),
+        ("plan-implemented", "implemented"),
+        ("plan-done", "done"),
+        ("plan-abandoned", "abandoned"),
+    ]
+
+    for name, status in statuses:
+        (tasks_dir / f"{name}.md").write_text(f"---\nstatus: {status}\n---\n# {name}")
+
+    cache = PlanCompletionCache()
+
+    # With include_finished=False
+    result_without_done = cache.get_active_plans(tasks_dir, include_finished=False)
+    assert "plan-done" not in result_without_done
+    assert "plan-draft" in result_without_done
+    assert "plan-ready" in result_without_done
+    assert "plan-coding" in result_without_done
+    assert "plan-implemented" in result_without_done
+    assert "plan-abandoned" in result_without_done
+
+    # Invalidate cache for fresh scan
+    cache.invalidate()
+
+    # With include_finished=True
+    result_with_done = cache.get_active_plans(tasks_dir, include_finished=True)
+    assert "plan-done" in result_with_done
+    assert len(result_with_done) == 6
+
+
+def test_caching_works_with_include_finished_parameter(tmp_path):
+    """Test caching works correctly with new parameter."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create active and done plans
+    (tasks_dir / "active.md").write_text("---\nstatus: draft\n---\n# Active")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    cache = PlanCompletionCache(ttl_seconds=10.0)
+
+    # First call with include_finished=False
+    result1 = cache.get_active_plans(tasks_dir, include_finished=False)
+    assert "done" not in result1
+
+    # Second call with include_finished=True - should use same cache but filter differently
+    result2 = cache.get_active_plans(tasks_dir, include_finished=True)
+    assert "done" in result2
+
+    # Third call with include_finished=False again
+    result3 = cache.get_active_plans(tasks_dir, include_finished=False)
+    assert "done" not in result3
+
+
+# Tests for get_all_plans method
+
+
+def test_get_all_plans_returns_plan_info(tmp_path):
+    """Test that get_all_plans returns PlanInfo objects."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "plan.md").write_text("---\nstatus: draft\n---\n# Plan")
+
+    cache = PlanCompletionCache()
+    result = cache.get_all_plans(tasks_dir)
+
+    assert len(result) == 1
+    assert isinstance(result[0], PlanInfo)
+    assert result[0].plan_id == "plan"
+    assert result[0].status == "draft"
+    assert result[0].mtime > 0
+
+
+def test_get_all_plans_includes_all_statuses(tmp_path):
+    """Test that get_all_plans includes all plans regardless of status."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "active.md").write_text("---\nstatus: draft\n---\n# Active")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    cache = PlanCompletionCache()
+    result = cache.get_all_plans(tasks_dir)
+
+    assert len(result) == 2
+    plan_ids = [p.plan_id for p in result]
+    assert "active" in plan_ids
+    assert "done" in plan_ids
+
+
+def test_get_all_plans_preserves_mtime(tmp_path):
+    """Test that get_all_plans captures file mtime correctly."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    plan_file = tasks_dir / "plan.md"
+    plan_file.write_text("---\nstatus: draft\n---\n# Plan")
+
+    # Get expected mtime
+    expected_mtime = plan_file.stat().st_mtime
+
+    cache = PlanCompletionCache()
+    result = cache.get_all_plans(tasks_dir)
+
+    assert len(result) == 1
+    assert result[0].mtime == expected_mtime
+
+
+def test_get_all_plans_handles_invalid_yaml_mtime(tmp_path):
+    """Test that get_all_plans handles malformed YAML and still gets mtime."""
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    plan_file = tasks_dir / "bad.md"
+    plan_file.write_text("---\ninvalid: {yaml: [unclosed\n---\n# Bad Plan")
+
+    cache = PlanCompletionCache()
+    result = cache.get_all_plans(tasks_dir)
+
+    assert len(result) == 1
+    assert result[0].plan_id == "bad"
+    assert result[0].status == ""  # Unknown status for invalid YAML
+    assert result[0].mtime > 0

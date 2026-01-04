@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..executors import ClaudeCodeExecutor, ExecutorRegistry
 from ..logging_config import get_logger
-from .cache import get_active_plans
+from .cache import get_active_plans, get_all_plans
 
 logger = get_logger(__name__)
 
@@ -79,6 +79,56 @@ def complete_plan_files(prefix: str, parsed_args, **kwargs) -> list[str]:
 
     except Exception as exc:
         logger.debug("Error in complete_plan_files: %s", exc)
+        return []
+
+
+def complete_eval_plans(prefix: str, parsed_args, **kwargs) -> list[str]:
+    """Complete plan IDs for eval command (includes finished plans).
+
+    Provides completions for plan IDs with two-tier ordering:
+    1. Unfinished plans (status != "done"), sorted alphabetically
+    2. Finished plans (status == "done"), sorted by mtime (most recent first)
+
+    Args:
+        prefix: Current input prefix being completed.
+        parsed_args: Parsed arguments from argparse (unused).
+        **kwargs: Additional argcomplete arguments (unused).
+
+    Returns:
+        List of completion candidates with two-tier ordering.
+    """
+    try:
+        # Get all plan info from cache
+        all_plans = get_all_plans()
+
+        # Separate into unfinished and finished
+        unfinished = []
+        finished = []
+
+        for plan in all_plans:
+            if plan.status == "done":
+                finished.append(plan)
+            else:
+                unfinished.append(plan)
+
+        # Sort unfinished alphabetically by plan_id
+        unfinished.sort(key=lambda p: p.plan_id)
+
+        # Sort finished by mtime (most recent first), then by plan_id for stable sort
+        finished.sort(key=lambda p: (-p.mtime, p.plan_id))
+
+        # Combine: unfinished first, then finished
+        ordered_plans = unfinished + finished
+
+        # Filter by prefix and extract plan IDs
+        completions = [
+            p.plan_id for p in ordered_plans if p.plan_id.startswith(prefix)
+        ]
+
+        return completions
+
+    except Exception as exc:
+        logger.debug("Error in complete_eval_plans: %s", exc)
         return []
 
 

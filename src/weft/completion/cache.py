@@ -16,10 +16,18 @@ from ..plan_validator import PlanValidationError, extract_front_matter
 logger = get_logger(__name__)
 
 
+class PlanInfo(NamedTuple):
+    """Information about a plan file."""
+
+    plan_id: str
+    status: str
+    mtime: float
+
+
 class CacheEntry(NamedTuple):
     """Cached plan list with timestamp."""
 
-    plan_ids: list[str]
+    plans: list[PlanInfo]
     timestamp: float
 
 
@@ -35,24 +43,74 @@ class PlanCompletionCache:
         self._ttl_seconds = ttl_seconds
         self._cache: CacheEntry | None = None
 
-    def get_active_plans(self, tasks_dir: Path | None = None) -> list[str]:
-        """Get list of active (non-done) plan IDs.
-
-        Scans .weft/tasks/*.md files and returns plan IDs (file stems)
-        for plans where status != "done" in YAML front matter.
+    def _scan_plans(self, tasks_dir: Path) -> list[PlanInfo]:
+        """Scan for all plan files and extract info.
 
         Args:
-            tasks_dir: Path to .weft/tasks directory. If None, attempts to
-                      discover from repository root.
+            tasks_dir: Path to .weft/tasks directory.
 
         Returns:
-            Sorted list of plan IDs (file stems without .md extension).
+            List of PlanInfo for all plans (unfiltered).
         """
-        # Check cache validity
+        plans = []
+        if not tasks_dir.exists():
+            logger.debug("Tasks directory does not exist: %s", tasks_dir)
+            return []
+
+        for plan_file in tasks_dir.glob("*.md"):
+            try:
+                # Read and parse front matter
+                content = plan_file.read_text(encoding="utf-8")
+                front_matter, _ = extract_front_matter(content)
+
+                # Get status and mtime
+                status = front_matter.get("status", "").strip().lower()
+                mtime = plan_file.stat().st_mtime
+
+                plans.append(PlanInfo(
+                    plan_id=plan_file.stem,
+                    status=status,
+                    mtime=mtime,
+                ))
+
+            except (OSError, IOError) as exc:
+                # Skip unreadable files
+                logger.debug("Skipping unreadable plan file %s: %s", plan_file, exc)
+                continue
+            except PlanValidationError:
+                # Include files with invalid YAML (status unknown)
+                # They might be valid plans with formatting issues
+                logger.debug("Plan file with invalid YAML: %s", plan_file)
+                try:
+                    mtime = plan_file.stat().st_mtime
+                except OSError:
+                    mtime = 0.0
+                plans.append(PlanInfo(
+                    plan_id=plan_file.stem,
+                    status="",  # Unknown status
+                    mtime=mtime,
+                ))
+                continue
+            except Exception as exc:
+                # Skip any other errors gracefully
+                logger.debug("Error processing plan file %s: %s", plan_file, exc)
+                continue
+
+        return plans
+
+    def _ensure_cache_valid(self, tasks_dir: Path | None) -> list[PlanInfo]:
+        """Ensure cache is valid and return all plans.
+
+        Args:
+            tasks_dir: Path to .weft/tasks directory.
+
+        Returns:
+            List of all PlanInfo from cache.
+        """
         now = time.time()
         if self._cache and (now - self._cache.timestamp) < self._ttl_seconds:
-            logger.debug("Using cached plan list (%d plans)", len(self._cache.plan_ids))
-            return self._cache.plan_ids
+            logger.debug("Using cached plan list (%d plans)", len(self._cache.plans))
+            return self._cache.plans
 
         # Find tasks directory if not provided
         if tasks_dir is None:
@@ -67,45 +125,56 @@ class PlanCompletionCache:
                 return []
 
         # Scan for plan files
-        plan_ids = []
-        if not tasks_dir.exists():
-            logger.debug("Tasks directory does not exist: %s", tasks_dir)
-            return []
+        plans = self._scan_plans(tasks_dir)
 
-        for plan_file in tasks_dir.glob("*.md"):
-            try:
-                # Read and parse front matter
-                content = plan_file.read_text(encoding="utf-8")
-                front_matter, _ = extract_front_matter(content)
+        # Update cache
+        self._cache = CacheEntry(plans=plans, timestamp=now)
+        logger.debug("Cached %d plans", len(plans))
 
-                # Check status field
-                status = front_matter.get("status", "").strip().lower()
-                if status != "done":
-                    plan_ids.append(plan_file.stem)
+        return plans
 
-            except (OSError, IOError) as exc:
-                # Skip unreadable files
-                logger.debug("Skipping unreadable plan file %s: %s", plan_file, exc)
-                continue
-            except PlanValidationError:
-                # Skip files with invalid YAML, but include them by default
-                # (they might be valid plans with formatting issues)
-                logger.debug("Skipping plan file with invalid YAML: %s", plan_file)
-                plan_ids.append(plan_file.stem)
-                continue
-            except Exception as exc:
-                # Skip any other errors gracefully
-                logger.debug("Error processing plan file %s: %s", plan_file, exc)
-                continue
+    def get_active_plans(
+        self, tasks_dir: Path | None = None, include_finished: bool = False
+    ) -> list[str]:
+        """Get list of plan IDs, optionally including finished plans.
+
+        Scans .weft/tasks/*.md files and returns plan IDs (file stems).
+        By default, only returns plans where status != "done".
+
+        Args:
+            tasks_dir: Path to .weft/tasks directory. If None, attempts to
+                      discover from repository root.
+            include_finished: If True, also include plans with status == "done".
+
+        Returns:
+            Sorted list of plan IDs (file stems without .md extension).
+        """
+        plans = self._ensure_cache_valid(tasks_dir)
+
+        # Filter based on include_finished parameter
+        if include_finished:
+            plan_ids = [p.plan_id for p in plans]
+        else:
+            plan_ids = [p.plan_id for p in plans if p.status != "done"]
 
         # Sort for consistent ordering
         plan_ids.sort()
 
-        # Update cache
-        self._cache = CacheEntry(plan_ids=plan_ids, timestamp=now)
-        logger.debug("Cached %d active plans", len(plan_ids))
-
         return plan_ids
+
+    def get_all_plans(self, tasks_dir: Path | None = None) -> list[PlanInfo]:
+        """Get list of all plan info including status and mtime.
+
+        Used by completers that need ordering by mtime or access to status.
+
+        Args:
+            tasks_dir: Path to .weft/tasks directory. If None, attempts to
+                      discover from repository root.
+
+        Returns:
+            List of PlanInfo for all plans (no filtering).
+        """
+        return self._ensure_cache_valid(tasks_dir)
 
     def invalidate(self) -> None:
         """Invalidate the cache, forcing a refresh on next access."""
@@ -122,8 +191,25 @@ class PlanCompletionCache:
 _global_cache = PlanCompletionCache()
 
 
-def get_active_plans(tasks_dir: Path | None = None) -> list[str]:
+def get_active_plans(
+    tasks_dir: Path | None = None, include_finished: bool = False
+) -> list[str]:
     """Get list of active plan IDs using the global cache.
+
+    Convenience function for accessing the global cache instance.
+
+    Args:
+        tasks_dir: Path to .weft/tasks directory.
+        include_finished: If True, also include plans with status == "done".
+
+    Returns:
+        Sorted list of plan IDs.
+    """
+    return _global_cache.get_active_plans(tasks_dir, include_finished=include_finished)
+
+
+def get_all_plans(tasks_dir: Path | None = None) -> list[PlanInfo]:
+    """Get list of all plan info using the global cache.
 
     Convenience function for accessing the global cache instance.
 
@@ -131,6 +217,6 @@ def get_active_plans(tasks_dir: Path | None = None) -> list[str]:
         tasks_dir: Path to .weft/tasks directory.
 
     Returns:
-        Sorted list of active plan IDs.
+        List of PlanInfo for all plans.
     """
-    return _global_cache.get_active_plans(tasks_dir)
+    return _global_cache.get_all_plans(tasks_dir)

@@ -67,8 +67,6 @@ You need to run all tests in this codebase and report the results in a structure
 
    If CLAUDE.md lists multiple test commands or categories, run them all.
 
-   **IMPORTANT**: When using uv commands, always include the `--no-cache` parameter to ensure fresh package resolution.
-
 3. **Collect results**: Observe the test execution and collect:
    - The command(s) you ran
    - The exit code

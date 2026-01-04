@@ -9,6 +9,7 @@ import pytest
 
 from weft.completion.cache import _global_cache
 from weft.completion.completers import (
+    complete_eval_plans,
     complete_models,
     complete_plan_files,
     complete_tools,
@@ -222,3 +223,212 @@ def test_complete_plan_files_includes_implemented_plans(tmp_path, monkeypatch):
     assert "draft" in result
     assert "implemented" in result
     assert "done" not in result
+
+
+# Tests for complete_eval_plans
+
+
+def test_complete_eval_plans_returns_all_plans(tmp_path, monkeypatch):
+    """Test complete_eval_plans returns all plans (finished and unfinished)."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create active and done plans
+    (tasks_dir / "active.md").write_text("---\nstatus: draft\n---\n# Active")
+    (tasks_dir / "done.md").write_text("---\nstatus: done\n---\n# Done")
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("", Namespace())
+
+    assert "active" in result
+    assert "done" in result
+
+
+def test_complete_eval_plans_two_tier_ordering_unfinished_first(tmp_path, monkeypatch):
+    """Test two-tier ordering: unfinished plans first (alphabetically sorted)."""
+    import subprocess
+    import time
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create unfinished plans
+    (tasks_dir / "zebra.md").write_text("---\nstatus: draft\n---\n# Zebra")
+    (tasks_dir / "alpha.md").write_text("---\nstatus: coding\n---\n# Alpha")
+
+    # Create finished plans with different mtimes
+    done1 = tasks_dir / "done-old.md"
+    done1.write_text("---\nstatus: done\n---\n# Done Old")
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("", Namespace())
+
+    # Unfinished plans should come before done plans
+    alpha_idx = result.index("alpha")
+    zebra_idx = result.index("zebra")
+    done_old_idx = result.index("done-old")
+
+    # Unfinished should be alphabetically sorted and come before done
+    assert alpha_idx < zebra_idx
+    assert alpha_idx < done_old_idx
+    assert zebra_idx < done_old_idx
+
+
+def test_complete_eval_plans_finished_sorted_by_mtime(tmp_path, monkeypatch):
+    """Test two-tier ordering: finished plans sorted by mtime (most recent first)."""
+    import os
+    import subprocess
+    import time
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create finished plans with different mtimes
+    done_old = tasks_dir / "done-old.md"
+    done_old.write_text("---\nstatus: done\n---\n# Done Old")
+    # Set an older mtime
+    old_time = time.time() - 1000
+    os.utime(done_old, (old_time, old_time))
+
+    # Small delay to ensure different mtimes
+    time.sleep(0.01)
+
+    done_new = tasks_dir / "done-new.md"
+    done_new.write_text("---\nstatus: done\n---\n# Done New")
+    # done_new keeps current mtime (newer)
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("", Namespace())
+
+    done_old_idx = result.index("done-old")
+    done_new_idx = result.index("done-new")
+
+    # Most recent (done-new) should come before older (done-old)
+    assert done_new_idx < done_old_idx
+
+
+def test_complete_eval_plans_prefix_filtering(tmp_path, monkeypatch):
+    """Test prefix filtering works correctly."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "fix-bug.md").write_text("---\nstatus: draft\n---\n# Fix Bug")
+    (tasks_dir / "fix-feature.md").write_text("---\nstatus: done\n---\n# Fix Feature")
+    (tasks_dir / "add-feature.md").write_text("---\nstatus: draft\n---\n# Add Feature")
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("fix", Namespace())
+
+    assert "fix-bug" in result
+    assert "fix-feature" in result
+    assert "add-feature" not in result
+
+
+def test_complete_eval_plans_identical_mtime_stable_sort(tmp_path, monkeypatch):
+    """Test edge case: plans with identical mtime (stable sort by plan_id)."""
+    import os
+    import subprocess
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create done plans with exact same mtime
+    same_time = 1000000.0
+    for name in ["zebra-done", "alpha-done", "beta-done"]:
+        plan_file = tasks_dir / f"{name}.md"
+        plan_file.write_text("---\nstatus: done\n---\n# Plan")
+        os.utime(plan_file, (same_time, same_time))
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("", Namespace())
+
+    # With identical mtime, should fall back to alphabetical order
+    alpha_idx = result.index("alpha-done")
+    beta_idx = result.index("beta-done")
+    zebra_idx = result.index("zebra-done")
+
+    assert alpha_idx < beta_idx
+    assert beta_idx < zebra_idx
+
+
+def test_complete_eval_plans_empty_prefix_returns_all(tmp_path, monkeypatch):
+    """Test edge case: empty prefix returns all plans."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "plan1.md").write_text("---\nstatus: draft\n---\n# Plan 1")
+    (tasks_dir / "plan2.md").write_text("---\nstatus: done\n---\n# Plan 2")
+    (tasks_dir / "plan3.md").write_text("---\nstatus: coding\n---\n# Plan 3")
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("", Namespace())
+
+    assert len(result) == 3
+
+
+def test_complete_eval_plans_all_done(tmp_path, monkeypatch):
+    """Test edge case: all plans done."""
+    import os
+    import subprocess
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # All plans are done with different mtimes
+    old_time = 1000.0
+    new_time = 2000.0
+    done1 = tasks_dir / "done1.md"
+    done1.write_text("---\nstatus: done\n---\n# Done 1")
+    os.utime(done1, (old_time, old_time))
+
+    done2 = tasks_dir / "done2.md"
+    done2.write_text("---\nstatus: done\n---\n# Done 2")
+    os.utime(done2, (new_time, new_time))
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("", Namespace())
+
+    assert len(result) == 2
+    # done2 is newer, should come first
+    assert result.index("done2") < result.index("done1")
+
+
+def test_complete_eval_plans_no_done(tmp_path, monkeypatch):
+    """Test edge case: no plans done."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    tasks_dir = tmp_path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "zebra.md").write_text("---\nstatus: draft\n---\n# Zebra")
+    (tasks_dir / "alpha.md").write_text("---\nstatus: coding\n---\n# Alpha")
+
+    monkeypatch.chdir(tmp_path)
+
+    result = complete_eval_plans("", Namespace())
+
+    assert len(result) == 2
+    # Alphabetically sorted
+    assert result == ["alpha", "zebra"]
+
+
+def test_complete_eval_plans_error_handling():
+    """Test eval plan completion handles errors gracefully."""
+    with patch("weft.completion.completers.get_all_plans") as mock:
+        mock.side_effect = Exception("Test error")
+        result = complete_eval_plans("", Namespace())
+
+    assert result == []
