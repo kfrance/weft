@@ -59,45 +59,45 @@ def find_project_folder(worktree_path: Path, execution_window: Tuple[float, floa
     worktree_str = str(worktree_path.resolve())
     expected_folder_name = "-" + worktree_str.lstrip("/").replace("/", "-").replace(".", "-").replace("_", "-")
 
-    logger.debug("DEBUG: Worktree path: %s", worktree_str)
-    logger.debug("DEBUG: Expected folder name: %s", expected_folder_name)
+    logger.debug("Worktree path: %s", worktree_str)
+    logger.debug("Expected folder name: %s", expected_folder_name)
 
     # List all available folders for debugging
     available_folders = [f.name for f in claude_projects.iterdir() if f.is_dir()]
-    logger.debug("DEBUG: Available project folders (%d): %s", len(available_folders), available_folders)
+    logger.debug("Available project folders (%d): %s", len(available_folders), available_folders)
 
     # Try exact match first
     expected_folder = claude_projects / expected_folder_name
-    logger.debug("DEBUG: Checking for exact match at: %s", expected_folder)
+    logger.debug("Checking for exact match at: %s", expected_folder)
     if expected_folder.exists() and expected_folder.is_dir():
         # Check if it has any JSONL files (don't check timestamps for exact match)
         # The JSONL files continue to be modified after creation, so mtime is unreliable
         jsonl_files = list(expected_folder.glob("*.jsonl"))
-        logger.debug("DEBUG: Found %d JSONL files in exact match folder", len(jsonl_files))
+        logger.debug("Found %d JSONL files in exact match folder", len(jsonl_files))
         if jsonl_files:
             logger.debug("Found matching project folder (exact match): %s", expected_folder)
             return expected_folder
 
     # Fall back to searching all folders
-    logger.debug("DEBUG: Exact match failed, trying time-based search")
+    logger.debug("Exact match failed, trying time-based search")
     for folder in claude_projects.iterdir():
         if not folder.is_dir():
             continue
 
         # Check for JSONL files modified within execution window
         jsonl_files_in_folder = list(folder.glob("*.jsonl"))
-        logger.debug("DEBUG: Checking folder %s (%d JSONL files)", folder.name, len(jsonl_files_in_folder))
+        logger.debug("Checking folder %s (%d JSONL files)", folder.name, len(jsonl_files_in_folder))
 
         for jsonl_file in jsonl_files_in_folder:
             try:
                 mtime = jsonl_file.stat().st_mtime
                 mtime_str = datetime.fromtimestamp(mtime).isoformat()
-                logger.debug("DEBUG: File %s has mtime %s", jsonl_file.name, mtime_str)
+                logger.debug("File %s has mtime %s", jsonl_file.name, mtime_str)
                 if start_time <= mtime <= end_time:
                     logger.debug("Found matching project folder (time-based): %s", folder)
                     return folder
             except OSError as e:
-                logger.debug("DEBUG: Failed to stat file %s: %s", jsonl_file, e)
+                logger.debug("Failed to stat file %s: %s", jsonl_file, e)
                 continue
 
     logger.debug("No matching project folder found")
@@ -133,24 +133,24 @@ def match_session_files(jsonl_files: List[Path], worktree_path: Path) -> Optiona
         Session ID if a match is found, None otherwise
     """
     worktree_str = str(worktree_path.resolve())
-    logger.debug("DEBUG: Matching session for worktree: %s", worktree_str)
+    logger.debug("Matching session for worktree: %s", worktree_str)
 
     for jsonl_file in jsonl_files:
-        logger.debug("DEBUG: Checking JSONL file: %s", jsonl_file)
+        logger.debug("Checking JSONL file: %s", jsonl_file)
         try:
             with jsonl_file.open("r", encoding="utf-8") as f:
                 first_line = f.readline()
                 if not first_line:
-                    logger.debug("DEBUG: First line is empty")
+                    logger.debug("First line is empty")
                     continue
 
                 data = json.loads(first_line)
                 cwd = data.get("cwd", "")
                 session_id = data.get("sessionId", "")
 
-                logger.debug("DEBUG: JSONL cwd: %s", cwd)
-                logger.debug("DEBUG: JSONL sessionId: %s", session_id)
-                logger.debug("DEBUG: Match? cwd == worktree_str: %s", cwd == worktree_str)
+                logger.debug("JSONL cwd: %s", cwd)
+                logger.debug("JSONL sessionId: %s", session_id)
+                logger.debug("Match? cwd == worktree_str: %s", cwd == worktree_str)
 
                 if cwd == worktree_str and session_id:
                     logger.debug("Matched session %s in file %s", session_id, jsonl_file)
@@ -513,14 +513,14 @@ def capture_session_trace(
         TraceCaptureError: If capture fails
     """
     logger.debug("Starting trace capture for %s command", command)
-    logger.debug("DEBUG: execution_start: %s (%s)", execution_start, datetime.fromtimestamp(execution_start).isoformat())
-    logger.debug("DEBUG: execution_end: %s (%s)", execution_end, datetime.fromtimestamp(execution_end).isoformat())
+    logger.debug("execution_start: %s (%s)", execution_start, datetime.fromtimestamp(execution_start).isoformat())
+    logger.debug("execution_end: %s (%s)", execution_end, datetime.fromtimestamp(execution_end).isoformat())
     if session_id:
-        logger.debug("DEBUG: Using provided session_id: %s", session_id)
+        logger.debug("Using provided session_id: %s", session_id)
 
     # Calculate execution window with 5-second buffer
     execution_window = (execution_start - 5, execution_end + 5)
-    logger.debug("DEBUG: execution_window: (%s, %s)",
+    logger.debug("execution_window: (%s, %s)",
                  datetime.fromtimestamp(execution_window[0]).isoformat(),
                  datetime.fromtimestamp(execution_window[1]).isoformat())
 
@@ -530,7 +530,7 @@ def capture_session_trace(
         logger.warning("Could not find Claude Code project folder for worktree %s", worktree_path)
         return None
 
-    logger.debug("DEBUG: Found project folder: %s", project_folder)
+    logger.debug("Found project folder: %s", project_folder)
 
     # Collect JSONL files
     jsonl_files = collect_jsonl_files(project_folder)
@@ -538,7 +538,7 @@ def capture_session_trace(
         logger.warning("No JSONL files found in project folder %s", project_folder)
         return None
 
-    logger.debug("DEBUG: Found %d JSONL files to check", len(jsonl_files))
+    logger.debug("Found %d JSONL files to check", len(jsonl_files))
 
     # Use provided session_id or match from files
     if not session_id:
