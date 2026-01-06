@@ -8,6 +8,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is an AI coding platform that orchestrates self-optimizing multi-agent coding assistants through containerized executors. The system uses DSPy signatures and the GEPA optimizer to coordinate specialized subagents (coders, reviewers, testers) for improved code quality and delivery efficiency.
 
+## Linear Project
+
+This repository is tracked in Linear under the **weft** project (slug: `a11a92b20cf1`). When using Linear CLI commands, scope operations to this project:
+
+- **Create issues**: `linear issue create --project weft`
+- **Update issues**: `linear issue update <ID> --project weft`
+- **List issues**: The CLI `issue list` command doesn't support project filtering. Use the GraphQL API instead:
+
+### Priority Mapping
+
+| Value | Priority |
+|-------|----------|
+| 0 | No priority |
+| 1 | Urgent |
+| 2 | High |
+| 3 | Medium |
+| 4 | Low |
+
+### List Issues
+  ```bash
+  curl -s -X POST https://api.linear.app/graphql \
+    -H "Content-Type: application/json" \
+    -H "Authorization: $(linear auth token)" \
+    -d '{"query": "{ project(id: \"a11a92b20cf1\") { issues { nodes { identifier title state { name } } } } }"}'
+  ```
+
 ## Development Commands
 
 - **Install dependencies**: `uv sync`

@@ -2,7 +2,16 @@
 		"sandbox": {
 				"enabled": true,
 				"autoAllowBashIfSandboxed": true,
-				"excludedCommands": ["git:*", "docker:*"],
+				"excludedCommands": [
+				"git:*",
+				"docker:*",
+				"linear issue create:*",
+				"linear issue update:*",
+				"linear issue delete:*",
+				"linear issue start:*",
+				"linear issue comment:*",
+				"linear team create:*"
+			],
 				"network": {
 						"allowLocalBinding": true
 				}

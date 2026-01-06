@@ -5,12 +5,7 @@ schema_version = "1.0"
 
 # Worktree file synchronization
 [worktree.file_sync]
-enabled = false
+enabled = true
 patterns = [
-]
-
-# Additional directories accessible to the SDK sandbox during `weft code`
-[sandbox]
-additional_dirs = [
-    { path = "~/.cache/uv", if_missing = "create" },
+    ".linear.toml",
 ]
