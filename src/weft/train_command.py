@@ -9,7 +9,6 @@ This module orchestrates the training workflow:
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from .candidate_writer import CandidateWriteError, write_candidate
 from .judge_executor import get_cache_dir

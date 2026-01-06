@@ -11,10 +11,8 @@ import json
 import time
 from pathlib import Path
 
-import pytest
 
 from weft.trace_capture import (
-    TraceCaptureError,
     capture_session_trace,
     find_project_folder,
     create_plan_trace_directory,

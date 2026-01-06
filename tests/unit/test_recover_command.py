@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from io import StringIO
 from unittest.mock import patch
 
-import pytest
 
 from weft.plan_backup import create_backup, move_backup_to_abandoned
 from weft.recover_command import run_recover_command, parse_abandoned_log

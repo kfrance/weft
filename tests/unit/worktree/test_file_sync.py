@@ -11,8 +11,6 @@ import pytest
 
 from weft.worktree.file_sync import (
     ConfigValidationError,
-    CopyError,
-    FileSyncConfig,
     FileSyncError,
     FileSyncOperation,
     FileSyncPattern,

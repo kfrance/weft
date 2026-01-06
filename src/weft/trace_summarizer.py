@@ -8,14 +8,12 @@ valuable for DSPy prompt optimization.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import dspy
 
 from .judge_executor import configure_dspy_cache, get_cache_dir, get_openrouter_api_key
 from .logging_config import get_logger
 from .trace_parser import (
-    TraceMetadata,
     count_tools_by_type,
     detect_errors,
     extract_bash_commands,

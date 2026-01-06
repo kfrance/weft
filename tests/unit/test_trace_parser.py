@@ -6,10 +6,8 @@ as a real-world test fixture (provided by conftest.py).
 
 from __future__ import annotations
 
-import pytest
 
 from weft.trace_parser import (
-    TraceMetadata,
     ToolCall,
     count_tools_by_type,
     detect_errors,

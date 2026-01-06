@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from weft.candidate_writer import (
-    CandidateWriteError,
     get_next_candidate_number,
     write_candidate,
 )

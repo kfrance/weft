@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from weft.judge_loader import (
-    JudgeConfig,
     JudgeLoaderError,
     discover_judges,
     parse_judge_file,

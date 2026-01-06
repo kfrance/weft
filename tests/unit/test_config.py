@@ -8,7 +8,6 @@ from unittest.mock import patch
 import pytest
 
 from weft.config import (
-    CONFIG_PATH,
     VALID_MODELS,
     get_model_defaults,
     load_config,

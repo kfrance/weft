@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Optional
 
 from .logging_config import get_logger
-from .training_types import SessionMetadata
 
 logger = get_logger(__name__)
 

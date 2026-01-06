@@ -16,7 +16,6 @@ Both are built from the same prompts dictionary to ensure synchronization.
 
 from __future__ import annotations
 
-import pytest
 
 from claude_agent_sdk import AgentDefinition
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from weft.temp_worktree import TempWorktreeError, create_temp_worktree, remove_temp_worktree
+from weft.temp_worktree import create_temp_worktree, remove_temp_worktree
 
 
 @pytest.fixture

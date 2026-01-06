@@ -14,7 +14,7 @@
       "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
     "prompts/claude-code-cli/haiku/main.md": {
-      "hash": "sha256:9301f63678ac25b20aab9c4b4f1e292d2f772f218ca15b79944ec7c62c7a5462"
+      "hash": "sha256:6ebadaf7324a24f37fad6c65a81b151f1910a591f487cd023c35ce5a8008c055"
     },
     "prompts/claude-code-cli/haiku/plan-alignment-checker.md": {
       "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
@@ -23,7 +23,7 @@
       "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
     "prompts/claude-code-cli/opus/main.md": {
-      "hash": "sha256:1630d42ef381718c0f35144503a3a77245d45c66150a404e5ba2931783bc04b4"
+      "hash": "sha256:202add50cf63f76ee73ab5d078df6059994bb0bd5d3cf5732bf85c67bea8435d"
     },
     "prompts/claude-code-cli/opus/plan-alignment-checker.md": {
       "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
@@ -32,7 +32,7 @@
       "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
     "prompts/claude-code-cli/sonnet/main.md": {
-      "hash": "sha256:e2d9a782911421e04f3f089424e0c80f223bf7436b429747a11343ff3e07a9cb"
+      "hash": "sha256:2f0d46619372ecfd438db981da68346bd24f2537accdb1770437b7b5a3ec4a89"
     },
     "prompts/claude-code-cli/sonnet/plan-alignment-checker.md": {
       "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"

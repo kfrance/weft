@@ -288,3 +288,107 @@ patterns = [
 max_file_size_mb = 10
 max_total_size_mb = 50
 ```
+
+### Setup Commands
+
+Setup commands allow you to run arbitrary shell commands on the host system before the sandboxed `weft code` session begins. This is useful for preparing the execution environment (starting services, configuring system resources, etc.) that cannot be done from within the sandbox.
+
+#### Configuration Schema
+
+```toml
+[[code.setup]]
+name = "start-services"           # Required: descriptive name
+command = "docker-compose up -d"  # Required: shell command to run
+working_dir = "./services"        # Optional: relative to repo root, defaults to repo root
+continue_on_failure = true        # Optional: defaults to false (abort on failure)
+```
+
+#### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `name` | string | (required) | Descriptive name for logging and error messages |
+| `command` | string | (required) | Shell command to execute |
+| `working_dir` | string | repo root | Working directory relative to repo root |
+| `continue_on_failure` | boolean | `false` | If true, continue to next command on failure |
+
+#### Environment Variables
+
+Commands inherit the current shell environment plus these weft-specific variables:
+
+| Variable | Description |
+|----------|-------------|
+| `WEFT_REPO_ROOT` | Absolute path to the repository root |
+| `WEFT_WORKTREE_PATH` | Absolute path to the created worktree |
+| `WEFT_PLAN_ID` | Identifier of the current plan |
+| `WEFT_PLAN_PATH` | Path to the plan file |
+
+These variables override any existing environment variables with the same names.
+
+#### Execution Order
+
+1. Worktree is created
+2. Files are synced to worktree (if configured)
+3. **Setup commands execute sequentially**
+4. Claude Code session starts
+
+#### Error Handling
+
+- **Command fails (exit code != 0)**: Execution aborts unless `continue_on_failure = true`
+- **Working directory doesn't exist**: Error raised before command runs
+- **Working directory escapes repo**: Error raised (security constraint)
+- **Command output**: Only shown when a command fails (includes stdout and stderr)
+
+#### Working Directory Constraints
+
+The `working_dir` option must:
+- Be a relative path (no leading `/`)
+- Resolve to a directory within the repository (no `..` escaping)
+- Actually exist before the command runs
+
+#### Example Use Cases
+
+**Starting Docker services:**
+```toml
+[[code.setup]]
+name = "start-database"
+command = "docker-compose up -d postgres redis"
+
+[[code.setup]]
+name = "wait-for-db"
+command = "sleep 5"  # Give services time to start
+```
+
+**Installing dependencies:**
+```toml
+[[code.setup]]
+name = "install-deps"
+command = "npm install"
+working_dir = "./frontend"
+continue_on_failure = true  # Non-critical if already installed
+
+[[code.setup]]
+name = "build-assets"
+command = "npm run build"
+working_dir = "./frontend"
+```
+
+**Initializing test data:**
+```toml
+[[code.setup]]
+name = "seed-test-db"
+command = "./scripts/seed-test-data.sh"
+```
+
+**Using environment variables in commands:**
+```toml
+[[code.setup]]
+name = "create-marker"
+command = "touch $WEFT_WORKTREE_PATH/.setup-complete"
+```
+
+#### Limitations
+
+- **No timeout enforcement**: Commands that hang will block indefinitely
+- **Sequential only**: Commands cannot run in parallel
+- **No teardown**: There are no cleanup commands after the session ends

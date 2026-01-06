@@ -14,7 +14,6 @@ import threading
 import time
 from pathlib import Path
 
-import pytest
 
 from weft.file_watcher import PlanFileWatcher
 from weft.hooks import HookManager, RealProcessExecutor

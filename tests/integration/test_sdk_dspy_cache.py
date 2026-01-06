@@ -10,12 +10,8 @@ More accurate than testing Claude's Write tool since DSPy uses Python file opera
 from __future__ import annotations
 
 import json
-import os
-import tempfile
-import uuid
 from pathlib import Path
 
-import pytest
 
 from weft.judge_executor import get_cache_dir
 from weft.sdk_runner import generate_sdk_settings

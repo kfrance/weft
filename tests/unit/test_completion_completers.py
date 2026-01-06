@@ -250,7 +250,6 @@ def test_complete_eval_plans_returns_all_plans(tmp_path, monkeypatch):
 def test_complete_eval_plans_two_tier_ordering_unfinished_first(tmp_path, monkeypatch):
     """Test two-tier ordering: unfinished plans first (alphabetically sorted)."""
     import subprocess
-    import time
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     tasks_dir = tmp_path / ".weft" / "tasks"
     tasks_dir.mkdir(parents=True)

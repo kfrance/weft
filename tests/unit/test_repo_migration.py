@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from weft.repo_utils import RepoUtilsError, migrate_repo_dir_if_needed
+from weft.repo_utils import migrate_repo_dir_if_needed
 
 
 class TestRepoMigration:

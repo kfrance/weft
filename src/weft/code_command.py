@@ -38,6 +38,11 @@ from .plan_validator import (
 )
 from .repo_utils import RepoUtilsError, find_repo_root
 from .prompt_loader import PromptLoadingError, load_prompts
+from .setup_commands import (
+    SetupCommandError,
+    load_setup_commands,
+    run_setup_commands,
+)
 from .session_manager import (
     SessionManagerError,
     create_session_directory,
@@ -532,6 +537,25 @@ def run_code_command(
         sync_files_to_worktree(metadata.repo_root, worktree_path, file_sync_cleanup)
     except FileSyncError as exc:
         logger.error("File sync failed: %s", exc)
+        return 1
+
+    # Run setup commands on the host before the sandboxed Claude Code session.
+    # Setup commands run at this point because:
+    # 1. The worktree exists (commands may need to access it via WEFT_WORKTREE_PATH)
+    # 2. We're still on the host (commands cannot run from within the sandbox)
+    # Commands are configured in the repository's .weft/config.toml [[code.setup]] sections.
+    try:
+        setup_commands = load_setup_commands(metadata.repo_root)
+        if setup_commands:
+            run_setup_commands(
+                setup_commands,
+                repo_root=metadata.repo_root,
+                worktree_path=worktree_path,
+                plan_id=metadata.plan_id,
+                plan_path=plan_path,
+            )
+    except SetupCommandError as exc:
+        logger.error("Setup command failed: %s", exc)
         return 1
 
     # Write sub-agents to .claude/agents/ directory if using Claude Code

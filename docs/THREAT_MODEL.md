@@ -117,14 +117,33 @@ This document describes the threat model, trust boundaries, and security design 
   - Standard pattern for CLI developer tools
 - **Implementation:** Use `shell=True` with `string.Template` substitution
 - **Mitigation:**
-  - Global config only (no project-level to prevent malicious repos)
+  - Global config only (no project-level hooks to prevent malicious repos)
   - `--no-hooks` flag to disable if needed
   - Logs show exactly what commands execute
-- **Future Consideration:** If project-level config added, would require:
-  - Explicit user approval workflow
-  - Whitelist/review mechanism
-  - Clear warnings about executing project-provided hooks
+- **Note:** Project-level command execution is now available via setup commands (see below)
 - **Reference:** See [ADR 002: Hook Command Injection Trust Model](adr/002-hook-injection-trust.md)
+
+### Setup Command Execution Security
+
+**Decision: Trust repository-level setup command configurations**
+- **Rationale:** Setup commands configured in repository's `.weft/config.toml` via `[[code.setup]]` sections
+- **Risk Accepted:** Commands execute arbitrary shell commands with developer's permissions when `weft code` is run
+  - Cloning and running `weft code` on an untrusted repository could execute malicious commands
+  - Commands run on the host system before sandbox isolation begins
+- **Justification:** User explicitly invokes `weft code` in their repository, opting into the repo's setup commands
+  - Same trust model as npm scripts (`npm install`, `npm run`), Makefiles, git hooks in repos
+  - Developer has already cloned the repository and is choosing to run weft on it
+  - Standard practice for developer tooling that operates on repository code
+- **Implementation:** Use `subprocess.run()` with `shell=True` for shell feature support
+- **Mitigation:**
+  - Commands only run when user explicitly invokes `weft code`
+  - Working directory constrained to within repository (prevents path traversal)
+  - Command names logged at info level (not full commands for security)
+  - `continue_on_failure` flag allows non-critical commands to fail gracefully
+- **Important:** Unlike hooks (which are user-level in `~/.weft/config.toml`), setup commands are project-level
+  - Users should exercise caution when running `weft code` on untrusted repositories
+  - Same level of caution as running `npm install` or `make` on untrusted code
+- **Reference:** See [Configuration Guide](CONFIGURATION.md#setup-commands)
 
 ## Non-Security Quality Decisions
 
@@ -155,15 +174,16 @@ These aren't security issues but are documented for completeness:
 │                                                     │
 │  ┌──────────────────────────────────────────────┐  │
 │  │ TRUSTED: Repository (user controlled)        │  │
-│  │  - .weft/tasks/*.md (plan files)         │  │
+│  │  - .weft/tasks/*.md (plan files)             │  │
+│  │  - .weft/config.toml (setup commands)        │  │
 │  │  - Source code                               │  │
 │  └──────────────────────────────────────────────┘  │
 │                                                     │
 │  ┌──────────────────────────────────────────────┐  │
 │  │ TRUSTED: User's home directory               │  │
-│  │  - ~/.weft/.env (secrets)                │  │
-│  │  - ~/.weft/config.toml (hook config)     │  │
-│  │  - ~/.weft/dspy_cache                    │  │
+│  │  - ~/.weft/.env (secrets)                    │  │
+│  │  - ~/.weft/config.toml (hook config)         │  │
+│  │  - ~/.weft/dspy_cache                        │  │
 │  └──────────────────────────────────────────────┘  │
 │                                                     │
 │  UNTRUSTED EXTERNAL:                               │

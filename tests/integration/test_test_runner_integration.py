@@ -11,11 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from weft.test_runner import (
-    TEST_RESULT_SCHEMA,
-    TestRunnerError,
     run_tests_via_sdk,
     validate_test_results,
 )

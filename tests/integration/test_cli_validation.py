@@ -11,7 +11,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import pytest
 
 
 def run_weft(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:

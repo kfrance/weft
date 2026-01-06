@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
 
 from weft.completion.completers import complete_backup_plans
 from weft.plan_backup import create_backup

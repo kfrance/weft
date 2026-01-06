@@ -11,11 +11,9 @@ import asyncio
 import os
 from pathlib import Path
 
-import pytest
 
 from weft.sdk_runner import (
     run_sdk_session,
-    SDKRunnerError,
 )
 
 

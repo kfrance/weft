@@ -14,7 +14,6 @@ import pytest
 
 from weft.judge_executor import JudgeExecutionError, get_openrouter_api_key
 from weft.trace_summarizer import (
-    TraceSummarizationError,
     create_trace_summary,
     generate_narrative_summary,
 )

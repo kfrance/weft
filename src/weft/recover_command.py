@@ -179,12 +179,12 @@ def _list_backups(repo_root: Path, show_abandoned: bool, show_all: bool) -> int:
 
         # Display help text
         if show_abandoned:
-            print(f"\nUse 'weft recover-plan --abandoned <plan_id>' to restore an abandoned plan.")
+            print("\nUse 'weft recover-plan --abandoned <plan_id>' to restore an abandoned plan.")
         elif show_all:
-            print(f"\nUse 'weft recover-plan <plan_id>' for active backups.")
-            print(f"Use 'weft recover-plan --abandoned <plan_id>' for abandoned plans.")
+            print("\nUse 'weft recover-plan <plan_id>' for active backups.")
+            print("Use 'weft recover-plan --abandoned <plan_id>' for abandoned plans.")
         else:
-            print(f"\nUse 'weft recover-plan <plan_id>' to restore a plan.")
+            print("\nUse 'weft recover-plan <plan_id>' to restore a plan.")
 
         return 0
 
@@ -225,7 +225,7 @@ def _recover_plan(repo_root: Path, plan_id: str, force: bool, from_abandoned: bo
                         plan_id,
                     )
                     print(f"\nPlan '{plan_id}' not found in active backups.")
-                    print(f"It exists in abandoned plans. Use --abandoned flag to recover it:")
+                    print("It exists in abandoned plans. Use --abandoned flag to recover it:")
                     print(f"  weft recover-plan --abandoned {plan_id}")
                     return 1
 
@@ -249,14 +249,14 @@ def _recover_plan(repo_root: Path, plan_id: str, force: bool, from_abandoned: bo
     except BackupNotFoundError as exc:
         logger.error("%s", exc)
         if from_abandoned:
-            print(f"\nTip: Use 'weft recover-plan --abandoned' to list available abandoned plans.")
+            print("\nTip: Use 'weft recover-plan --abandoned' to list available abandoned plans.")
         else:
-            print(f"\nTip: Use 'weft recover-plan' to list available backups.")
+            print("\nTip: Use 'weft recover-plan' to list available backups.")
         return 1
 
     except BackupExistsError as exc:
         logger.error("%s", exc)
-        print(f"\nTip: Use --force to overwrite the existing file.")
+        print("\nTip: Use --force to overwrite the existing file.")
         return 1
 
     except PlanBackupError as exc:

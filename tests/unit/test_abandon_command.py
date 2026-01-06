@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from weft.abandon_command import (
-    AbandonCommandError,
-    CleanupResult,
     PlanArtifacts,
     _cleanup_branch,
     _cleanup_plan_file,

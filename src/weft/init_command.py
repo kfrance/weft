@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import sys
 import tempfile
 from pathlib import Path
 
@@ -230,6 +229,16 @@ schema_version = "1.0"
 # ]
 # max_file_size_mb = 100   # Maximum size per file (default: 100MB)
 # max_total_size_mb = 500  # Maximum total size (default: 500MB)
+
+# Setup commands run on the host before the coding session (optional)
+# Commands execute sequentially after worktree creation.
+# Available environment variables: WEFT_REPO_ROOT, WEFT_WORKTREE_PATH, WEFT_PLAN_ID, WEFT_PLAN_PATH
+#
+# [[code.setup]]
+# name = "start-services"
+# command = "docker-compose up -d"
+# working_dir = "./services"        # Optional: defaults to repo root
+# continue_on_failure = false       # Optional: defaults to false
 '''
 
 

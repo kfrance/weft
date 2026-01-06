@@ -109,7 +109,6 @@ def test_ensure_placeholder_git_sha(tmp_path: Path) -> None:
 def test_run_plan_command_with_unknown_executor() -> None:
     """Test that run_plan_command fails with unknown executor."""
     from weft.plan_command import run_plan_command
-    from unittest.mock import patch
 
     with patch("weft.plan_command.find_repo_root"):
         with patch("weft.plan_command._extract_idea_text", return_value="test"):
@@ -649,7 +648,7 @@ def test_write_plan_subagents_errors(tmp_path: Path, monkeypatch, error_type: st
 
 def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> None:
     """Test that create_backup is called after plan files are copied."""
-    from unittest.mock import Mock, MagicMock
+    from unittest.mock import Mock
     from weft.plan_command import run_plan_command
 
     # Track calls to create_backup
@@ -725,7 +724,7 @@ def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> N
 
 def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatch, caplog) -> None:
     """Test that plan command succeeds even when backup creation fails (non-fatal)."""
-    from unittest.mock import Mock, MagicMock
+    from unittest.mock import Mock
     from weft.plan_command import run_plan_command
     from weft.plan_backup import PlanBackupError
 

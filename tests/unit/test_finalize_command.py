@@ -11,13 +11,10 @@ import logging
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 import weft.finalize_command as finalize_command
 from weft.finalize_command import (
-    FinalizeCommandError,
     run_finalize_command,
 )
 
@@ -409,7 +406,6 @@ evaluation_notes: []
 def test_finalize_succeeds_with_idempotent_cleanup(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
     """Test that finalize succeeds when cleanup is idempotent (ref already gone)."""
     import logging
-    from unittest.mock import Mock
 
     # Setup plan file
     plan_path = tmp_path / "test-plan.md"

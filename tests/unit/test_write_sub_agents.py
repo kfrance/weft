@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from weft.code_command import _write_sub_agents, AGENT_DESCRIPTIONS
 

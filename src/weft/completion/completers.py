@@ -8,7 +8,6 @@ This module provides completion functions for CLI arguments:
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from ..executors import ClaudeCodeExecutor, ExecutorRegistry
 from ..logging_config import get_logger
@@ -45,7 +44,6 @@ def complete_plan_files(prefix: str, parsed_args, **kwargs) -> list[str]:
             # Try to complete full paths
             try:
                 from ..repo_utils import find_repo_root
-                import os
 
                 repo_root = find_repo_root()
                 tasks_dir = repo_root / ".weft" / "tasks"

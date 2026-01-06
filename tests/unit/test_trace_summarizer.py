@@ -10,10 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from weft.trace_summarizer import (
-    TraceSummarizationError,
     _format_structural_section,
     extract_structural_data,
     needs_regeneration,

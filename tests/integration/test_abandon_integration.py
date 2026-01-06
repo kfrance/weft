@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from weft.abandon_command import run_abandon_command
 from weft.plan_backup import (
     backup_exists_in_namespace,
     create_backup,
-    list_abandoned_plans,
     list_backups,
 )
 from weft.recover_command import run_recover_command
@@ -426,7 +423,7 @@ def test_list_abandoned_shows_reason(git_repo: GitRepo, capsys) -> None:
 
 def test_plan_backup_create_and_list(git_repo: GitRepo) -> None:
     """Test plan_backup module create_backup and list_backups functions directly."""
-    from weft.plan_backup import create_backup, list_backups
+    from weft.plan_backup import create_backup
 
     # Setup: Create plan files
     tasks_dir = git_repo.path / ".weft" / "tasks"

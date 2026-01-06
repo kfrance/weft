@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from weft.eval_command import (
     format_judge_markdown,
