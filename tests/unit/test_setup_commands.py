@@ -751,3 +751,150 @@ class TestRunSetupCommands:
             )
 
         assert "Working directory: ./subdir" in str(exc_info.value)
+
+    def test_injects_code_env_vars_into_environment(self, tmp_path: Path) -> None:
+        """Test code_env variables are injected into command environment."""
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        output_file = worktree_path / "code_env_dump.txt"
+        commands = [
+            SetupCommand(
+                name="dump-code-env",
+                command=f"echo $MY_VAR:$ANOTHER_VAR > {output_file}",
+            )
+        ]
+
+        code_env = {
+            "MY_VAR": "value1",
+            "ANOTHER_VAR": "value2",
+        }
+
+        run_setup_commands(
+            commands,
+            repo_root=repo_root,
+            worktree_path=worktree_path,
+            plan_id="test",
+            plan_path=repo_root / "plan.md",
+            code_env=code_env,
+        )
+
+        content = output_file.read_text().strip()
+        assert content == "value1:value2"
+
+    def test_weft_vars_override_code_env_on_conflict(self, tmp_path: Path) -> None:
+        """Test WEFT_* variables override code_env if same key."""
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        output_file = worktree_path / "override_check.txt"
+        commands = [
+            SetupCommand(
+                name="check-override",
+                command=f"echo $WEFT_PLAN_ID > {output_file}",
+            )
+        ]
+
+        # Try to override a WEFT_* variable via code_env
+        code_env = {
+            "WEFT_PLAN_ID": "should-be-overridden",
+        }
+
+        run_setup_commands(
+            commands,
+            repo_root=repo_root,
+            worktree_path=worktree_path,
+            plan_id="actual-plan-id",
+            plan_path=repo_root / "plan.md",
+            code_env=code_env,
+        )
+
+        # WEFT_PLAN_ID should be the actual one, not the code_env one
+        content = output_file.read_text().strip()
+        assert content == "actual-plan-id"
+
+    def test_code_env_overrides_existing_shell_env(self, tmp_path: Path) -> None:
+        """Test code_env variables override existing shell environment."""
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        output_file = worktree_path / "shell_override.txt"
+        commands = [
+            SetupCommand(
+                name="check-shell-override",
+                command=f"echo $TEST_SHELL_VAR > {output_file}",
+            )
+        ]
+
+        code_env = {
+            "TEST_SHELL_VAR": "from_code_env",
+        }
+
+        # Set conflicting shell env var
+        with patch.dict(os.environ, {"TEST_SHELL_VAR": "from_shell"}):
+            run_setup_commands(
+                commands,
+                repo_root=repo_root,
+                worktree_path=worktree_path,
+                plan_id="test",
+                plan_path=repo_root / "plan.md",
+                code_env=code_env,
+            )
+
+        # code_env should win
+        content = output_file.read_text().strip()
+        assert content == "from_code_env"
+
+    def test_code_env_none_is_noop(self, tmp_path: Path) -> None:
+        """Test code_env=None works without error."""
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        marker_file = worktree_path / "done.txt"
+        commands = [
+            SetupCommand(name="create-marker", command=f"touch {marker_file}")
+        ]
+
+        # Explicitly pass code_env=None
+        run_setup_commands(
+            commands,
+            repo_root=repo_root,
+            worktree_path=worktree_path,
+            plan_id="test",
+            plan_path=repo_root / "plan.md",
+            code_env=None,
+        )
+
+        assert marker_file.exists()
+
+    def test_code_env_empty_dict_is_noop(self, tmp_path: Path) -> None:
+        """Test code_env={} works without error."""
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        marker_file = worktree_path / "done.txt"
+        commands = [
+            SetupCommand(name="create-marker", command=f"touch {marker_file}")
+        ]
+
+        # Explicitly pass empty code_env
+        run_setup_commands(
+            commands,
+            repo_root=repo_root,
+            worktree_path=worktree_path,
+            plan_id="test",
+            plan_path=repo_root / "plan.md",
+            code_env={},
+        )
+
+        assert marker_file.exists()

@@ -289,6 +289,88 @@ max_file_size_mb = 10
 max_total_size_mb = 50
 ```
 
+### Environment Variables ([code.env])
+
+The `[code.env]` section allows you to define environment variables that are injected into the entire `weft code` workflow. These variables are available to both setup commands and the Claude Code session.
+
+#### Configuration Schema
+
+```toml
+[code.env]
+DATABASE_URL = "postgres://localhost:5432/dev"
+DEBUG = "true"
+MY_CUSTOM_VAR = "value"
+```
+
+#### Key Behavior
+
+- **Literal values only**: Values are used exactly as specified (no variable expansion like `${VAR}`)
+- **Config wins**: Values from `[code.env]` override any existing environment variables with the same names
+- **Both phases**: Variables are available to setup commands AND the Claude Code session
+- **Valid names**: Keys must be valid environment variable names (start with letter or underscore, contain only letters, digits, and underscores)
+
+#### Validation
+
+Invalid configuration will cause the `weft code` command to fail with a clear error message:
+
+```
+# Invalid - starts with digit
+[code.env]
+1_INVALID = "value"    # Error: names cannot start with a digit
+
+# Invalid - contains hyphen
+[code.env]
+MY-VAR = "value"       # Error: hyphens not allowed in env var names
+
+# Invalid - non-string value
+[code.env]
+PORT = 5432            # Error: values must be strings (use "5432")
+```
+
+#### Example Use Cases
+
+**Database configuration:**
+```toml
+[code.env]
+DATABASE_URL = "postgres://localhost:5432/dev"
+REDIS_URL = "redis://localhost:6379"
+```
+
+**Feature flags and debugging:**
+```toml
+[code.env]
+DEBUG = "true"
+LOG_LEVEL = "debug"
+FEATURE_NEW_UI = "enabled"
+```
+
+**API endpoints for development:**
+```toml
+[code.env]
+API_BASE_URL = "http://localhost:8080"
+MOCK_EXTERNAL_SERVICES = "true"
+```
+
+**Combined with setup commands:**
+```toml
+[code.env]
+DB_NAME = "test_db"
+DB_USER = "test_user"
+
+[[code.setup]]
+name = "create-test-db"
+command = "createdb -U $DB_USER $DB_NAME || true"
+```
+
+#### Empty Section
+
+An empty `[code.env]` section is valid and results in no environment variables being injected:
+
+```toml
+[code.env]
+# No variables configured
+```
+
 ### Setup Commands
 
 Setup commands allow you to run arbitrary shell commands on the host system before the sandboxed `weft code` session begins. This is useful for preparing the execution environment (starting services, configuring system resources, etc.) that cannot be done from within the sandbox.
@@ -314,7 +396,13 @@ continue_on_failure = true        # Optional: defaults to false (abort on failur
 
 #### Environment Variables
 
-Commands inherit the current shell environment plus these weft-specific variables:
+Commands inherit the current shell environment with variables injected in this order:
+
+1. Current shell environment
+2. `[code.env]` variables (override shell env)
+3. `WEFT_*` variables (override `[code.env]` if same key)
+
+**Built-in WEFT variables:**
 
 | Variable | Description |
 |----------|-------------|
@@ -323,7 +411,7 @@ Commands inherit the current shell environment plus these weft-specific variable
 | `WEFT_PLAN_ID` | Identifier of the current plan |
 | `WEFT_PLAN_PATH` | Path to the plan file |
 
-These variables override any existing environment variables with the same names.
+See the [[code.env] section](#environment-variables-codeenv) above for configuring custom environment variables.
 
 #### Execution Order
 

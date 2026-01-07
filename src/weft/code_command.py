@@ -38,6 +38,7 @@ from .plan_validator import (
 )
 from .repo_utils import RepoUtilsError, find_repo_root
 from .prompt_loader import PromptLoadingError, load_prompts
+from .code_env import CodeEnvError, load_code_env
 from .setup_commands import (
     SetupCommandError,
     load_setup_commands,
@@ -539,6 +540,16 @@ def run_code_command(
         logger.error("File sync failed: %s", exc)
         return 1
 
+    # Load environment variables from [code.env] section of config.toml.
+    # These are injected into both setup commands and the Claude Code session.
+    try:
+        code_env = load_code_env(metadata.repo_root)
+        if code_env:
+            logger.info("Loaded %d environment variable(s) from [code.env]", len(code_env))
+    except CodeEnvError as exc:
+        logger.error("Failed to load [code.env]: %s", exc)
+        return 1
+
     # Run setup commands on the host before the sandboxed Claude Code session.
     # Setup commands run at this point because:
     # 1. The worktree exists (commands may need to access it via WEFT_WORKTREE_PATH)
@@ -553,10 +564,19 @@ def run_code_command(
                 worktree_path=worktree_path,
                 plan_id=metadata.plan_id,
                 plan_path=plan_path,
+                code_env=code_env,
             )
     except SetupCommandError as exc:
         logger.error("Setup command failed: %s", exc)
         return 1
+
+    # Inject code_env into os.environ so the SDK session inherits them.
+    # This happens after setup commands (which get their own isolated env copy)
+    # so that the SDK process inherits these variables.
+    if code_env:
+        for key, value in code_env.items():
+            os.environ[key] = value
+        logger.debug("Injected %d code_env variable(s) into process environment", len(code_env))
 
     # Write sub-agents to .claude/agents/ directory if using Claude Code
     if tool == "claude-code" and prompts:
@@ -576,8 +596,11 @@ def run_code_command(
         logger.error("Failed to copy plan to worktree: %s", exc)
         return 1
 
-    # Filter environment variables to forward
+    # Filter environment variables to forward and include code_env
     env_vars = _filter_env_vars(forward_env_patterns)
+    # Include code_env variables in the forwarded environment for CLI resume
+    if code_env:
+        env_vars.update(code_env)
     if env_vars:
         logger.debug("Forwarding %d environment variable(s) to executor", len(env_vars))
 

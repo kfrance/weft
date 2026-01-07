@@ -230,6 +230,14 @@ schema_version = "1.0"
 # max_file_size_mb = 100   # Maximum size per file (default: 100MB)
 # max_total_size_mb = 500  # Maximum total size (default: 500MB)
 
+# Environment variables for coding session (optional)
+# These are available to both setup commands and the Claude Code session.
+# Values are literal strings (no variable expansion).
+#
+# [code.env]
+# DATABASE_URL = "postgres://localhost:5432/dev"
+# DEBUG = "true"
+
 # Setup commands run on the host before the coding session (optional)
 # Commands execute sequentially after worktree creation.
 # Available environment variables: WEFT_REPO_ROOT, WEFT_WORKTREE_PATH, WEFT_PLAN_ID, WEFT_PLAN_PATH

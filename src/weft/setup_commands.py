@@ -252,12 +252,18 @@ def run_setup_commands(
     worktree_path: Path,
     plan_id: str,
     plan_path: Path,
+    code_env: dict[str, str] | None = None,
 ) -> None:
     """Execute setup commands sequentially on the host.
 
-    Commands inherit the current shell environment with additional WEFT_*
-    variables injected. Commands run from repo_root by default, with
-    optional per-command working_dir override.
+    Commands inherit the current shell environment with additional variables
+    injected. The injection order is:
+    1. Current shell environment (os.environ)
+    2. code_env variables from [code.env] config (override shell env)
+    3. WEFT_* variables (override code_env if same key)
+
+    Commands run from repo_root by default, with optional per-command
+    working_dir override.
 
     Args:
         commands: List of SetupCommand instances to execute.
@@ -265,6 +271,7 @@ def run_setup_commands(
         worktree_path: Absolute path to created worktree.
         plan_id: Identifier of the current plan.
         plan_path: Path to the plan file.
+        code_env: Optional dictionary of environment variables from [code.env].
 
     Raises:
         SetupExecutionError: If a command fails and continue_on_failure is False.
@@ -272,9 +279,18 @@ def run_setup_commands(
     if not commands:
         return
 
-    # Build environment with WEFT_* variables injected
-    # These override any existing env vars with the same names
+    # Build environment with variables injected in order:
+    # 1. Current shell environment
+    # 2. code_env variables (override shell env)
+    # 3. WEFT_* variables (override code_env if same key)
     env = os.environ.copy()
+
+    # Inject code_env variables
+    if code_env:
+        env.update(code_env)
+        logger.debug("Injected %d code_env variable(s)", len(code_env))
+
+    # Inject WEFT_* variables (these override any conflicting code_env keys)
     env["WEFT_REPO_ROOT"] = str(repo_root.resolve())
     env["WEFT_WORKTREE_PATH"] = str(worktree_path.resolve())
     env["WEFT_PLAN_ID"] = plan_id
