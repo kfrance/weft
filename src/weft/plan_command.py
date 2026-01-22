@@ -19,7 +19,7 @@ from .host_runner import build_host_command, get_weft_src_dir, host_runner_confi
 from .logging_config import get_logger
 from .param_validation import get_effective_model
 from .plan_backup import PlanBackupError, create_backup
-from .plan_file_copier import PlanFileCopyError, copy_plan_files, get_existing_files
+from .plan_file_copier import CopyResult, PlanFileCopyError, copy_plan_files, get_existing_files
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PLACEHOLDER_SHA, PlanValidationError, extract_front_matter
 from .repo_utils import RepoUtilsError, find_repo_root, load_prompt_template
@@ -43,6 +43,22 @@ PLAN_SUBAGENT_CONFIGS = {
     "test-discovery": "Analyzes existing tests to inform testing questions during planning",
     "test-reviewer": "Reviews plan test coverage and identifies gaps",
 }
+
+# Error message constants for worktree preservation scenarios
+WORKTREE_PRESERVED_NO_FILES = (
+    "No new plan files found in worktree .weft/tasks/. "
+    "Worktree preserved at: {worktree_path}"
+)
+
+WORKTREE_PRESERVED_COPY_FAILED = (
+    "Failed to copy plan files from worktree. "
+    "Worktree preserved at: {worktree_path}"
+)
+
+WORKTREE_PRESERVED_PARTIAL_FAILURE = (
+    "Some plan files failed to copy ({failed_count} of {total_count}). "
+    "Worktree preserved at: {worktree_path}"
+)
 
 
 class PlanCommandError(Exception):
@@ -199,6 +215,7 @@ def run_plan_command(
     repo_root = None
     prompt_file = None
     file_watcher = None
+    should_cleanup_worktree = True
 
     if no_hooks:
         logger.info("Hooks disabled via --no-hooks flag")
@@ -333,11 +350,47 @@ def run_plan_command(
             execution_end = time.time()
 
             # Copy newly created plan files from worktree to main repository
+            copy_result: CopyResult | None = None
             try:
-                file_mapping = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
+                copy_result = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
             except PlanFileCopyError as exc:
-                logger.warning("Failed to copy plan files from worktree: %s", exc)
-                file_mapping = {}
+                should_cleanup_worktree = False
+                msg = WORKTREE_PRESERVED_COPY_FAILED.format(worktree_path=temp_worktree)
+                logger.error(msg)
+                print(f"\n{msg}\n")  # noqa: T201
+                copy_result = CopyResult()
+
+            # Check copy result for preservation conditions
+            if copy_result is not None:
+                if copy_result.files_found == 0:
+                    # No new files found - preserve worktree for manual recovery
+                    should_cleanup_worktree = False
+                    msg = WORKTREE_PRESERVED_NO_FILES.format(worktree_path=temp_worktree)
+                    logger.error(msg)
+                    print(f"\n{msg}\n")  # noqa: T201
+                elif copy_result.files_failed:
+                    # Some files failed to copy - preserve worktree
+                    should_cleanup_worktree = False
+                    msg = WORKTREE_PRESERVED_PARTIAL_FAILURE.format(
+                        failed_count=len(copy_result.files_failed),
+                        total_count=copy_result.files_found,
+                        worktree_path=temp_worktree,
+                    )
+                    logger.error(msg)
+                    print(f"\n{msg}\n")  # noqa: T201
+                elif copy_result.files_found > 0 and not copy_result.file_mapping:
+                    # Files were found but none copied (defensive check)
+                    should_cleanup_worktree = False
+                    msg = WORKTREE_PRESERVED_PARTIAL_FAILURE.format(
+                        failed_count=copy_result.files_found,
+                        total_count=copy_result.files_found,
+                        worktree_path=temp_worktree,
+                    )
+                    logger.error(msg)
+                    print(f"\n{msg}\n")  # noqa: T201
+
+            # Get file_mapping from copy_result for backward compatibility
+            file_mapping = copy_result.file_mapping if copy_result else {}
 
             try:
                 _ensure_placeholder_git_sha(tasks_dir)
@@ -392,10 +445,11 @@ def run_plan_command(
 
             # For interrupted sessions, we can still capture trace if any plan files were created
             # Try to copy any plan files first to get the plan_id
+            # Note: KeyboardInterrupt should clean up worktree normally (no preservation)
             if tool == "claude-code":
                 try:
-                    file_mapping = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
-                    for final_filename in file_mapping.values():
+                    interrupt_copy_result = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
+                    for final_filename in interrupt_copy_result.file_mapping.values():
                         plan_id = Path(final_filename).stem
                         try:
                             plan_session_dir = create_session_directory(
@@ -438,8 +492,8 @@ def run_plan_command(
             except OSError as exc:
                 logger.warning("Failed to clean up prompt file: %s", exc)
 
-        # Clean up temporary worktree
-        if temp_worktree and repo_root:
+        # Clean up temporary worktree (only if should_cleanup_worktree is True)
+        if temp_worktree and repo_root and should_cleanup_worktree:
             try:
                 remove_temp_worktree(repo_root, temp_worktree)
             except TempWorktreeError as exc:

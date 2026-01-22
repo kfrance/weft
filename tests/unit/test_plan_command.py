@@ -260,9 +260,9 @@ def test_copy_plan_files_single_file(tmp_path: Path) -> None:
     (source_dir / "my-feature.md").write_text("# My Feature")
 
     # Copy files
-    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+    result = copy_plan_files(source_dir, dest_dir, existing_files)
 
-    assert mapping == {"my-feature.md": "my-feature.md"}
+    assert result.file_mapping == {"my-feature.md": "my-feature.md"}
     assert (dest_dir / "my-feature.md").exists()
     assert (dest_dir / "my-feature.md").read_text() == "# My Feature"
 
@@ -284,9 +284,9 @@ def test_copy_plan_files_with_conflict(tmp_path: Path) -> None:
     (source_dir / "my-feature.md").write_text("new content")
 
     # Copy files
-    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+    result = copy_plan_files(source_dir, dest_dir, existing_files)
 
-    assert mapping == {"my-feature.md": "my-feature (1).md"}
+    assert result.file_mapping == {"my-feature.md": "my-feature (1).md"}
     assert (dest_dir / "my-feature.md").read_text() == "old content"
     assert (dest_dir / "my-feature (1).md").read_text() == "new content"
 
@@ -309,9 +309,9 @@ def test_copy_plan_files_multiple_new_files(tmp_path: Path) -> None:
     (source_dir / "feature-b.md").write_text("new b")
 
     # Copy files
-    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+    result = copy_plan_files(source_dir, dest_dir, existing_files)
 
-    assert mapping == {
+    assert result.file_mapping == {
         "feature-a.md": "feature-a (1).md",
         "feature-b.md": "feature-b.md"
     }
@@ -336,10 +336,10 @@ def test_copy_plan_files_only_copies_new_files(tmp_path: Path) -> None:
     (source_dir / "new-plan.md").write_text("new")
 
     # Copy files
-    mapping = copy_plan_files(source_dir, dest_dir, existing_files)
+    result = copy_plan_files(source_dir, dest_dir, existing_files)
 
     # Only new-plan.md should be copied
-    assert mapping == {"new-plan.md": "new-plan.md"}
+    assert result.file_mapping == {"new-plan.md": "new-plan.md"}
     assert not (dest_dir / "old-plan.md").exists()
     assert (dest_dir / "new-plan.md").exists()
 
@@ -650,6 +650,7 @@ def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> N
     """Test that create_backup is called after plan files are copied."""
     from unittest.mock import Mock
     from weft.plan_command import run_plan_command
+    from weft.plan_file_copier import CopyResult
 
     # Track calls to create_backup
     mock_create_backup = Mock()
@@ -684,12 +685,16 @@ def test_backup_created_after_plan_file_copied(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr("weft.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
     monkeypatch.setattr("weft.plan_command.capture_session_trace", Mock(return_value=None))
 
-    # Mock copy_plan_files to return a file mapping indicating a plan was copied
+    # Mock copy_plan_files to return a CopyResult indicating a plan was copied
     def mock_copy_plan_files(source_dir, dest_dir, existing_files):
         # Simulate copying a plan file
         plan_file = dest_dir / "test-plan.md"
         plan_file.write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
-        return {"test-plan.md": "test-plan.md"}
+        return CopyResult(
+            file_mapping={"test-plan.md": "test-plan.md"},
+            files_found=1,
+            files_failed=[],
+        )
 
     monkeypatch.setattr("weft.plan_command.copy_plan_files", mock_copy_plan_files)
 
@@ -727,6 +732,7 @@ def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatc
     from unittest.mock import Mock
     from weft.plan_command import run_plan_command
     from weft.plan_backup import PlanBackupError
+    from weft.plan_file_copier import CopyResult
 
     # Mock create_backup to raise error
     def mock_create_backup_failing(repo_root, plan_id):
@@ -763,12 +769,16 @@ def test_plan_command_succeeds_despite_backup_failure(tmp_path: Path, monkeypatc
     monkeypatch.setattr("weft.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
     monkeypatch.setattr("weft.plan_command.capture_session_trace", Mock(return_value=None))
 
-    # Mock copy_plan_files to return a file mapping indicating a plan was copied
+    # Mock copy_plan_files to return a CopyResult indicating a plan was copied
     def mock_copy_plan_files(source_dir, dest_dir, existing_files):
         # Simulate copying a plan file
         plan_file = dest_dir / "test-plan.md"
         plan_file.write_text("---\nplan_id: test-plan\nstatus: draft\n---\n# Test")
-        return {"test-plan.md": "test-plan.md"}
+        return CopyResult(
+            file_mapping={"test-plan.md": "test-plan.md"},
+            files_found=1,
+            files_failed=[],
+        )
 
     monkeypatch.setattr("weft.plan_command.copy_plan_files", mock_copy_plan_files)
 
@@ -860,3 +870,176 @@ def test_plan_template_has_idea_placeholder() -> None:
     for tool in ["claude-code", "droid"]:
         template = load_prompt_template(tool, "plan")
         assert "{IDEA_TEXT}" in template, f"{tool}/plan.md should contain {{IDEA_TEXT}} placeholder"
+
+
+# Tests for worktree preservation when plan file copy fails
+
+
+@pytest.fixture
+def worktree_test_context(tmp_path: Path, monkeypatch):
+    """Common setup for worktree preservation tests.
+
+    Yields a context dict with temp_worktree path, mock_remove, and set_copy_behavior helper.
+    """
+    from unittest.mock import Mock
+    from weft.plan_file_copier import CopyResult, PlanFileCopyError
+
+    # Track if remove_temp_worktree was called
+    mock_remove = Mock()
+    monkeypatch.setattr("weft.plan_command.remove_temp_worktree", mock_remove)
+
+    # Mock all external dependencies
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    tasks_dir = repo_root / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("weft.plan_command.find_repo_root", Mock(return_value=repo_root))
+
+    # Mock temp worktree
+    temp_worktree = tmp_path / "worktree"
+    temp_worktree.mkdir()
+    worktree_tasks_dir = temp_worktree / ".weft" / "tasks"
+    worktree_tasks_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("weft.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("weft.plan_command.get_weft_src_dir", Mock(return_value=tmp_path / "src"))
+
+    # Mock subagent setup
+    monkeypatch.setattr("weft.plan_command._write_plan_subagents", Mock())
+
+    # Mock trace capture functions
+    monkeypatch.setattr("weft.plan_command.prune_old_sessions", Mock())
+    monkeypatch.setattr("weft.plan_command.create_session_directory", Mock(return_value=tmp_path / "traces"))
+    monkeypatch.setattr("weft.plan_command.capture_session_trace", Mock(return_value=None))
+    monkeypatch.setattr("weft.plan_command.create_backup", Mock())
+
+    # Mock executor
+    mock_executor = MagicMock()
+    mock_executor.check_auth = Mock()
+    mock_executor.build_command = Mock(return_value="echo test")
+    mock_executor.get_env_vars = Mock(return_value={})
+    from weft.executors import ExecutorRegistry
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", Mock(return_value=mock_executor))
+
+    # Mock host runner
+    monkeypatch.setattr("weft.plan_command.host_runner_config", Mock(return_value={}))
+    monkeypatch.setattr("weft.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+    monkeypatch.setattr("weft.plan_command.load_prompt_template", Mock(return_value="test template"))
+
+    # Mock subprocess to succeed
+    mock_result = MagicMock(returncode=0)
+    monkeypatch.setattr("weft.plan_command.subprocess.run", Mock(return_value=mock_result))
+
+    def set_copy_behavior(behavior: str):
+        """Set copy_plan_files behavior: 'error', 'empty', 'partial', 'success', 'anomalous'."""
+        if behavior == "error":
+            def mock_fn(source_dir, dest_dir, existing_files):
+                raise PlanFileCopyError("Test copy failure")
+        elif behavior == "empty":
+            def mock_fn(source_dir, dest_dir, existing_files):
+                return CopyResult(file_mapping={}, files_found=0, files_failed=[])
+        elif behavior == "partial":
+            def mock_fn(source_dir, dest_dir, existing_files):
+                return CopyResult(
+                    file_mapping={"plan-a.md": "plan-a.md"},
+                    files_found=2,
+                    files_failed=["plan-b.md"],
+                )
+        elif behavior == "success":
+            def mock_fn(source_dir, dest_dir, existing_files):
+                return CopyResult(
+                    file_mapping={"plan-a.md": "plan-a.md"},
+                    files_found=1,
+                    files_failed=[],
+                )
+        elif behavior == "anomalous":
+            def mock_fn(source_dir, dest_dir, existing_files):
+                return CopyResult(file_mapping={}, files_found=2, files_failed=[])
+        else:
+            raise ValueError(f"Unknown behavior: {behavior}")
+
+        monkeypatch.setattr("weft.plan_command.copy_plan_files", mock_fn)
+
+    yield {
+        "temp_worktree": temp_worktree,
+        "mock_remove": mock_remove,
+        "set_copy_behavior": set_copy_behavior,
+    }
+
+
+class TestWorktreePreservation:
+    """Tests for worktree preservation when copy operations fail."""
+
+    def test_worktree_preserved_when_copy_raises_error(self, worktree_test_context, capsys, caplog) -> None:
+        """Verify worktree preserved when PlanFileCopyError raised."""
+        import logging
+        from weft.plan_command import run_plan_command
+
+        ctx = worktree_test_context
+        ctx["set_copy_behavior"]("error")
+
+        with caplog.at_level(logging.ERROR, logger="weft.plan_command"):
+            exit_code = run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+        assert not ctx["mock_remove"].called
+        assert exit_code == 0
+        assert str(ctx["temp_worktree"]) in caplog.text
+        assert "Failed to copy plan files" in caplog.text
+        assert str(ctx["temp_worktree"]) in capsys.readouterr().out
+
+    def test_worktree_preserved_when_no_files_found(self, worktree_test_context, capsys, caplog) -> None:
+        """Verify worktree preserved when files_found == 0."""
+        import logging
+        from weft.plan_command import run_plan_command
+
+        ctx = worktree_test_context
+        ctx["set_copy_behavior"]("empty")
+
+        with caplog.at_level(logging.ERROR, logger="weft.plan_command"):
+            run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+        assert not ctx["mock_remove"].called
+        assert str(ctx["temp_worktree"]) in caplog.text
+        assert "No new plan files found" in caplog.text
+        assert str(ctx["temp_worktree"]) in capsys.readouterr().out
+
+    def test_worktree_preserved_on_partial_copy_failure(self, worktree_test_context, capsys) -> None:
+        """Verify worktree preserved when some files fail to copy."""
+        from weft.plan_command import run_plan_command
+
+        ctx = worktree_test_context
+        ctx["set_copy_behavior"]("partial")
+
+        run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+        assert not ctx["mock_remove"].called
+        captured = capsys.readouterr()
+        assert str(ctx["temp_worktree"]) in captured.out
+        assert "1 of 2" in captured.out
+
+    def test_worktree_removed_on_successful_copy(self, worktree_test_context) -> None:
+        """Verify worktree cleaned up when all files copied successfully."""
+        from weft.plan_command import run_plan_command
+
+        ctx = worktree_test_context
+        ctx["set_copy_behavior"]("success")
+
+        exit_code = run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+        assert ctx["mock_remove"].called
+        assert exit_code == 0
+
+    def test_worktree_preserved_when_files_found_but_none_copied(self, worktree_test_context, capsys) -> None:
+        """Verify worktree preserved when files_found > 0 but file_mapping empty (defensive check)."""
+        from weft.plan_command import run_plan_command
+
+        ctx = worktree_test_context
+        ctx["set_copy_behavior"]("anomalous")
+
+        run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+        assert not ctx["mock_remove"].called
+        captured = capsys.readouterr()
+        assert str(ctx["temp_worktree"]) in captured.out
+        assert "2 of 2" in captured.out

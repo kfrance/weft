@@ -8,8 +8,9 @@ resolving naming conflicts using Chrome-style numbering.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Set
+from typing import Dict, List, Set
 
 from .logging_config import get_logger
 
@@ -18,6 +19,21 @@ logger = get_logger(__name__)
 
 class PlanFileCopyError(Exception):
     """Raised when plan file copy operations fail critically."""
+
+
+@dataclass
+class CopyResult:
+    """Result of copying plan files from worktree.
+
+    Attributes:
+        file_mapping: Dictionary mapping original filenames to final filenames.
+        files_found: Number of new files detected in the source directory.
+        files_failed: List of filenames that failed to copy.
+    """
+
+    file_mapping: Dict[str, str] = field(default_factory=dict)
+    files_found: int = 0
+    files_failed: List[str] = field(default_factory=list)
 
 
 def get_existing_files(tasks_dir: Path) -> Set[str]:
@@ -119,7 +135,7 @@ def generate_unique_filename(target_dir: Path, filename: str) -> str:
 
 def copy_plan_files(
     source_dir: Path, dest_dir: Path, existing_files: Set[str]
-) -> Dict[str, str]:
+) -> CopyResult:
     """Copy newly created plan files from source to destination with conflict resolution.
 
     Args:
@@ -128,7 +144,7 @@ def copy_plan_files(
         existing_files: Set of filenames that existed before execution.
 
     Returns:
-        Dictionary mapping original filenames to final filenames.
+        CopyResult containing file_mapping, files_found count, and files_failed list.
 
     Raises:
         PlanFileCopyError: If destination directory doesn't exist or has permission issues.
@@ -140,11 +156,13 @@ def copy_plan_files(
     if not dest_dir.is_dir():
         raise PlanFileCopyError(f"Destination path is not a directory: {dest_dir}")
 
-    file_mapping = {}
+    result = CopyResult()
 
-    # Find and copy new files
+    # Find new files
     new_files = find_new_files(source_dir, existing_files)
+    result.files_found = len(new_files)
 
+    # Copy new files
     for source_file in new_files:
         try:
             # Determine target filename
@@ -155,7 +173,7 @@ def copy_plan_files(
             target_path.write_bytes(source_file.read_bytes())
 
             # Record the mapping
-            file_mapping[source_file.name] = target_filename
+            result.file_mapping[source_file.name] = target_filename
 
             # Log the copy operation
             if target_filename == source_file.name:
@@ -175,5 +193,6 @@ def copy_plan_files(
                 source_file.name,
                 exc,
             )
+            result.files_failed.append(source_file.name)
 
-    return file_mapping
+    return result
