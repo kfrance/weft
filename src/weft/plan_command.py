@@ -33,6 +33,14 @@ from .trace_capture import (
     TraceCaptureError,
     capture_session_trace,
 )
+from .worktree.file_sync import (
+    FileSyncError,
+    WorktreeFileCleanup,
+    load_repo_config,
+    should_sync_for_command,
+    sync_files_to_worktree,
+    validate_worktree_file_sync_config,
+)
 
 logger = get_logger(__name__)
 
@@ -215,6 +223,7 @@ def run_plan_command(
     repo_root = None
     prompt_file = None
     file_watcher = None
+    file_sync_cleanup: WorktreeFileCleanup | None = None
     should_cleanup_worktree = True
 
     if no_hooks:
@@ -256,6 +265,20 @@ def run_plan_command(
 
         # Create temporary worktree
         temp_worktree = create_temp_worktree(repo_root)
+
+        # Sync files from repo to worktree based on .weft/config.toml
+        # Only sync if "plan" is in the commands list
+        try:
+            repo_config = load_repo_config(repo_root)
+            sync_config = validate_worktree_file_sync_config(repo_config)
+            if should_sync_for_command(sync_config, "plan"):
+                file_sync_cleanup = WorktreeFileCleanup()
+                sync_files_to_worktree(repo_root, temp_worktree, file_sync_cleanup)
+            else:
+                logger.debug("File sync skipped: 'plan' not in commands list")
+        except FileSyncError as exc:
+            logger.error("File sync failed: %s", exc)
+            return 1
 
         # Capture existing files before execution
         worktree_tasks_dir = temp_worktree / ".weft" / "tasks"
@@ -484,6 +507,10 @@ def run_plan_command(
                 logger.debug("Stopped file watcher")
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Failed to stop file watcher: %s", exc)
+
+        # Clean up synced files from worktree
+        if file_sync_cleanup:
+            file_sync_cleanup.cleanup()
 
         # Clean up prompt file
         if prompt_file:

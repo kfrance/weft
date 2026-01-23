@@ -10,7 +10,9 @@ from typing import Any
 import pytest
 
 from weft.worktree.file_sync import (
+    FILE_SYNC_COMMANDS,
     ConfigValidationError,
+    FileSyncConfig,
     FileSyncError,
     FileSyncOperation,
     FileSyncPattern,
@@ -18,6 +20,7 @@ from weft.worktree.file_sync import (
     UnsafePatternError,
     WorktreeFileCleanup,
     load_repo_config,
+    should_sync_for_command,
     sync_files_to_worktree,
     validate_pattern_safety,
     validate_worktree_file_sync_config,
@@ -422,6 +425,108 @@ class TestConfigValidation:
         with pytest.raises(ConfigValidationError) as exc_info:
             validate_worktree_file_sync_config(config)
         assert error_message in str(exc_info.value)
+
+    # Tests for the 'commands' field
+    def test_commands_default_when_not_specified(self) -> None:
+        """Test default commands value is ['code'] when not specified."""
+        config = {"worktree": {"file_sync": {"patterns": [".env"]}}}
+        result = validate_worktree_file_sync_config(config)
+        assert result.commands == ["code"]
+
+    def test_commands_default_when_section_missing(self) -> None:
+        """Test default commands value when file_sync section is missing."""
+        config = {"schema_version": "1.0"}
+        result = validate_worktree_file_sync_config(config)
+        assert result.commands == ["code"]
+
+    @pytest.mark.parametrize(
+        "commands",
+        [
+            ["code"],
+            ["plan"],
+            ["finalize"],
+            ["eval"],
+            ["judge"],
+            ["code", "plan"],
+            ["code", "plan", "finalize", "eval", "judge"],
+            [],  # Empty list is valid (disables file sync)
+        ],
+    )
+    def test_valid_commands_accepted(self, commands: list[str]) -> None:
+        """Test that valid command lists are accepted."""
+        config = {"worktree": {"file_sync": {"commands": commands}}}
+        result = validate_worktree_file_sync_config(config)
+        assert result.commands == commands
+
+    @pytest.mark.parametrize(
+        "config,error_message",
+        [
+            # Non-list type
+            (
+                {"worktree": {"file_sync": {"commands": "code"}}},
+                "commands must be a list",
+            ),
+            # Non-string element
+            (
+                {"worktree": {"file_sync": {"commands": [1, 2]}}},
+                "commands[0] must be a string",
+            ),
+            # Invalid command name
+            (
+                {"worktree": {"file_sync": {"commands": ["invalid"]}}},
+                "'invalid' is not a valid command",
+            ),
+            # Mixed valid/invalid commands
+            (
+                {"worktree": {"file_sync": {"commands": ["code", "invalid"]}}},
+                "'invalid' is not a valid command",
+            ),
+            # Boolean in list
+            (
+                {"worktree": {"file_sync": {"commands": [True]}}},
+                "commands[0] must be a string",
+            ),
+        ],
+    )
+    def test_invalid_commands_rejected(self, config: dict[str, Any], error_message: str) -> None:
+        """Test that invalid commands configurations are rejected."""
+        with pytest.raises(ConfigValidationError) as exc_info:
+            validate_worktree_file_sync_config(config)
+        assert error_message in str(exc_info.value)
+
+
+class TestShouldSyncForCommand:
+    """Tests for should_sync_for_command() helper function."""
+
+    def test_returns_true_when_command_in_list_and_enabled(self) -> None:
+        """Test returns True when command is in list and enabled=True."""
+        config = FileSyncConfig(enabled=True, commands=["code", "plan"])
+        assert should_sync_for_command(config, "code") is True
+        assert should_sync_for_command(config, "plan") is True
+
+    def test_returns_false_when_command_not_in_list(self) -> None:
+        """Test returns False when command is not in the list."""
+        config = FileSyncConfig(enabled=True, commands=["code"])
+        assert should_sync_for_command(config, "plan") is False
+        assert should_sync_for_command(config, "finalize") is False
+
+    def test_returns_false_when_disabled(self) -> None:
+        """Test returns False when enabled=False regardless of commands list."""
+        config = FileSyncConfig(enabled=False, commands=["code", "plan", "finalize"])
+        assert should_sync_for_command(config, "code") is False
+        assert should_sync_for_command(config, "plan") is False
+
+    def test_returns_false_when_commands_empty(self) -> None:
+        """Test returns False when commands list is empty."""
+        config = FileSyncConfig(enabled=True, commands=[])
+        assert should_sync_for_command(config, "code") is False
+        assert should_sync_for_command(config, "plan") is False
+
+    @pytest.mark.parametrize("command", list(FILE_SYNC_COMMANDS))
+    def test_handles_all_valid_commands(self, command: str) -> None:
+        """Test that all valid command names are handled correctly."""
+        config = FileSyncConfig(enabled=True, commands=list(FILE_SYNC_COMMANDS))
+        assert should_sync_for_command(config, command) is True
 
 
 class TestSyncFilesToWorktree:

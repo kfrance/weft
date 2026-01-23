@@ -24,6 +24,14 @@ from .plan_resolver import PlanResolver
 from .session_manager import SessionManagerError, create_session_directory
 from .test_runner import TestRunnerError, run_after_tests, run_before_tests
 from .training_data_exporter import TrainingDataExportError, create_training_data
+from .worktree.file_sync import (
+    FileSyncError,
+    WorktreeFileCleanup,
+    load_repo_config,
+    should_sync_for_command,
+    sync_files_to_worktree,
+    validate_worktree_file_sync_config,
+)
 
 logger = get_logger(__name__)
 
@@ -168,6 +176,21 @@ def run_eval_command(
                 worktree_path,
                 actual_plan_id,
             )
+            return 1
+
+        # Sync files from repo to worktree based on .weft/config.toml
+        # Only sync if "eval" is in the commands list
+        file_sync_cleanup: WorktreeFileCleanup | None = None
+        try:
+            repo_config = load_repo_config(repo_root)
+            sync_config = validate_worktree_file_sync_config(repo_config)
+            if should_sync_for_command(sync_config, "eval"):
+                file_sync_cleanup = WorktreeFileCleanup()
+                sync_files_to_worktree(repo_root, worktree_path, file_sync_cleanup)
+            else:
+                logger.debug("File sync skipped: 'eval' not in commands list")
+        except FileSyncError as exc:
+            logger.error("File sync failed: %s", exc)
             return 1
 
         # Create eval session directory
@@ -465,3 +488,9 @@ def run_eval_command(
         logger.error("Unexpected error during evaluation: %s", exc)
         logger.debug("Exception details:", exc_info=True)
         return 1
+
+    finally:
+        # Clean up synced files from worktree
+        # Use locals() to check if file_sync_cleanup was defined before error
+        if "file_sync_cleanup" in locals() and file_sync_cleanup:
+            file_sync_cleanup.cleanup()

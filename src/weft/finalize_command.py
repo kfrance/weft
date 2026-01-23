@@ -35,6 +35,14 @@ from .worktree_utils import (
     has_uncommitted_changes,
     validate_worktree_exists,
 )
+from .worktree.file_sync import (
+    FileSyncError,
+    WorktreeFileCleanup,
+    load_repo_config,
+    should_sync_for_command,
+    sync_files_to_worktree,
+    validate_worktree_file_sync_config,
+)
 
 logger = get_logger(__name__)
 
@@ -155,6 +163,7 @@ def run_finalize_command(
     repo_root = None
     # Initialize to None; set after template loading, cleaned up in finally block
     prompt_file = None
+    file_sync_cleanup: WorktreeFileCleanup | None = None
 
     try:
         # Get the executor for the specified tool
@@ -181,6 +190,20 @@ def run_finalize_command(
         # Validate worktree exists
         worktree_path = validate_worktree_exists(repo_root, plan_id)
         logger.info("Found worktree at: %s", worktree_path)
+
+        # Sync files from repo to worktree based on .weft/config.toml
+        # Only sync if "finalize" is in the commands list
+        try:
+            repo_config = load_repo_config(repo_root)
+            sync_config = validate_worktree_file_sync_config(repo_config)
+            if should_sync_for_command(sync_config, "finalize"):
+                file_sync_cleanup = WorktreeFileCleanup()
+                sync_files_to_worktree(repo_root, worktree_path, file_sync_cleanup)
+            else:
+                logger.debug("File sync skipped: 'finalize' not in commands list")
+        except FileSyncError as exc:
+            logger.error("File sync failed: %s", exc)
+            return 1
 
         # Check for uncommitted changes
         if not has_uncommitted_changes(worktree_path):
@@ -326,6 +349,10 @@ def run_finalize_command(
         return 1
 
     finally:
+        # Clean up synced files from worktree
+        if file_sync_cleanup:
+            file_sync_cleanup.cleanup()
+
         # Clean up prompt file
         if prompt_file:
             try:

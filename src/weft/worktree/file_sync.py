@@ -35,6 +35,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Valid command names that support file sync
+FILE_SYNC_COMMANDS = frozenset({"code", "plan", "finalize", "eval", "judge"})
+
 
 class FileSyncError(Exception):
     """Base exception for file sync errors."""
@@ -65,12 +68,14 @@ class FileSyncConfig:
         patterns: List of glob patterns to match files.
         max_file_size_mb: Maximum size of individual files in MB (default: 100).
         max_total_size_mb: Maximum total size of all files in MB (default: 500).
+        commands: List of commands that trigger file sync (default: ["code"]).
     """
 
     enabled: bool = True
     patterns: list[str] = field(default_factory=list)
     max_file_size_mb: int = 100
     max_total_size_mb: int = 500
+    commands: list[str] = field(default_factory=lambda: ["code"])
 
 
 def validate_worktree_file_sync_config(config: dict[str, Any]) -> FileSyncConfig:
@@ -111,7 +116,7 @@ def validate_worktree_file_sync_config(config: dict[str, Any]) -> FileSyncConfig
         )
 
     # Validate no unknown keys
-    valid_keys = {"enabled", "patterns", "max_file_size_mb", "max_total_size_mb"}
+    valid_keys = {"enabled", "patterns", "max_file_size_mb", "max_total_size_mb", "commands"}
     unknown_keys = set(file_sync_section.keys()) - valid_keys
     if unknown_keys:
         raise ConfigValidationError(
@@ -160,12 +165,43 @@ def validate_worktree_file_sync_config(config: dict[str, Any]) -> FileSyncConfig
             f"[worktree.file_sync] max_total_size_mb must be positive, got {max_total_size_mb}."
         )
 
+    # Validate 'commands'
+    commands = file_sync_section.get("commands", ["code"])
+    if not isinstance(commands, list):
+        raise ConfigValidationError(
+            f"[worktree.file_sync] commands must be a list of strings, got {type(commands).__name__}."
+        )
+    for i, cmd in enumerate(commands):
+        if not isinstance(cmd, str):
+            raise ConfigValidationError(
+                f"[worktree.file_sync] commands[{i}] must be a string, got {type(cmd).__name__}."
+            )
+        if cmd not in FILE_SYNC_COMMANDS:
+            raise ConfigValidationError(
+                f"[worktree.file_sync] commands[{i}] '{cmd}' is not a valid command. "
+                f"Valid commands: {', '.join(sorted(FILE_SYNC_COMMANDS))}"
+            )
+
     return FileSyncConfig(
         enabled=enabled,
         patterns=patterns,
         max_file_size_mb=max_file_size_mb,
         max_total_size_mb=max_total_size_mb,
+        commands=commands,
     )
+
+
+def should_sync_for_command(config: FileSyncConfig, command: str) -> bool:
+    """Check if file sync should run for the given command.
+
+    Args:
+        config: FileSyncConfig with enabled and commands settings.
+        command: The command name (e.g., "code", "plan", "finalize").
+
+    Returns:
+        True if file sync should run, False otherwise.
+    """
+    return config.enabled and command in config.commands
 
 
 def validate_pattern_safety(pattern: str) -> None:

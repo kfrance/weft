@@ -17,6 +17,7 @@ import weft.finalize_command as finalize_command
 from weft.finalize_command import (
     run_finalize_command,
 )
+from weft.worktree.file_sync import FileSyncConfig
 
 
 # =============================================================================
@@ -470,3 +471,118 @@ evaluation_notes: []
     assert exit_code == 0
     assert len(cleanup_called) == 1
     assert cleanup_called[0] == (tmp_path, "test-plan")
+
+
+# =============================================================================
+# File sync command scope tests
+# =============================================================================
+
+
+class TestFinalizeCommandFileSync:
+    """Tests for file sync command scope in finalize_command."""
+
+    def test_file_sync_called_when_finalize_in_commands(
+        self, tmp_path: Path, monkeypatch, caplog
+    ) -> None:
+        """Test that sync_files_to_worktree is called when 'finalize' is in commands list."""
+        # Setup plan file
+        plan_path = tmp_path / "test-plan.md"
+        plan_path.write_text(
+            """---
+plan_id: test-plan
+status: done
+git_sha: abc123
+---
+# Test Plan
+"""
+        )
+
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        # Mock dependencies
+        monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+        monkeypatch.setattr(
+            finalize_command, "validate_worktree_exists",
+            lambda repo_root, plan_id: worktree_path
+        )
+
+        # Mock config to include "finalize" in commands
+        mock_config = FileSyncConfig(enabled=True, commands=["finalize"], patterns=[".env"])
+        monkeypatch.setattr(finalize_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(finalize_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        # Track sync_files_to_worktree calls and raise FileSyncError to stop execution
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            # Raise FileSyncError to stop execution cleanly after file sync
+            raise finalize_command.FileSyncError("Intentional test stop after sync")
+
+        monkeypatch.setattr(finalize_command, "sync_files_to_worktree", mock_sync)
+
+        # Mock executor
+        from weft.executors import ExecutorRegistry
+        mock_executor = SimpleNamespace(check_auth=lambda: None)
+        monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+        caplog.set_level(logging.DEBUG)
+        run_finalize_command(plan_path, tool="claude-code")
+
+        # Verify sync_files_to_worktree was called
+        assert len(sync_calls) == 1
+
+    def test_file_sync_skipped_when_finalize_not_in_commands(
+        self, tmp_path: Path, monkeypatch, caplog
+    ) -> None:
+        """Test that sync_files_to_worktree is NOT called when 'finalize' is not in commands."""
+        plan_path = tmp_path / "test-plan.md"
+        plan_path.write_text(
+            """---
+plan_id: test-plan
+status: done
+git_sha: abc123
+---
+# Test Plan
+"""
+        )
+
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+        monkeypatch.setattr(
+            finalize_command, "validate_worktree_exists",
+            lambda repo_root, plan_id: worktree_path
+        )
+
+        # Mock config with commands=["code"] (no "finalize")
+        mock_config = FileSyncConfig(enabled=True, commands=["code"], patterns=[".env"])
+        monkeypatch.setattr(finalize_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(finalize_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(finalize_command, "sync_files_to_worktree", mock_sync)
+
+        from weft.executors import ExecutorRegistry
+        mock_executor = SimpleNamespace(check_auth=lambda: None)
+        monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+        # Mock has_uncommitted_changes to raise after file sync check
+        def mock_has_changes(path):
+            raise finalize_command.FinalizeCommandError("Intentional test stop")
+
+        monkeypatch.setattr(finalize_command, "has_uncommitted_changes", mock_has_changes)
+
+        caplog.set_level(logging.DEBUG)
+        run_finalize_command(plan_path, tool="claude-code")
+
+        # Verify sync_files_to_worktree was NOT called
+        assert len(sync_calls) == 0
+        assert "File sync skipped: 'finalize' not in commands list" in caplog.text

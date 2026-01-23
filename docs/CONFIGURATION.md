@@ -199,6 +199,7 @@ schema_version = "1.0"
 # Worktree file synchronization (optional)
 [worktree.file_sync]
 enabled = true                    # Enable/disable file sync (default: true)
+commands = ["code", "plan"]       # Which commands trigger file sync (default: ["code"])
 patterns = [                      # Glob patterns for files to sync
     ".env",
     ".env.*",
@@ -219,6 +220,7 @@ The worktree file sync feature copies specified untracked files from your main r
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable or disable file synchronization |
+| `commands` | list[string] | `["code"]` | Commands that trigger file sync (valid: `code`, `plan`, `finalize`, `eval`, `judge`) |
 | `patterns` | list[string] | `[]` | Glob patterns relative to repo root |
 | `max_file_size_mb` | integer | `100` | Maximum size per individual file (MB) |
 | `max_total_size_mb` | integer | `500` | Maximum total size of all synced files (MB) |
@@ -287,6 +289,22 @@ patterns = [
 ]
 max_file_size_mb = 10
 max_total_size_mb = 50
+```
+
+**Enabling file sync for multiple commands:**
+```toml
+[worktree.file_sync]
+commands = ["code", "plan", "eval"]  # Sync files for code, plan, and eval commands
+patterns = [".env", "config/"]
+```
+
+By default, file sync only runs during `weft code`. To enable file sync for planning or evaluation workflows, add those commands to the `commands` list.
+
+**Disabling file sync entirely:**
+```toml
+[worktree.file_sync]
+commands = []  # Empty list disables file sync for all commands
+patterns = [".env"]
 ```
 
 ### Environment Variables ([code.env])

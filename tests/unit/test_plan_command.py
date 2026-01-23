@@ -22,6 +22,7 @@ from weft.plan_file_copier import (
     get_existing_files,
 )
 from weft.plan_validator import PLACEHOLDER_SHA, extract_front_matter
+from weft.worktree.file_sync import FileSyncConfig
 from tests.helpers import write_plan
 import weft.plan_command
 
@@ -1043,3 +1044,99 @@ class TestWorktreePreservation:
         captured = capsys.readouterr()
         assert str(ctx["temp_worktree"]) in captured.out
         assert "2 of 2" in captured.out
+
+
+class TestPlanCommandFileSync:
+    """Tests for file sync command scope in plan_command."""
+
+    def test_file_sync_called_when_plan_in_commands(self, monkeypatch, git_repo, caplog) -> None:
+        """Test that sync_files_to_worktree is called when 'plan' is in commands list."""
+        import logging
+
+        # Mock necessary dependencies
+        monkeypatch.setattr(weft.plan_command, "find_repo_root", lambda: git_repo.path)
+        monkeypatch.setattr(weft.plan_command, "load_prompt_template", lambda r, t: "test prompt")
+
+        # Create temp worktree
+        temp_worktree = git_repo.path / ".weft" / "tmp-worktree"
+        temp_worktree.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(weft.plan_command, "create_temp_worktree", lambda r: temp_worktree)
+        monkeypatch.setattr(weft.plan_command, "remove_temp_worktree", lambda r, w: None)
+
+        # Mock config to include "plan" in commands
+        mock_config = FileSyncConfig(enabled=True, commands=["plan"], patterns=[".env"])
+        monkeypatch.setattr(weft.plan_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(weft.plan_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        # Track sync_files_to_worktree calls
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            # Raise to stop execution after file sync
+            raise weft.plan_command.FileSyncError("Intentional test stop after sync")
+
+        monkeypatch.setattr(weft.plan_command, "sync_files_to_worktree", mock_sync)
+
+        # Mock executor
+        mock_executor = MagicMock()
+        mock_executor.check_auth.return_value = None
+        mock_executor.build_command.return_value = ["echo", "test"]
+        mock_executor.get_env_vars.return_value = {}
+        monkeypatch.setattr(weft.plan_command.ExecutorRegistry, "get_executor", lambda t: mock_executor)
+
+        caplog.set_level(logging.DEBUG)
+
+        # Execute (will fail at sync_files_to_worktree stage)
+        from weft.plan_command import run_plan_command
+        run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+        # Verify sync_files_to_worktree was called
+        assert len(sync_calls) == 1
+
+    def test_file_sync_skipped_when_plan_not_in_commands(self, monkeypatch, git_repo, caplog) -> None:
+        """Test that sync_files_to_worktree is NOT called when 'plan' is not in commands list."""
+        import logging
+
+        # Mock necessary dependencies
+        monkeypatch.setattr(weft.plan_command, "find_repo_root", lambda: git_repo.path)
+        monkeypatch.setattr(weft.plan_command, "load_prompt_template", lambda r, t: "test prompt")
+
+        temp_worktree = git_repo.path / ".weft" / "tmp-worktree"
+        temp_worktree.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(weft.plan_command, "create_temp_worktree", lambda r: temp_worktree)
+        monkeypatch.setattr(weft.plan_command, "remove_temp_worktree", lambda r, w: None)
+
+        # Mock config with commands=["code"] (no "plan")
+        mock_config = FileSyncConfig(enabled=True, commands=["code"], patterns=[".env"])
+        monkeypatch.setattr(weft.plan_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(weft.plan_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        # Track sync_files_to_worktree calls - if this gets called, fail the test
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(weft.plan_command, "sync_files_to_worktree", mock_sync)
+
+        mock_executor = MagicMock()
+        mock_executor.check_auth.return_value = None
+        mock_executor.build_command.return_value = ["echo", "test"]
+        mock_executor.get_env_vars.return_value = {}
+        monkeypatch.setattr(weft.plan_command.ExecutorRegistry, "get_executor", lambda t: mock_executor)
+
+        # Mock get_existing_files to raise a PlanCommandError (stops execution after file sync check)
+        def mock_get_existing_files(path):
+            raise PlanCommandError("Intentional test stop")
+
+        monkeypatch.setattr(weft.plan_command, "get_existing_files", mock_get_existing_files)
+
+        caplog.set_level(logging.DEBUG)
+        from weft.plan_command import run_plan_command
+        run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+        # Verify sync_files_to_worktree was NOT called
+        assert len(sync_calls) == 0
+        assert "File sync skipped: 'plan' not in commands list" in caplog.text

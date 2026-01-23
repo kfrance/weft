@@ -15,6 +15,8 @@ from weft.eval_command import (
     save_judge_results,
 )
 from weft.judge_executor import JudgeResult
+from weft.worktree.file_sync import FileSyncConfig
+import weft.eval_command
 
 
 def test_format_judge_results() -> None:
@@ -761,3 +763,115 @@ class TestEvalCompleteHook:
 
         # Hook failure should NOT cause eval command to fail
         assert exit_code == 0, "Eval command should succeed even when hook raises exception"
+
+
+class TestEvalCommandFileSync:
+    """Tests for file sync command scope in eval_command."""
+
+    def test_file_sync_called_when_eval_in_commands(
+        self, tmp_path: Path, monkeypatch, caplog
+    ) -> None:
+        """Test that sync_files_to_worktree is called when 'eval' is in commands list."""
+        import logging
+
+        # Setup worktree
+        worktree_path = tmp_path / ".weft" / "worktrees" / "test-plan"
+        worktree_path.mkdir(parents=True)
+
+        # Setup plan file
+        plan_path = tmp_path / ".weft" / "tasks" / "test-plan.md"
+        plan_path.parent.mkdir(parents=True)
+        plan_path.write_text(
+            """---
+plan_id: test-plan
+status: coding
+---
+# Test Plan
+"""
+        )
+
+        monkeypatch.chdir(tmp_path)
+
+        # Mock PlanResolver
+        monkeypatch.setattr(
+            weft.eval_command.PlanResolver, "resolve",
+            lambda plan_id: plan_path
+        )
+
+        # Mock config to include "eval" in commands
+        mock_config = FileSyncConfig(enabled=True, commands=["eval"], patterns=[".env"])
+        monkeypatch.setattr(weft.eval_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(weft.eval_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        # Track sync_files_to_worktree calls
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(weft.eval_command, "sync_files_to_worktree", mock_sync)
+
+        # Mock session directory to fail early (we only care about testing file sync call)
+        def mock_create_session(*args, **kwargs):
+            raise RuntimeError("Intentional test stop")
+
+        monkeypatch.setattr(weft.eval_command, "create_session_directory", mock_create_session)
+
+        caplog.set_level(logging.DEBUG)
+        run_eval_command("test-plan")
+
+        # Verify sync_files_to_worktree was called
+        assert len(sync_calls) == 1
+
+    def test_file_sync_skipped_when_eval_not_in_commands(
+        self, tmp_path: Path, monkeypatch, caplog
+    ) -> None:
+        """Test that sync_files_to_worktree is NOT called when 'eval' is not in commands."""
+        import logging
+
+        worktree_path = tmp_path / ".weft" / "worktrees" / "test-plan"
+        worktree_path.mkdir(parents=True)
+
+        plan_path = tmp_path / ".weft" / "tasks" / "test-plan.md"
+        plan_path.parent.mkdir(parents=True)
+        plan_path.write_text(
+            """---
+plan_id: test-plan
+status: coding
+---
+# Test Plan
+"""
+        )
+
+        monkeypatch.chdir(tmp_path)
+
+        monkeypatch.setattr(
+            weft.eval_command.PlanResolver, "resolve",
+            lambda plan_id: plan_path
+        )
+
+        # Mock config with commands=["code"] (no "eval")
+        mock_config = FileSyncConfig(enabled=True, commands=["code"], patterns=[".env"])
+        monkeypatch.setattr(weft.eval_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(weft.eval_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(weft.eval_command, "sync_files_to_worktree", mock_sync)
+
+        def mock_create_session(*args, **kwargs):
+            raise RuntimeError("Intentional test stop")
+
+        monkeypatch.setattr(weft.eval_command, "create_session_directory", mock_create_session)
+
+        caplog.set_level(logging.DEBUG)
+        run_eval_command("test-plan")
+
+        # Verify sync_files_to_worktree was NOT called
+        assert len(sync_calls) == 0
+        assert "File sync skipped: 'eval' not in commands list" in caplog.text

@@ -12,6 +12,8 @@ from weft.judge_command import (
     run_judge_command,
 )
 from weft.judge_executor import JudgeResult
+from weft.worktree.file_sync import FileSyncConfig
+import weft.judge_command
 
 
 # =============================================================================
@@ -520,3 +522,97 @@ class TestJudgeCommandSuccess:
                                         exit_code = run_judge_command(".weft/tasks/my-feature.md")
 
         assert exit_code == 0
+
+
+class TestJudgeCommandFileSync:
+    """Tests for file sync command scope in judge_command."""
+
+    def test_file_sync_called_when_judge_in_commands(
+        self, tmp_path: Path, monkeypatch, caplog
+    ) -> None:
+        """Test that sync_files_to_worktree is called when 'judge' is in commands list."""
+        import logging
+
+        monkeypatch.chdir(tmp_path)
+
+        # Mock find_repo_root
+        monkeypatch.setattr(weft.judge_command, "find_repo_root", lambda: tmp_path)
+
+        # Setup worktree
+        worktree_path = tmp_path / ".weft" / "worktrees" / "test-plan"
+        worktree_path.mkdir(parents=True)
+
+        # Mock validate_worktree_exists
+        monkeypatch.setattr(
+            weft.judge_command, "validate_worktree_exists",
+            lambda repo_root, plan_id: worktree_path
+        )
+
+        # Mock config to include "judge" in commands
+        mock_config = FileSyncConfig(enabled=True, commands=["judge"], patterns=[".env"])
+        monkeypatch.setattr(weft.judge_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(weft.judge_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        # Track sync_files_to_worktree calls
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(weft.judge_command, "sync_files_to_worktree", mock_sync)
+
+        # Mock PlanResolver to fail early (we only care about testing file sync call)
+        def mock_resolve(plan_id):
+            raise FileNotFoundError("Intentional test stop")
+
+        monkeypatch.setattr(weft.judge_command.PlanResolver, "resolve", mock_resolve)
+
+        caplog.set_level(logging.DEBUG)
+        run_judge_command("test-plan")
+
+        # Verify sync_files_to_worktree was called
+        assert len(sync_calls) == 1
+
+    def test_file_sync_skipped_when_judge_not_in_commands(
+        self, tmp_path: Path, monkeypatch, caplog
+    ) -> None:
+        """Test that sync_files_to_worktree is NOT called when 'judge' is not in commands."""
+        import logging
+
+        monkeypatch.chdir(tmp_path)
+
+        monkeypatch.setattr(weft.judge_command, "find_repo_root", lambda: tmp_path)
+
+        worktree_path = tmp_path / ".weft" / "worktrees" / "test-plan"
+        worktree_path.mkdir(parents=True)
+
+        monkeypatch.setattr(
+            weft.judge_command, "validate_worktree_exists",
+            lambda repo_root, plan_id: worktree_path
+        )
+
+        # Mock config with commands=["code"] (no "judge")
+        mock_config = FileSyncConfig(enabled=True, commands=["code"], patterns=[".env"])
+        monkeypatch.setattr(weft.judge_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(weft.judge_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(weft.judge_command, "sync_files_to_worktree", mock_sync)
+
+        def mock_resolve(plan_id):
+            raise FileNotFoundError("Intentional test stop")
+
+        monkeypatch.setattr(weft.judge_command.PlanResolver, "resolve", mock_resolve)
+
+        caplog.set_level(logging.DEBUG)
+        run_judge_command("test-plan")
+
+        # Verify sync_files_to_worktree was NOT called
+        assert len(sync_calls) == 0
+        assert "File sync skipped: 'judge' not in commands list" in caplog.text

@@ -60,7 +60,10 @@ from .worktree_utils import WorktreeError, ensure_worktree
 from .worktree.file_sync import (
     FileSyncError,
     WorktreeFileCleanup,
+    load_repo_config,
+    should_sync_for_command,
     sync_files_to_worktree,
+    validate_worktree_file_sync_config,
 )
 from .fingerprint import compute_prompt_fingerprint
 from .training_types import SessionMetadata, SubagentDefinition
@@ -533,9 +536,15 @@ def run_code_command(
         return 1
 
     # Sync files from repo to worktree based on .weft/config.toml
+    # Only sync if "code" is in the commands list
     file_sync_cleanup = WorktreeFileCleanup()
     try:
-        sync_files_to_worktree(metadata.repo_root, worktree_path, file_sync_cleanup)
+        repo_config = load_repo_config(metadata.repo_root)
+        sync_config = validate_worktree_file_sync_config(repo_config)
+        if should_sync_for_command(sync_config, "code"):
+            sync_files_to_worktree(metadata.repo_root, worktree_path, file_sync_cleanup)
+        else:
+            logger.debug("File sync skipped: 'code' not in commands list")
     except FileSyncError as exc:
         logger.error("File sync failed: %s", exc)
         return 1

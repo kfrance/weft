@@ -7,6 +7,7 @@ These tests focus on:
 - Sandbox dependency check tests (_check_sandbox_dependencies)
 - Critical error path tests with minimal mocking
 - Patch capture workflow test (happy path with mocked SDK and CLI)
+- File sync command scope tests
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from weft.code_command import (
 )
 from weft.patch_utils import EmptyPatchError, PatchCaptureError
 from weft.plan_validator import PlanValidationError
+from weft.worktree.file_sync import FileSyncConfig
 from weft.worktree_utils import WorktreeError
 from tests.helpers import write_plan
 
@@ -472,3 +474,155 @@ class TestCodeCommandPatchCapture:
             git_repo.run("worktree", "remove", "--force", str(worktree_path))
         except subprocess.CalledProcessError:
             pass  # Cleanup is best-effort
+
+
+class TestCodeCommandFileSync:
+    """Tests for file sync command scope in code_command."""
+
+    def test_file_sync_called_when_code_in_commands(self, monkeypatch, git_repo) -> None:
+        """Test that sync_files_to_worktree is called when 'code' is in commands list."""
+        plan_path = git_repo.path / "test-plan.md"
+        write_plan(plan_path, {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": "test-file-sync",
+            "status": "draft",
+        })
+
+        # Mock sandbox dependency check
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+
+        # Mock prompts
+        mock_prompts = {
+            "main_prompt": "Main prompt",
+            "code_review_auditor": "Code review",
+            "plan_alignment_checker": "Plan alignment",
+        }
+        monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+
+        # Create worktree
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-file-sync"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
+
+        # Mock config to include "code" in commands
+        mock_config = FileSyncConfig(enabled=True, commands=["code"], patterns=[".env"])
+        monkeypatch.setattr(code_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(code_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        # Track sync_files_to_worktree calls
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(code_command, "sync_files_to_worktree", mock_sync)
+
+        # Mock SDK to fail early (we only care about testing file sync call)
+        def mock_sdk(*args, **kwargs):
+            raise code_command.SDKRunnerError("Intentional test stop")
+
+        monkeypatch.setattr(code_command, "run_sdk_session_sync", mock_sdk)
+
+        # Execute (will fail at SDK stage, but file sync should have been called)
+        run_code_command(plan_path)
+
+        # Verify sync_files_to_worktree was called
+        assert len(sync_calls) == 1
+        assert sync_calls[0][0] == git_repo.path  # repo_root
+
+    def test_file_sync_skipped_when_code_not_in_commands(self, monkeypatch, git_repo, caplog) -> None:
+        """Test that sync_files_to_worktree is NOT called when 'code' is not in commands list."""
+        plan_path = git_repo.path / "test-plan.md"
+        write_plan(plan_path, {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": "test-no-sync",
+            "status": "draft",
+        })
+
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+
+        mock_prompts = {
+            "main_prompt": "Main prompt",
+            "code_review_auditor": "Code review",
+            "plan_alignment_checker": "Plan alignment",
+        }
+        monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-no-sync"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
+
+        # Mock config with commands=["plan"] (no "code")
+        mock_config = FileSyncConfig(enabled=True, commands=["plan"], patterns=[".env"])
+        monkeypatch.setattr(code_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(code_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        # Track sync_files_to_worktree calls
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(code_command, "sync_files_to_worktree", mock_sync)
+
+        # Mock SDK to fail early
+        def mock_sdk(*args, **kwargs):
+            raise code_command.SDKRunnerError("Intentional test stop")
+
+        monkeypatch.setattr(code_command, "run_sdk_session_sync", mock_sdk)
+
+        caplog.set_level(logging.DEBUG)
+        run_code_command(plan_path)
+
+        # Verify sync_files_to_worktree was NOT called
+        assert len(sync_calls) == 0
+        assert "File sync skipped: 'code' not in commands list" in caplog.text
+
+    def test_file_sync_skipped_when_commands_empty(self, monkeypatch, git_repo, caplog) -> None:
+        """Test that sync_files_to_worktree is NOT called when commands is empty."""
+        plan_path = git_repo.path / "test-plan.md"
+        write_plan(plan_path, {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": "test-empty-commands",
+            "status": "draft",
+        })
+
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+
+        mock_prompts = {
+            "main_prompt": "Main prompt",
+            "code_review_auditor": "Code review",
+            "plan_alignment_checker": "Plan alignment",
+        }
+        monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-empty-commands"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
+
+        # Mock config with commands=[] (empty)
+        mock_config = FileSyncConfig(enabled=True, commands=[], patterns=[".env"])
+        monkeypatch.setattr(code_command, "load_repo_config", lambda r: {})
+        monkeypatch.setattr(code_command, "validate_worktree_file_sync_config", lambda c: mock_config)
+
+        sync_calls: list[tuple] = []
+
+        def mock_sync(repo_root, worktree, cleanup):
+            sync_calls.append((repo_root, worktree, cleanup))
+            return 0
+
+        monkeypatch.setattr(code_command, "sync_files_to_worktree", mock_sync)
+
+        def mock_sdk(*args, **kwargs):
+            raise code_command.SDKRunnerError("Intentional test stop")
+
+        monkeypatch.setattr(code_command, "run_sdk_session_sync", mock_sdk)
+
+        caplog.set_level(logging.DEBUG)
+        run_code_command(plan_path)
+
+        # Verify sync_files_to_worktree was NOT called
+        assert len(sync_calls) == 0
+        assert "File sync skipped: 'code' not in commands list" in caplog.text
