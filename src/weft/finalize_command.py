@@ -252,10 +252,11 @@ def run_finalize_command(
         # Replace placeholder with plan_id
         combined_prompt = template.replace("{PLAN_ID}", plan_id)
 
-        # Write prompt file into worktree so it's accessible inside bwrap sandbox
-        # (bwrap mounts a fresh tmpfs at /tmp, so files in /tmp aren't accessible)
-        prompt_file = worktree_path / ".weft" / "prompt.txt"
-        prompt_file.parent.mkdir(parents=True, exist_ok=True)
+        # Write prompt file to /tmp/claude which is bind-mounted into the sandbox
+        # (bwrap creates a fresh tmpfs at /tmp, but /tmp/claude is overlaid on top)
+        prompt_dir = Path("/tmp/claude/weft")
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        prompt_file = prompt_dir / f"finalize-{plan_id}.txt"
         prompt_file.write_text(combined_prompt, encoding="utf-8")
 
         # Set secure file permissions (user read/write only, not world-readable)

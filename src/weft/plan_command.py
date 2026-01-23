@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import tempfile
 import time
 from pathlib import Path
 
@@ -255,12 +254,11 @@ def run_plan_command(
         # Replace placeholder
         combined_prompt = template.replace("{IDEA_TEXT}", idea_text)
 
-        # Write prompt to temporary file to avoid command injection
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-            f.write(combined_prompt)
-            prompt_file = Path(f.name)
-
-        # Set secure file permissions (user read/write only, not world-readable)
+        # Write prompt to /tmp/claude which is bind-mounted into the sandbox
+        prompt_dir = Path("/tmp/claude/weft")
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        prompt_file = prompt_dir / f"plan-{os.getpid()}.txt"
+        prompt_file.write_text(combined_prompt, encoding="utf-8")
         os.chmod(prompt_file, 0o600)
 
         # Create temporary worktree
@@ -300,18 +298,11 @@ def run_plan_command(
         except PlanCommandError as exc:
             raise PlanCommandError(f"Failed to set up plan subagents: {exc}") from exc
 
-        # Move prompt file into worktree so it's accessible inside bwrap sandbox
-        # (bwrap mounts a fresh tmpfs at /tmp, so files in /tmp aren't accessible)
-        worktree_prompt_file = temp_worktree / ".weft" / "prompt.txt"
-        worktree_prompt_file.parent.mkdir(parents=True, exist_ok=True)
-        worktree_prompt_file.write_text(prompt_file.read_text(encoding="utf-8"), encoding="utf-8")
-        os.chmod(worktree_prompt_file, 0o600)
-
         # Build command using the executor
         # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (sonnet)
         effective_model = get_effective_model(model, "plan")
         command = executor.build_command(
-            worktree_prompt_file, model=effective_model, headless=is_headless()
+            prompt_file, model=effective_model, headless=is_headless()
         )
 
         # Get executor-specific environment variables

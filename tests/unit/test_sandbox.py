@@ -294,7 +294,7 @@ class TestBuildBwrapCommand:
         assert "--ro-bind /etc /etc" in cmd_str
 
     def test_build_bwrap_command_includes_special_mounts(self, tmp_path: Path) -> None:
-        """Test that proc, dev, and tmpfs are mounted."""
+        """Test that proc, dev, tmpfs, and /tmp/claude are mounted."""
         config = SandboxConfig()
         worktree = tmp_path / "worktree"
         worktree.mkdir()
@@ -305,6 +305,8 @@ class TestBuildBwrapCommand:
         assert "--proc /proc" in cmd_str
         assert "--dev /dev" in cmd_str
         assert "--tmpfs /tmp" in cmd_str
+        # /tmp/claude is bind-mounted on top of tmpfs for weft temp files
+        assert "--bind /tmp/claude /tmp/claude" in cmd_str
         assert "--share-net" in cmd_str
 
     def test_build_bwrap_command_mounts_worktree_readwrite(self, tmp_path: Path) -> None:
@@ -317,6 +319,34 @@ class TestBuildBwrapCommand:
         cmd_str = " ".join(cmd)
 
         # Worktree should be mounted with --bind (read-write)
+        assert f"--bind {worktree}" in cmd_str
+
+    def test_build_bwrap_command_mounts_repo_git_dir(self, tmp_path: Path) -> None:
+        """Test that repo .git directory is mounted read-write for git worktree operations."""
+        config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+        # Simulate a separate .git directory (as in git worktrees)
+        repo_git_dir = tmp_path / "main-repo" / ".git"
+        repo_git_dir.mkdir(parents=True)
+
+        cmd = build_bwrap_command("echo hello", config, worktree, repo_git_dir=repo_git_dir)
+        cmd_str = " ".join(cmd)
+
+        # Repo .git dir should be mounted with --bind (read-write)
+        assert f"--bind {repo_git_dir.resolve()}" in cmd_str
+
+    def test_build_bwrap_command_without_repo_git_dir(self, tmp_path: Path) -> None:
+        """Test that omitting repo_git_dir doesn't cause errors."""
+        config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        # Should work without repo_git_dir
+        cmd = build_bwrap_command("echo hello", config, worktree)
+        cmd_str = " ".join(cmd)
+
+        # Should still have worktree mounted
         assert f"--bind {worktree}" in cmd_str
 
     def test_build_bwrap_command_mounts_claude_directories(self, tmp_path: Path) -> None:
@@ -338,6 +368,23 @@ class TestBuildBwrapCommand:
         assert f"--bind {home}/.claude" in cmd_str
         # ~/.claude.json should be read-write (global config with onboarding state)
         assert f"--bind {home}/.claude.json" in cmd_str
+
+    def test_build_bwrap_command_mounts_gitconfig(self, tmp_path: Path) -> None:
+        """Test that ~/.gitconfig is mounted read-only for git identity."""
+        home = str(Path.home())
+        # Create .gitconfig file so the mount condition is met
+        gitconfig = Path(home) / ".gitconfig"
+        gitconfig.write_text("[user]\n\tname = Test User\n\temail = test@example.com\n")
+
+        config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        cmd = build_bwrap_command("echo hello", config, worktree)
+        cmd_str = " ".join(cmd)
+
+        # ~/.gitconfig should be read-only (git user identity)
+        assert f"--ro-bind {home}/.gitconfig" in cmd_str
 
     def test_build_bwrap_command_mounts_claude_install_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

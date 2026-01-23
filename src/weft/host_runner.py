@@ -184,6 +184,7 @@ def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, s
         command=config.command,
         config=sandbox_config,
         worktree_path=config.worktree_path,
+        repo_git_dir=config.repo_git_dir,
     )
 
     logger.debug("Built bwrap command with %d args", len(cmd))

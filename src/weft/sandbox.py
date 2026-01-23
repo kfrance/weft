@@ -221,20 +221,23 @@ def build_bwrap_command(
     command: str,
     config: SandboxConfig,
     worktree_path: Path,
+    repo_git_dir: Path | None = None,
 ) -> list[str]:
     """Build a bwrap-wrapped command with sandbox isolation.
 
     Creates a bwrap command that:
     - Mounts system paths read-only (/usr, /lib, /lib64, /bin, /sbin, /etc)
     - Mounts /proc and /dev for process management
-    - Creates a tmpfs at /tmp
+    - Creates a tmpfs at /tmp with /tmp/claude bind-mounted for temp files
     - Shares network access (required for API calls)
     - Mounts exact PATH directories read-only (not parent dirs, to avoid exposing credentials)
     - Mounts Claude Code installation directory read-only (dynamically located)
     - Mounts ~/.claude read-write (Claude config/sessions/todos)
     - Mounts ~/.claude.json read-write (global Claude config with onboarding state)
+    - Mounts ~/.gitconfig read-only (git user identity and global settings)
     - Mounts XDG_RUNTIME_DIR read-write (D-Bus session bus for authentication)
     - Mounts the worktree path read-write
+    - Mounts repo .git directory read-write (for git worktree operations)
     - Mounts configured paths from SandboxConfig
     - Passes through HOME, PATH, XDG_RUNTIME_DIR, and DBUS_SESSION_BUS_ADDRESS
 
@@ -242,6 +245,8 @@ def build_bwrap_command(
         command: The command string to wrap with bwrap.
         config: Sandbox configuration with additional mount paths.
         worktree_path: Path to the worktree (mounted read-write).
+        repo_git_dir: Optional path to the repository's .git directory
+            (mounted read-write for git worktree operations).
 
     Returns:
         List of command arguments starting with "bwrap".
@@ -262,6 +267,12 @@ def build_bwrap_command(
     bwrap_args.extend(["--proc", "/proc"])
     bwrap_args.extend(["--dev", "/dev"])
     bwrap_args.extend(["--tmpfs", "/tmp"])
+
+    # Mount /tmp/claude read-write for weft prompt files and other temp data
+    # This overlays on top of the tmpfs, exposing the real /tmp/claude directory
+    tmp_claude = Path("/tmp/claude")
+    tmp_claude.mkdir(parents=True, exist_ok=True)
+    bwrap_args.extend(["--bind", "/tmp/claude", "/tmp/claude"])
 
     # Network sharing (required for API calls)
     bwrap_args.append("--share-net")
@@ -313,6 +324,11 @@ def build_bwrap_command(
     if Path(claude_json).exists():
         bwrap_args.extend(["--bind", claude_json, claude_json])
 
+    # Mount ~/.gitconfig read-only (git user identity and global settings)
+    gitconfig = os.path.join(home, ".gitconfig")
+    if Path(gitconfig).exists():
+        bwrap_args.extend(["--ro-bind", gitconfig, gitconfig])
+
     # Mount XDG_RUNTIME_DIR for D-Bus session bus access (needed for authentication)
     xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     if xdg_runtime_dir and Path(xdg_runtime_dir).exists():
@@ -320,6 +336,11 @@ def build_bwrap_command(
 
     # Worktree path - read-write
     bwrap_args.extend(["--bind", worktree, worktree])
+
+    # Repository .git directory - read-write (required for git worktree operations)
+    if repo_git_dir and repo_git_dir.exists():
+        git_dir_str = str(repo_git_dir.resolve())
+        bwrap_args.extend(["--bind", git_dir_str, git_dir_str])
 
     # User-configured read-only paths
     for path in config.read_paths:
