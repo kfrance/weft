@@ -6,6 +6,7 @@ schema_version = "1.0"
 # Worktree file synchronization
 [worktree.file_sync]
 enabled = true
+commands = ["plan", "code"]
 patterns = [
     ".linear.toml",
 ]

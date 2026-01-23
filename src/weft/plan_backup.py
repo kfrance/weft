@@ -373,18 +373,39 @@ def recover_backup(
         )
 
     # Extract file content from backup commit
-    try:
-        result = subprocess.run(
-            ["git", "show", f"{ref_name}:.weft/tasks/{plan_id}.md"],
-            cwd=repo_root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-        )
-        content = result.stdout
+    # Try current path first, then fall back to legacy path (.lw_coder -> .weft rename)
+    backup_paths = [
+        f".weft/tasks/{plan_id}.md",
+        f".lw_coder/tasks/{plan_id}.md",  # Legacy path before rename
+    ]
 
+    content = None
+    last_error = None
+
+    for backup_path in backup_paths:
+        try:
+            result = subprocess.run(
+                ["git", "show", f"{ref_name}:{backup_path}"],
+                cwd=repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+            )
+            content = result.stdout
+            logger.debug("Found backup content at path: %s", backup_path)
+            break
+        except subprocess.CalledProcessError as exc:
+            last_error = exc
+            continue
+
+    if content is None:
+        raise PlanBackupError(
+            f"Failed to recover backup for plan '{plan_id}': {last_error.stderr if last_error else 'unknown error'}"
+        )
+
+    try:
         # Ensure tasks directory exists
         plan_file.parent.mkdir(parents=True, exist_ok=True)
 

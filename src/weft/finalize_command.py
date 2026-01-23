@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 from .executors import ExecutorError, ExecutorRegistry
@@ -239,10 +238,11 @@ def run_finalize_command(
         # Replace placeholder with plan_id
         combined_prompt = template.replace("{PLAN_ID}", plan_id)
 
-        # Write prompt to temporary file to avoid command injection
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
-            f.write(combined_prompt)
-            prompt_file = Path(f.name)
+        # Write prompt file into worktree so it's accessible inside bwrap sandbox
+        # (bwrap mounts a fresh tmpfs at /tmp, so files in /tmp aren't accessible)
+        prompt_file = worktree_path / ".weft" / "prompt.txt"
+        prompt_file.parent.mkdir(parents=True, exist_ok=True)
+        prompt_file.write_text(combined_prompt, encoding="utf-8")
 
         # Set secure file permissions (user read/write only, not world-readable)
         os.chmod(prompt_file, 0o600)
