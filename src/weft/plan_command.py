@@ -300,11 +300,18 @@ def run_plan_command(
         except PlanCommandError as exc:
             raise PlanCommandError(f"Failed to set up plan subagents: {exc}") from exc
 
+        # Move prompt file into worktree so it's accessible inside bwrap sandbox
+        # (bwrap mounts a fresh tmpfs at /tmp, so files in /tmp aren't accessible)
+        worktree_prompt_file = temp_worktree / ".weft" / "prompt.txt"
+        worktree_prompt_file.parent.mkdir(parents=True, exist_ok=True)
+        worktree_prompt_file.write_text(prompt_file.read_text(encoding="utf-8"), encoding="utf-8")
+        os.chmod(worktree_prompt_file, 0o600)
+
         # Build command using the executor
         # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (sonnet)
         effective_model = get_effective_model(model, "plan")
         command = executor.build_command(
-            prompt_file, model=effective_model, headless=is_headless()
+            worktree_prompt_file, model=effective_model, headless=is_headless()
         )
 
         # Get executor-specific environment variables

@@ -9,3 +9,20 @@ enabled = true
 patterns = [
     ".linear.toml",
 ]
+
+# Sandbox configuration for filesystem isolation and command blocking
+[sandbox]
+# Additional paths to mount read-write (beyond automatic mounts)
+read_write_paths = ["~/.weft/dspy_cache", "~/.cache/uv"]
+# Command patterns to block during headless SDK sessions
+# Format: "prefix:*" blocks commands starting with prefix
+disallowed_commands = [
+    "git add:*",
+    "git commit:*",
+    "git push:*",
+    "git rebase:*",
+    "git filter-branch:*",
+    "git branch -D:*",
+    "git branch -d:*",
+    "docker:*",
+]

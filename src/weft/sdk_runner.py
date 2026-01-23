@@ -10,15 +10,18 @@ the captured session_id.
 
 Note: The session_id API is stable and core to the SDK, though documentation
 may be light at this time.
+
+Sandbox: SDK sessions use command-level blocking via the can_use_tool callback,
+which checks commands against patterns in .weft/config.toml [sandbox].disallowed_commands.
+Claude Code's internal sandbox is disabled (sandbox.enabled = false in sdk_settings.json).
+Note: The SDK API does not support wrapping the entire process in bwrap; filesystem
+isolation via bwrap is only applied to CLI resume sessions (see host_runner.py).
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import os
-import re
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -36,86 +39,60 @@ from claude_agent_sdk import (
 )
 
 from .logging_config import get_logger
-from .judge_executor import get_cache_dir
+from .sandbox import SandboxConfig, matches_disallowed_command
 
 logger = get_logger(__name__)
-
-# Pattern to match 'git' as a standalone word (same as referenced in plan)
-GIT_COMMAND_PATTERN = re.compile(r'\bgit\b')
-
-
-def generate_sdk_settings(base_settings_path: Path) -> dict[str, Any]:
-    """Generate SDK settings with dynamic DSPy cache path permissions.
-
-    Reads the base SDK settings file and adds permission rules for the
-    DSPy cache directory with absolute paths (since JSON doesn't expand ~).
-
-    Args:
-        base_settings_path: Path to the base sdk_settings.json file.
-
-    Returns:
-        Settings dict with cache directory permissions added.
-    """
-    # Read base settings
-    settings = json.loads(base_settings_path.read_text(encoding="utf-8"))
-
-    # Ensure sandbox and permissions sections exist
-    if "sandbox" not in settings:
-        settings["sandbox"] = {}
-    if "permissions" not in settings:
-        settings["permissions"] = {}
-    if "allow" not in settings["permissions"]:
-        settings["permissions"]["allow"] = []
-
-    # Add DSPy cache directory permissions with absolute path
-    cache_path = str(get_cache_dir())
-    cache_edit_rule = f"Edit({cache_path}/**)"
-    cache_write_rule = f"Write({cache_path}/**)"
-
-    # Only add if not already present
-    if cache_edit_rule not in settings["permissions"]["allow"]:
-        settings["permissions"]["allow"].append(cache_edit_rule)
-    if cache_write_rule not in settings["permissions"]["allow"]:
-        settings["permissions"]["allow"].append(cache_write_rule)
-
-    logger.debug(
-        "Generated SDK settings with DSPy cache permissions for %s",
-        cache_path,
-    )
-
-    return settings
 
 
 class SDKRunnerError(Exception):
     """Raised when SDK session execution fails."""
 
 
-async def _can_use_tool_callback(
-    tool_name: str,
-    input_data: dict[str, Any],
-    context: ToolPermissionContext
-) -> PermissionResultAllow | PermissionResultDeny:
-    """Callback to inspect and control tool usage.
-
-    Blocks git commands to prevent unintended commits during SDK session.
-    Git operations should be performed after CLI resume.
+def _create_can_use_tool_callback(
+    sandbox_config: SandboxConfig,
+):
+    """Create a callback to inspect and control tool usage.
 
     Args:
-        tool_name: Name of the tool being invoked.
-        input_data: Tool input parameters.
-        context: Permission context for the tool call.
+        sandbox_config: Sandbox configuration with disallowed command patterns.
 
     Returns:
-        PermissionResultAllow or PermissionResultDeny.
+        Async callback function for can_use_tool.
     """
-    # Block git commands
-    if tool_name == "Bash":
-        command = input_data.get("command", "")
-        if GIT_COMMAND_PATTERN.search(command):
-            logger.debug("Blocking git command in SDK session: %s", command[:100])
-            return PermissionResultDeny(message="Git commands are not allowed during SDK session")
+    async def _can_use_tool_callback(
+        tool_name: str,
+        input_data: dict[str, Any],
+        context: ToolPermissionContext
+    ) -> PermissionResultAllow | PermissionResultDeny:
+        """Callback to inspect and control tool usage.
 
-    return PermissionResultAllow()
+        Blocks commands that match disallowed patterns from sandbox config.
+
+        Args:
+            tool_name: Name of the tool being invoked.
+            input_data: Tool input parameters.
+            context: Permission context for the tool call.
+
+        Returns:
+            PermissionResultAllow or PermissionResultDeny.
+        """
+        # Check Bash commands against disallowed patterns
+        if tool_name == "Bash":
+            command = input_data.get("command", "")
+            is_blocked, pattern = matches_disallowed_command(command, sandbox_config)
+            if is_blocked:
+                logger.debug(
+                    "Blocking command matching pattern '%s': %s",
+                    pattern,
+                    command[:100],
+                )
+                return PermissionResultDeny(
+                    message=f"Command blocked by sandbox config (matches pattern: {pattern})"
+                )
+
+        return PermissionResultAllow()
+
+    return _can_use_tool_callback
 
 
 async def run_sdk_session(
@@ -124,6 +101,7 @@ async def run_sdk_session(
     model: str,
     sdk_settings_path: Path,
     agents: dict[str, AgentDefinition] | None = None,
+    sandbox_config: SandboxConfig | None = None,
 ) -> str:
     """Run SDK session and capture session ID.
 
@@ -131,15 +109,21 @@ async def run_sdk_session(
     The session ID can be used to resume the conversation via CLI with
     `claude -r <session_id>`.
 
+    Note: Filesystem isolation is provided by weft's external bwrap sandbox,
+    not Claude Code's internal sandbox (which is disabled). Command blocking
+    is handled via the can_use_tool callback using patterns from sandbox_config.
+
     Args:
         worktree_path: Path to the worktree directory where the session runs.
         prompt_content: The main prompt content to execute.
         model: Model variant to use (e.g., "sonnet", "opus", "haiku").
-        sdk_settings_path: Path to the base SDK settings JSON file.
+        sdk_settings_path: Path to the SDK settings JSON file.
         agents: Optional dict of agent definitions for programmatic registration.
                 If None, agents are only available via filesystem discovery.
                 Note: SDK does not discover filesystem agents in .claude/agents/,
                 so programmatic registration is required for SDK execution.
+        sandbox_config: Optional sandbox configuration for command blocking.
+                       If None, no commands are blocked.
 
     Returns:
         Session ID from the ResultMessage.
@@ -148,36 +132,18 @@ async def run_sdk_session(
         SDKRunnerError: If the session fails or session ID cannot be captured.
     """
     logger.info("Starting SDK session with model '%s' in %s", model, worktree_path)
-    logger.debug("Base SDK settings: %s", sdk_settings_path)
+    logger.debug("SDK settings: %s", sdk_settings_path)
 
-    # Ensure DSPy cache directory exists
-    dspy_cache_dir = get_cache_dir()
-    dspy_cache_dir.mkdir(parents=True, exist_ok=True)
+    # Use empty config if none provided
+    effective_config = sandbox_config or SandboxConfig()
 
-    # Generate dynamic settings with DSPy cache permissions
-    settings = generate_sdk_settings(sdk_settings_path)
+    # Save original NO_PROXY value for restoration after SDK session
+    # NO_PROXY is documented at https://code.claude.com/docs/en/settings
+    # Setting NO_PROXY="*" bypasses proxy for all network requests, enabling
+    # tools like WebFetch to function correctly during SDK execution
+    original_no_proxy = os.environ.get("NO_PROXY")
 
-    # Write settings to a temporary file (will be cleaned up in finally block)
-    temp_settings_path: Path | None = None
-    temp_settings_file = tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".json",
-        prefix="sdk_settings_",
-        delete=False,
-        encoding="utf-8",
-    )
     try:
-        json.dump(settings, temp_settings_file, indent=2)
-        temp_settings_file.close()
-        temp_settings_path = Path(temp_settings_file.name)
-        logger.debug("Wrote dynamic SDK settings to %s", temp_settings_path)
-
-        # Save original NO_PROXY value for restoration after SDK session
-        # NO_PROXY is documented at https://code.claude.com/docs/en/settings
-        # Setting NO_PROXY="*" bypasses proxy for all network requests, enabling
-        # tools like WebFetch to function correctly during SDK execution
-        original_no_proxy = os.environ.get("NO_PROXY")
-
         # Set NO_PROXY="*" to enable network access for SDK session
         os.environ["NO_PROXY"] = "*"
         logger.debug("Set NO_PROXY='*' for SDK session network access")
@@ -185,16 +151,15 @@ async def run_sdk_session(
         # Build options for the SDK client
         # NOTE: agents parameter provides programmatic agent registration since
         # SDK does not discover filesystem agents in .claude/agents/ directories.
-        # add_dirs grants sandbox write access to the DSPy cache directory.
         # permission_mode="acceptEdits" auto-accepts Edit/Write tool calls.
+        # Filesystem isolation is handled by weft's external bwrap sandbox.
         options = ClaudeAgentOptions(
             cwd=worktree_path,
             model=model,
-            settings=str(temp_settings_path),
+            settings=str(sdk_settings_path),
             permission_mode="acceptEdits",
-            can_use_tool=_can_use_tool_callback,
+            can_use_tool=_create_can_use_tool_callback(effective_config),
             agents=agents,
-            add_dirs=[dspy_cache_dir],
         )
 
         session_id: str | None = None
@@ -235,17 +200,6 @@ async def run_sdk_session(
             raise
         except Exception as exc:
             raise SDKRunnerError(f"SDK session failed: {exc}") from exc
-        finally:
-            # Restore original NO_PROXY value to ensure environment is not polluted
-            # This guarantees cleanup even if SDK session raises exceptions
-            if original_no_proxy is None:
-                # NO_PROXY was not set originally, remove it
-                os.environ.pop("NO_PROXY", None)
-                logger.debug("Restored NO_PROXY to original value (unset)")
-            else:
-                # Restore to original value
-                os.environ["NO_PROXY"] = original_no_proxy
-                logger.debug("Restored NO_PROXY to original value: %s", original_no_proxy)
 
         if not session_id:
             raise SDKRunnerError("Failed to capture session ID from SDK session")
@@ -253,13 +207,16 @@ async def run_sdk_session(
         return session_id
 
     finally:
-        # Clean up temporary settings file
-        if temp_settings_path is not None:
-            try:
-                temp_settings_path.unlink(missing_ok=True)
-                logger.debug("Cleaned up temporary SDK settings file")
-            except Exception as cleanup_exc:
-                logger.warning("Failed to clean up temporary settings file: %s", cleanup_exc)
+        # Restore original NO_PROXY value to ensure environment is not polluted
+        # This guarantees cleanup even if SDK session raises exceptions
+        if original_no_proxy is None:
+            # NO_PROXY was not set originally, remove it
+            os.environ.pop("NO_PROXY", None)
+            logger.debug("Restored NO_PROXY to original value (unset)")
+        else:
+            # Restore to original value
+            os.environ["NO_PROXY"] = original_no_proxy
+            logger.debug("Restored NO_PROXY to original value: %s", original_no_proxy)
 
 
 def run_sdk_session_sync(
@@ -268,6 +225,7 @@ def run_sdk_session_sync(
     model: str,
     sdk_settings_path: Path,
     agents: dict[str, AgentDefinition] | None = None,
+    sandbox_config: SandboxConfig | None = None,
 ) -> str:
     """Synchronous wrapper for run_sdk_session.
 
@@ -282,6 +240,8 @@ def run_sdk_session_sync(
                 If None, agents are only available via filesystem discovery.
                 Note: SDK does not discover filesystem agents in .claude/agents/,
                 so programmatic registration is required for SDK execution.
+        sandbox_config: Optional sandbox configuration for command blocking.
+                       If None, no commands are blocked.
 
     Returns:
         Session ID from the ResultMessage.
@@ -296,6 +256,7 @@ def run_sdk_session_sync(
             model=model,
             sdk_settings_path=sdk_settings_path,
             agents=agents,
+            sandbox_config=sandbox_config,
         )
     )
 

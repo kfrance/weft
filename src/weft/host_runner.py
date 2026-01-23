@@ -5,8 +5,11 @@ supporting Linux environments with appropriate warnings for unsupported platform
 
 Provides:
 - OS detection and validation
-- Direct command execution on host
+- Direct command execution on host with bwrap sandbox isolation
 - Environment variable setup for droid CLI
+
+Sandbox: Commands are wrapped with bwrap (bubblewrap) for filesystem isolation.
+The sandbox configuration is loaded from the repository's .weft/config.toml.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .logging_config import get_logger
+from .sandbox import SandboxConfig, build_bwrap_command
 
 logger = get_logger(__name__)
 
@@ -59,23 +63,8 @@ def check_os_support() -> None:
         print(warning_msg, file=sys.stderr)
 
 
-def get_weft_src_dir() -> Path:
-    """Get the weft source directory (where prompts are located).
-
-    Returns:
-        Path to the weft source directory.
-
-    Raises:
-        RuntimeError: If the source directory cannot be determined.
-    """
-    # The source directory is where this module is located
-    src_dir = Path(__file__).resolve().parent
-    if not src_dir.exists():
-        raise RuntimeError(
-            f"weft source directory not found at {src_dir}. "
-            "Ensure the package is properly installed."
-        )
-    return src_dir
+# Re-export from paths module for backwards compatibility
+from .paths import get_weft_src_dir
 
 
 def _validate_path_exists(path: Path, name: str) -> None:
@@ -104,6 +93,7 @@ class HostRunnerConfig:
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
         auth_file: Optional path to the Factory auth.json file (deprecated, kept for backward compatibility).
+        sandbox_config: Optional sandbox configuration for bwrap isolation.
     """
 
     worktree_path: Path
@@ -113,6 +103,7 @@ class HostRunnerConfig:
     host_factory_dir: Path
     env_vars: dict[str, str] | None = None
     auth_file: Path | None = None
+    sandbox_config: SandboxConfig | None = None
 
 
 def host_runner_config(
@@ -123,6 +114,7 @@ def host_runner_config(
     host_factory_dir: Path,
     env_vars: dict[str, str] | None = None,
     auth_file: Path | None = None,
+    sandbox_config: SandboxConfig | None = None,
 ) -> HostRunnerConfig:
     """Factory function that creates a HostRunnerConfig.
 
@@ -134,6 +126,7 @@ def host_runner_config(
         host_factory_dir: Path to the host's .factory directory.
         env_vars: Optional dictionary of environment variables to pass.
         auth_file: Optional path to the Factory auth.json file (deprecated, kept for backward compatibility).
+        sandbox_config: Optional sandbox configuration for bwrap isolation.
 
     Returns:
         HostRunnerConfig with all fields populated.
@@ -151,11 +144,18 @@ def host_runner_config(
         host_factory_dir=host_factory_dir,
         env_vars=env_vars,
         auth_file=auth_file,
+        sandbox_config=sandbox_config,
     )
 
 
 def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, str]]:
     """Build the host command and environment variables to run the executor.
+
+    Wraps the command with bwrap for filesystem isolation if sandbox_config
+    is provided. The sandbox provides:
+    - Read-only access to system paths (/usr, /lib, /bin, /etc)
+    - Read-write access to the worktree and configured paths
+    - Network sharing (required for API calls)
 
     Args:
         config: Configuration object with all paths and settings.
@@ -176,7 +176,16 @@ def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, s
     if config.env_vars:
         env.update(config.env_vars)
 
-    # Build the command - just run it with bash -c on the host
-    cmd = ["bash", "-c", config.command]
+    # Use default sandbox config if none provided
+    sandbox_config = config.sandbox_config or SandboxConfig()
+
+    # Build the command wrapped with bwrap for filesystem isolation
+    cmd = build_bwrap_command(
+        command=config.command,
+        config=sandbox_config,
+        worktree_path=config.worktree_path,
+    )
+
+    logger.debug("Built bwrap command with %d args", len(cmd))
 
     return cmd, env

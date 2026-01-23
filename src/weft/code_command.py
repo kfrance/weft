@@ -21,7 +21,8 @@ from claude_agent_sdk import AgentDefinition
 from .executors import ExecutorRegistry, ExecutorError
 from .headless import is_headless
 from .hooks import trigger_hook
-from .host_runner import build_host_command, get_weft_src_dir, host_runner_config
+from .host_runner import build_host_command, host_runner_config
+from .paths import get_sdk_settings_path, get_weft_src_dir
 from .logging_config import get_logger
 from .sdk_runner import SDKRunnerError, run_sdk_session_sync
 from .param_validation import get_effective_model
@@ -67,6 +68,7 @@ from .worktree.file_sync import (
 )
 from .fingerprint import compute_prompt_fingerprint
 from .training_types import SessionMetadata, SubagentDefinition
+from .sandbox import SandboxConfig, SandboxConfigError, load_sandbox_config
 
 logger = get_logger(__name__)
 
@@ -74,9 +76,9 @@ logger = get_logger(__name__)
 class SandboxDependencyError(Exception):
     """Raised when required sandbox dependencies are not installed.
 
-    Claude Code's sandbox functionality requires bubblewrap (bwrap) and socat
-    to be installed on the system. If these dependencies are missing, the
-    sandbox will silently fail, allowing unrestricted file system access.
+    Weft's sandbox functionality requires bubblewrap (bwrap) to be installed
+    on the system. If this dependency is missing, the sandbox cannot provide
+    filesystem isolation.
 
     This error prevents silent failures by catching missing dependencies
     at startup rather than discovering the sandbox is non-functional later.
@@ -86,36 +88,26 @@ class SandboxDependencyError(Exception):
 
 
 def _check_sandbox_dependencies() -> None:
-    """Verify that sandbox dependencies (bubblewrap and socat) are installed.
+    """Verify that sandbox dependencies (bubblewrap) are installed.
 
-    Claude Code's sandbox uses bubblewrap (bwrap) for filesystem isolation
-    and socat for network proxying. Without these, the sandbox silently
-    fails and file writes are unrestricted.
+    Weft's sandbox uses bubblewrap (bwrap) for filesystem isolation.
+    Without bwrap, the sandbox cannot protect the filesystem.
 
     This preflight check catches missing dependencies early, before any
-    SDK session setup, giving the user a clear error message with
+    session setup, giving the user a clear error message with
     installation instructions.
 
     Raises:
-        SandboxDependencyError: If bwrap or socat are not found in PATH,
+        SandboxDependencyError: If bwrap is not found in PATH,
             with a message listing missing dependencies and installation
             instructions.
     """
-    missing = []
-
     # shutil.which returns None if the binary is not found in PATH
     if shutil.which("bwrap") is None:
-        missing.append("bubblewrap (bwrap)")
-
-    if shutil.which("socat") is None:
-        missing.append("socat")
-
-    if missing:
-        missing_list = ", ".join(missing)
         raise SandboxDependencyError(
-            f"Missing sandbox dependencies: {missing_list}. "
-            f"Claude Code sandbox requires these to be installed. "
-            f"Install with: sudo apt install bubblewrap socat"
+            "Missing sandbox dependency: bubblewrap (bwrap). "
+            "Weft sandbox requires this to be installed for filesystem isolation. "
+            "Install with: sudo apt install bubblewrap"
         )
 
 
@@ -396,7 +388,7 @@ def run_code_command(
         logger.info("Hooks disabled via --no-hooks flag")
 
     # Verify sandbox dependencies are installed before proceeding
-    # This catches missing bubblewrap/socat early, preventing silent sandbox failures
+    # This catches missing bubblewrap early, preventing sandbox failures
     try:
         _check_sandbox_dependencies()
     except SandboxDependencyError as exc:
@@ -504,6 +496,19 @@ def run_code_command(
         session_dir = create_session_directory(metadata.repo_root, metadata.plan_id, "code")
     except SessionManagerError as exc:
         logger.error("Failed to create session directory: %s", exc)
+        return 1
+
+    # Load sandbox configuration from .weft/config.toml
+    config_path = metadata.repo_root / ".weft" / "config.toml"
+    try:
+        sandbox_config = load_sandbox_config(config_path)
+        if sandbox_config.disallowed_commands:
+            logger.info(
+                "Loaded sandbox config with %d disallowed command pattern(s)",
+                len(sandbox_config.disallowed_commands),
+            )
+    except SandboxConfigError as exc:
+        logger.error("Failed to load sandbox configuration: %s", exc)
         return 1
 
     # Load optimized prompts from disk (project-relative) if using Claude Code
@@ -656,8 +661,7 @@ def run_code_command(
 
     # For claude-code: Run SDK session first, then resume with CLI
     if tool == "claude-code" and prompts:
-        src_dir = get_weft_src_dir()
-        sdk_settings_path = src_dir / "sdk_settings.json"
+        sdk_settings_path = get_sdk_settings_path()
 
         if not sdk_settings_path.exists():
             logger.error(
@@ -682,6 +686,7 @@ def run_code_command(
                 model=effective_model,
                 sdk_settings_path=sdk_settings_path,
                 agents=agents,
+                sandbox_config=sandbox_config,
             )
             logger.info("SDK session completed. Session ID: %s", session_id)
         except SDKRunnerError as exc:
@@ -742,7 +747,7 @@ def run_code_command(
     # Use auth file from home directory
     auth_file = Path.home() / ".factory" / "auth.json"
 
-    # Launch host-based session
+    # Launch host-based session with sandbox isolation
     executor_env = executor.get_env_vars(Path.home() / ".factory")
     runner_config = host_runner_config(
         worktree_path=worktree_path,
@@ -752,6 +757,7 @@ def run_code_command(
         command=command,
         host_factory_dir=Path.home() / ".factory",
         env_vars=env_vars,
+        sandbox_config=sandbox_config,
     )
 
     # Build host command
