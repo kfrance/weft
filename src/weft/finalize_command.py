@@ -1,12 +1,10 @@
-"""Implementation of the finalize command for merging completed plans.
+"""Implementation of the finalize command for completing work from a plan's worktree.
 
-This command automates the workflow of finalizing work from a plan's worktree by:
-1. Committing changes (runs outside sandbox, no permission prompts)
-2. Rebasing onto main (runs outside sandbox, no permission prompts)
-3. Merging into main with fast-forward (runs outside sandbox, no permission prompts)
-4. Cleaning up the worktree and branch
+This command runs an interactive session to finalize work (e.g., commit, push, create PR).
+The specific workflow is determined by the repo-specific finalize prompt at
+`.weft/prompts/active/<tool>/finalize.md`.
 
-All git operations run outside the sandbox environment without requiring user approval.
+After the session completes successfully, the worktree is cleaned up (branch preserved).
 """
 
 from __future__ import annotations
@@ -23,14 +21,14 @@ from .param_validation import get_effective_model
 from .plan_backup import cleanup_backup
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
 from .plan_validator import PlanValidationError, extract_front_matter, load_plan_id
+from .prompt_loader import PromptLoadingError, load_finalize_prompt
 from .repo_utils import (
     RepoUtilsError,
     find_repo_root,
-    load_prompt_template,
-    verify_branch_merged_to_main,
 )
 from .worktree_utils import (
     WorktreeError,
+    get_worktree_status,
     has_uncommitted_changes,
     validate_worktree_exists,
 )
@@ -81,28 +79,28 @@ def _move_plan_to_worktree(plan_path: Path, worktree_path: Path, plan_id: str) -
         ) from exc
 
 
-def _cleanup_worktree_and_branch(
-    repo_root: Path, worktree_path: Path, plan_id: str
-) -> None:
-    """Remove worktree and delete branch after successful finalization.
+def _cleanup_worktree(repo_root: Path, worktree_path: Path, *, force: bool = False) -> None:
+    """Remove worktree after successful finalization.
 
-    Worktree must be removed first because Git won't allow deleting a branch
-    that's currently checked out in a worktree.
+    The branch is preserved (not deleted). If force=True, the worktree is removed
+    even if it contains uncommitted changes.
 
     Args:
         repo_root: Repository root directory.
         worktree_path: Path to the worktree to remove.
-        plan_id: Plan identifier (used as branch name).
+        force: If True, use --force to remove worktree with uncommitted changes.
 
     Raises:
         FinalizeCommandError: If cleanup operations fail.
     """
-    branch_name = plan_id
+    cmd = ["git", "worktree", "remove"]
+    if force:
+        cmd.append("--force")
+    cmd.append(str(worktree_path))
 
-    # Remove the worktree first (required before we can delete the branch)
     try:
-        result = subprocess.run(
-            ["git", "worktree", "remove", str(worktree_path)],
+        subprocess.run(
+            cmd,
             cwd=repo_root,
             check=True,
             stdout=subprocess.PIPE,
@@ -113,34 +111,48 @@ def _cleanup_worktree_and_branch(
     except subprocess.CalledProcessError as exc:
         raise FinalizeCommandError(
             f"Failed to remove worktree at {worktree_path}: {exc.stderr}. "
-            f"You can manually remove the worktree with: git worktree remove {worktree_path}"
+            f"You can manually remove the worktree with: git worktree remove --force {worktree_path}"
         ) from exc
 
-    # Delete the branch after worktree is removed
+
+def _confirm_cleanup_with_changes(
+    worktree_path: Path,
+    modified: list[str],
+    untracked: list[str],
+) -> bool:
+    """Prompt user to confirm cleanup when there are uncommitted changes.
+
+    Displays the list of modified and untracked files and asks for confirmation.
+
+    Args:
+        worktree_path: Path to the worktree.
+        modified: List of modified file paths.
+        untracked: List of untracked file paths.
+
+    Returns:
+        True if user confirms cleanup, False otherwise.
+    """
+    print(f"\nWorktree at {worktree_path} has uncommitted changes:\n")
+
+    if modified:
+        print("Modified files:")
+        for f in modified:
+            print(f"  M {f}")
+
+    if untracked:
+        if modified:
+            print()
+        print("Untracked files:")
+        for f in untracked:
+            print(f"  ? {f}")
+
+    print()
     try:
-        result = subprocess.run(
-            ["git", "branch", "-d", branch_name],
-            cwd=repo_root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        logger.info("Deleted branch: %s", branch_name)
-    except subprocess.CalledProcessError as exc:
-        # Provide helpful error message if branch is not fully merged
-        if "not fully merged" in exc.stderr:
-            raise FinalizeCommandError(
-                f"Branch '{branch_name}' is not fully merged. "
-                f"Verification passed but branch deletion failed. "
-                f"The worktree was removed successfully. "
-                f"If you're certain the merge succeeded, manually delete with: "
-                f"git branch -D {branch_name}"
-            ) from exc
-        raise FinalizeCommandError(
-            f"Failed to delete branch '{branch_name}': {exc.stderr}. "
-            f"The worktree was removed successfully."
-        ) from exc
+        response = input("Remove worktree and discard these changes? [y/N] ").strip().lower()
+        return response == "y"
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
 
 
 def run_finalize_command(
@@ -232,8 +244,10 @@ def run_finalize_command(
         # Move plan file to worktree (after status update so it has status="done")
         _move_plan_to_worktree(resolved_plan_path, worktree_path, plan_id)
 
-        # Load template
-        template = load_prompt_template(tool, "finalize")
+        # Load finalize prompt from repo-specific location (auto-copies from bundled if missing)
+        # Map tool name to prompt directory name (same mapping as code command)
+        prompt_tool = "claude-code-cli" if tool == "claude-code" else tool
+        template = load_finalize_prompt(repo_root, prompt_tool)
 
         # Replace placeholder with plan_id
         combined_prompt = template.replace("{PLAN_ID}", plan_id)
@@ -253,10 +267,6 @@ def run_finalize_command(
         git_dir = repo_root / ".git"
 
         logger.info("Starting %s session for finalization...", tool)
-        logger.info(
-            "Running outside sandbox: will commit changes, rebase onto main, and merge "
-            "(no permission prompts required)"
-        )
 
         # Build command using the executor
         # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (haiku)
@@ -290,47 +300,52 @@ def run_finalize_command(
             if result.returncode == 0:
                 logger.info("Finalization session completed successfully")
 
-                # Verify the merge succeeded by checking if branch was merged into main
-                branch_name = plan_id
-                try:
-                    if verify_branch_merged_to_main(repo_root, branch_name):
-                        logger.info("Verified branch was merged into main")
+                # Check for uncommitted changes before cleanup
+                status = get_worktree_status(worktree_path)
+                has_changes = status["modified"] or status["untracked"]
 
-                        # Clean up worktree and branch
+                if has_changes:
+                    # Prompt user to confirm cleanup with uncommitted changes
+                    if _confirm_cleanup_with_changes(
+                        worktree_path, status["modified"], status["untracked"]
+                    ):
                         try:
-                            _cleanup_worktree_and_branch(repo_root, worktree_path, plan_id)
+                            _cleanup_worktree(repo_root, worktree_path, force=True)
                             logger.info(
-                                "Successfully cleaned up worktree and branch for plan '%s'",
+                                "Cleaned up worktree for plan '%s' (branch preserved)",
                                 plan_id,
                             )
+                            cleanup_backup(repo_root, plan_id)
                         except FinalizeCommandError as exc:
                             logger.error("Cleanup failed: %s", exc)
                             logger.error(
                                 "You may need to manually clean up:\n"
-                                "  git worktree remove %s\n"
-                                "  git branch -d %s",
+                                "  git worktree remove --force %s",
                                 worktree_path,
-                                branch_name,
                             )
                             return 1
-
-                        # Clean up backup reference (non-fatal if it fails)
-                        cleanup_backup(repo_root, plan_id)
-                        logger.info("Cleaned up backup reference for plan '%s'", plan_id)
                     else:
-                        logger.warning(
-                            "Branch '%s' was not merged into main - skipping cleanup",
-                            branch_name,
+                        logger.info(
+                            "Worktree preserved at %s (user declined cleanup)",
+                            worktree_path,
                         )
-                        logger.warning(
-                            "Worktree and branch were not cleaned up. "
-                            "Please verify the merge succeeded and clean up manually if needed."
+                else:
+                    # Clean worktree - safe to remove without force
+                    try:
+                        _cleanup_worktree(repo_root, worktree_path)
+                        logger.info(
+                            "Cleaned up worktree for plan '%s' (branch preserved)",
+                            plan_id,
+                        )
+                        cleanup_backup(repo_root, plan_id)
+                    except FinalizeCommandError as exc:
+                        logger.error("Cleanup failed: %s", exc)
+                        logger.error(
+                            "You may need to manually clean up:\n"
+                            "  git worktree remove %s",
+                            worktree_path,
                         )
                         return 1
-                except RepoUtilsError as exc:
-                    logger.error("Failed to verify commit: %s", exc)
-                    logger.warning("Skipping cleanup due to verification failure")
-                    return 1
 
             else:
                 logger.warning("Finalization session exited with code %d", result.returncode)
@@ -344,7 +359,7 @@ def run_finalize_command(
             logger.info("Session interrupted by user.")
             return 130  # Standard Unix convention: 128 + signal number (SIGINT = 2)
 
-    except (ExecutorError, FinalizeCommandError, WorktreeError, RepoUtilsError, PlanValidationError) as exc:
+    except (ExecutorError, FinalizeCommandError, WorktreeError, RepoUtilsError, PlanValidationError, PromptLoadingError) as exc:
         logger.error("%s", exc)
         return 1
 

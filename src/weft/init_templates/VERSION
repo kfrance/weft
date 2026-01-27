@@ -10,6 +10,9 @@
     "judges/plan-compliance.md": {
       "hash": "sha256:bc0d20ae19f769110fb1834d326df3ead279457532c33e1f8832b48a811f1f03"
     },
+    "prompts/claude-code-cli/finalize.md": {
+      "hash": "sha256:95038be70010b96421c5fe1fd2351e2dab63ce9a752cb694c3149a88f8aec8ea"
+    },
     "prompts/claude-code-cli/haiku/code-review-auditor.md": {
       "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
@@ -36,6 +39,9 @@
     },
     "prompts/claude-code-cli/sonnet/plan-alignment-checker.md": {
       "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
+    },
+    "prompts/droid/finalize.md": {
+      "hash": "sha256:fb2665d52f1171b321467af9eadb8ba511d6e5f04966bd55f6c26d0dc8921372"
     }
   }
 }

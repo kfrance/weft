@@ -341,3 +341,49 @@ def has_uncommitted_changes(worktree_path: Path) -> bool:
         return bool(result.stdout.strip())
     except subprocess.CalledProcessError:
         return False
+
+
+def get_worktree_status(worktree_path: Path) -> dict[str, list[str]]:
+    """Get detailed status of uncommitted changes in a worktree.
+
+    Categorizes changes into modified (tracked files with changes) and
+    untracked (new files not yet added to git).
+
+    Args:
+        worktree_path: Path to the worktree.
+
+    Returns:
+        Dictionary with 'modified' and 'untracked' keys, each containing
+        a list of file paths. Returns empty lists if worktree is clean
+        or if git command fails.
+    """
+    result_dict: dict[str, list[str]] = {"modified": [], "untracked": []}
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(worktree_path), "status", "--porcelain"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return result_dict
+
+    for line in result.stdout.splitlines():
+        if len(line) < 3:
+            continue
+
+        # Porcelain format: XY filename
+        # X = index status, Y = worktree status
+        status_code = line[:2]
+        filename = line[3:]
+
+        if status_code == "??":
+            result_dict["untracked"].append(filename)
+        else:
+            # Any other status code means tracked file with changes
+            # (modified, added, deleted, renamed, copied, etc.)
+            result_dict["modified"].append(filename)
+
+    return result_dict

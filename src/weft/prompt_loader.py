@@ -8,6 +8,10 @@ Directory structure:
 - Old location (legacy): .weft/optimized_prompts/<tool>/<model>/
 
 Migration happens automatically when loading from old location.
+
+Finalize prompts:
+- Repo-specific: .weft/prompts/active/<tool>/finalize.md
+- Bundled fallback: src/weft/prompts/<tool>/finalize.md
 """
 
 from __future__ import annotations
@@ -235,3 +239,88 @@ def load_current_prompts_for_training(
         main_prompt=main_prompt,
         subagents=subagents,
     )
+
+
+def load_finalize_prompt(repo_root: Path, tool: str) -> str:
+    """Load finalize prompt from repo-specific location, auto-copying from bundled if missing.
+
+    The finalize prompt is loaded from `.weft/prompts/active/<tool>/finalize.md`.
+    If the repo-specific prompt doesn't exist, it's automatically copied from the
+    bundled template at `src/weft/prompts/<tool>/finalize.md`.
+
+    Args:
+        repo_root: Path to repository root.
+        tool: Tool name (e.g., "claude-code", "droid").
+
+    Returns:
+        Finalize prompt content as string.
+
+    Raises:
+        PromptLoadingError: If prompt cannot be loaded or auto-copied.
+    """
+    # Check for repo-specific prompt
+    repo_prompt_path = repo_root / ".weft" / "prompts" / "active" / tool / "finalize.md"
+
+    if repo_prompt_path.exists():
+        try:
+            content = repo_prompt_path.read_text(encoding="utf-8")
+            if not content.strip():
+                raise PromptLoadingError(
+                    f"Finalize prompt file is empty: {repo_prompt_path}. "
+                    f"Prompt files must contain non-empty content."
+                )
+            logger.debug("Loaded finalize prompt from repo: %s", repo_prompt_path)
+            return content
+        except OSError as exc:
+            raise PromptLoadingError(
+                f"Failed to read finalize prompt {repo_prompt_path}: {exc}"
+            ) from exc
+
+    # Auto-copy from bundled template
+    logger.info(
+        "Repo-specific finalize prompt not found at %s, copying from bundled template",
+        repo_prompt_path,
+    )
+
+    # Get bundled template path
+    from .host_runner import get_weft_src_dir
+
+    try:
+        src_dir = get_weft_src_dir()
+    except RuntimeError as exc:
+        raise PromptLoadingError(f"Failed to locate source directory: {exc}") from exc
+
+    # Map prompt directory name back to bundled template location
+    # (repo-specific uses claude-code-cli, bundled uses claude-code)
+    bundled_tool = "claude-code" if tool == "claude-code-cli" else tool
+    bundled_prompt_path = src_dir / "prompts" / bundled_tool / "finalize.md"
+
+    if not bundled_prompt_path.exists():
+        raise PromptLoadingError(
+            f"Bundled finalize prompt not found for tool '{tool}' at {bundled_prompt_path}. "
+            f"This may indicate a corrupted installation."
+        )
+
+    # Create parent directories and copy
+    try:
+        repo_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(bundled_prompt_path, repo_prompt_path)
+        logger.info("Copied finalize prompt to %s", repo_prompt_path)
+    except OSError as exc:
+        raise PromptLoadingError(
+            f"Failed to copy finalize prompt to {repo_prompt_path}: {exc}"
+        ) from exc
+
+    # Read and return the copied prompt
+    try:
+        content = repo_prompt_path.read_text(encoding="utf-8")
+        if not content.strip():
+            raise PromptLoadingError(
+                f"Bundled finalize prompt is empty: {bundled_prompt_path}. "
+                f"This may indicate a corrupted installation."
+            )
+        return content
+    except OSError as exc:
+        raise PromptLoadingError(
+            f"Failed to read finalize prompt after copy: {exc}"
+        ) from exc

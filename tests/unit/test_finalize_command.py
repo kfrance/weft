@@ -12,9 +12,11 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 
 import weft.finalize_command as finalize_command
 from weft.finalize_command import (
+    FinalizeCommandError,
     run_finalize_command,
 )
 from weft.worktree.file_sync import FileSyncConfig
@@ -146,8 +148,8 @@ evaluation_notes: []
     assert "Authentication failed" in caplog.text
 
 
-def test_run_finalize_command_cleanup_on_success(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
-    """Test finalize command cleans up worktree and branch on successful exit."""
+def test_run_finalize_command_cleanup_on_success_clean_worktree(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
+    """Test finalize command auto-cleans worktree when no uncommitted changes remain."""
     # Setup
     plan_path = tmp_path / "test-plan.md"
     plan_content = """---
@@ -172,14 +174,17 @@ evaluation_notes: []
     )
     monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
     monkeypatch.setattr(
-        finalize_command, "load_prompt_template",
-        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
     )
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
-    # Mock verification to return True
-    monkeypatch.setattr(finalize_command, "verify_branch_merged_to_main", lambda repo_root, branch: True)
+    # Mock worktree status to return empty (clean after finalization)
+    monkeypatch.setattr(
+        finalize_command, "get_worktree_status",
+        lambda path: {"modified": [], "untracked": []}
+    )
 
     # Mock subprocess for executor (successful exit)
     mock_result = SimpleNamespace(returncode=0)
@@ -206,17 +211,23 @@ evaluation_notes: []
 
     # Assert
     assert exit_code == 0
-    assert "Successfully cleaned up worktree and branch" in caplog.text
+    assert "Cleaned up worktree for plan 'test-plan'" in caplog.text
+    assert "branch preserved" in caplog.text
 
-    # Verify cleanup commands were called
-    assert len(subprocess_calls) >= 2  # executor + worktree remove + branch delete
-    # Check that git worktree remove was called
+    # Verify cleanup commands were called (worktree remove without --force)
+    assert len(subprocess_calls) >= 2  # executor + worktree remove
     cleanup_calls = subprocess_calls[1:]
     worktree_remove_called = any(
         "worktree" in str(call[0]) and "remove" in str(call[0])
         for call in cleanup_calls
     )
     assert worktree_remove_called
+    # Verify --force was NOT used (clean worktree)
+    force_used = any(
+        "--force" in str(call[0])
+        for call in cleanup_calls
+    )
+    assert not force_used
 
 
 def test_run_finalize_command_no_cleanup_on_failure(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
@@ -245,8 +256,8 @@ evaluation_notes: []
     )
     monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
     monkeypatch.setattr(
-        finalize_command, "load_prompt_template",
-        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
     )
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
@@ -278,8 +289,8 @@ evaluation_notes: []
     assert len(subprocess_calls) == 1
 
 
-def test_run_finalize_command_no_cleanup_if_verification_fails(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
-    """Test finalize command does not clean up if branch verification fails."""
+def test_run_finalize_command_cleanup_with_changes_user_confirms(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
+    """Test finalize command cleans up when user confirms despite uncommitted changes."""
     # Setup
     plan_path = tmp_path / "test-plan.md"
     plan_content = """---
@@ -304,14 +315,23 @@ evaluation_notes: []
     )
     monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
     monkeypatch.setattr(
-        finalize_command, "load_prompt_template",
-        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
     )
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
-    # Mock verification to return False (branch not merged)
-    monkeypatch.setattr(finalize_command, "verify_branch_merged_to_main", lambda repo_root, branch: False)
+    # Mock worktree status to return uncommitted changes
+    monkeypatch.setattr(
+        finalize_command, "get_worktree_status",
+        lambda path: {"modified": ["file.py"], "untracked": ["new_file.txt"]}
+    )
+
+    # Mock user confirmation to return True
+    monkeypatch.setattr(
+        finalize_command, "_confirm_cleanup_with_changes",
+        lambda worktree_path, modified, untracked: True
+    )
 
     # Mock subprocess for executor (successful exit)
     mock_result = SimpleNamespace(returncode=0)
@@ -329,14 +349,91 @@ evaluation_notes: []
     monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
 
     # Execute
-    caplog.set_level(logging.WARNING)
+    caplog.set_level(logging.INFO)
     exit_code = run_finalize_command(plan_path, tool="claude-code")
 
     # Assert
-    assert exit_code == 1
-    assert "was not merged into main - skipping cleanup" in caplog.text
+    assert exit_code == 0
+    assert "Cleaned up worktree for plan 'test-plan'" in caplog.text
 
-    # Verify only executor was called, no cleanup commands
+    # Verify cleanup with --force was called
+    cleanup_calls = subprocess_calls[1:]
+    force_cleanup_called = any(
+        "--force" in str(call[0]) and "worktree" in str(call[0]) and "remove" in str(call[0])
+        for call in cleanup_calls
+    )
+    assert force_cleanup_called
+
+
+def test_run_finalize_command_no_cleanup_when_user_declines(monkeypatch, tmp_path: Path, caplog, mock_executor_factory) -> None:
+    """Test finalize command preserves worktree when user declines cleanup."""
+    # Setup
+    plan_path = tmp_path / "test-plan.md"
+    plan_content = """---
+plan_id: test-plan
+git_sha: abcd1234abcd1234abcd1234abcd1234abcd1234
+status: coding
+evaluation_notes: []
+---
+
+# Test Plan
+"""
+    plan_path.write_text(plan_content)
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Mock dependencies
+    monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+    monkeypatch.setattr(
+        finalize_command, "validate_worktree_exists",
+        lambda repo_root, plan_id: worktree_path
+    )
+    monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
+    monkeypatch.setattr(
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
+    )
+    monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
+    monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
+
+    # Mock worktree status to return uncommitted changes
+    monkeypatch.setattr(
+        finalize_command, "get_worktree_status",
+        lambda path: {"modified": ["file.py"], "untracked": []}
+    )
+
+    # Mock user confirmation to return False (user declines)
+    monkeypatch.setattr(
+        finalize_command, "_confirm_cleanup_with_changes",
+        lambda worktree_path, modified, untracked: False
+    )
+
+    # Mock subprocess for executor (successful exit)
+    mock_result = SimpleNamespace(returncode=0)
+    subprocess_calls = []
+
+    def mock_subprocess_run(*args, **kwargs):
+        subprocess_calls.append((args, kwargs))
+        return mock_result
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
+
+    # Mock executor
+    from weft.executors import ExecutorRegistry
+    mock_executor = mock_executor_factory("claude-code")
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+    # Execute
+    caplog.set_level(logging.INFO)
+    exit_code = run_finalize_command(plan_path, tool="claude-code")
+
+    # Assert - still returns 0 (finalization succeeded, user chose to keep worktree)
+    assert exit_code == 0
+    assert "Worktree preserved" in caplog.text
+    assert "user declined cleanup" in caplog.text
+
+    # Verify no cleanup commands were called (only executor)
     assert len(subprocess_calls) == 1
 
 
@@ -375,17 +472,20 @@ evaluation_notes: []
     )
     monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
     monkeypatch.setattr(
-        finalize_command, "load_prompt_template",
-        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
     )
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
-    # Mock verification to return True (branch was merged)
-    monkeypatch.setattr(finalize_command, "verify_branch_merged_to_main", lambda repo_root, branch: True)
+    # Mock worktree status to return clean (no uncommitted changes after finalization)
+    monkeypatch.setattr(
+        finalize_command, "get_worktree_status",
+        lambda path: {"modified": [], "untracked": []}
+    )
 
     # Mock cleanup functions to succeed
-    monkeypatch.setattr(finalize_command, "_cleanup_worktree_and_branch", lambda repo_root, worktree_path, plan_id: None)
+    monkeypatch.setattr(finalize_command, "_cleanup_worktree", lambda repo_root, worktree_path, force=False: None)
 
     # Mock subprocess for executor (successful exit)
     mock_result = SimpleNamespace(returncode=0)
@@ -442,17 +542,20 @@ evaluation_notes: []
     )
     monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
     monkeypatch.setattr(
-        finalize_command, "load_prompt_template",
-        lambda tool, template_name: "Finalize workflow for {PLAN_ID}"
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
     )
     monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
     monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
 
-    # Mock verification to return True (branch was merged)
-    monkeypatch.setattr(finalize_command, "verify_branch_merged_to_main", lambda repo_root, branch: True)
+    # Mock worktree status to return clean (no uncommitted changes after finalization)
+    monkeypatch.setattr(
+        finalize_command, "get_worktree_status",
+        lambda path: {"modified": [], "untracked": []}
+    )
 
     # Mock cleanup functions to succeed
-    monkeypatch.setattr(finalize_command, "_cleanup_worktree_and_branch", lambda repo_root, worktree_path, plan_id: None)
+    monkeypatch.setattr(finalize_command, "_cleanup_worktree", lambda repo_root, worktree_path, force=False: None)
 
     # Mock subprocess for executor (successful exit)
     mock_result = SimpleNamespace(returncode=0)

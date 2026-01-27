@@ -82,6 +82,8 @@ def git_repo(tmp_path: Path) -> GitRepo:
     (repo_path / "README.md").write_text("seed\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=repo_path, check=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=repo_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # Ensure branch is named "main" regardless of git config default
+    subprocess.run(["git", "branch", "-M", "main"], cwd=repo_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     return GitRepo(path=repo_path)
 

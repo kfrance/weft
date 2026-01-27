@@ -274,12 +274,42 @@ def test_init_preserves_directory_structure(git_repo):
         "prompts/active/claude-code-cli/sonnet/plan-alignment-checker.md",
         "prompts/active/claude-code-cli/opus/main.md",
         "prompts/active/claude-code-cli/haiku/main.md",
+        # Finalize prompts for both tools
+        "prompts/active/claude-code-cli/finalize.md",
+        "prompts/active/droid/finalize.md",
         "VERSION",
     ]
 
     for rel_path in expected_paths:
         full_path = weft_dir / rel_path
         assert full_path.exists(), f"Expected {rel_path} to exist"
+
+
+def test_init_copies_finalize_prompts(git_repo):
+    """Test init copies finalize prompts for both claude-code and droid tools."""
+    with patch("weft.init_command.find_repo_root", return_value=git_repo.path):
+        result = run_init_command(force=False, yes=True)
+
+    assert result == 0
+
+    # Check that finalize prompts are copied
+    weft_dir = git_repo.path / ".weft"
+    claude_finalize = weft_dir / "prompts" / "active" / "claude-code-cli" / "finalize.md"
+    droid_finalize = weft_dir / "prompts" / "active" / "droid" / "finalize.md"
+
+    assert claude_finalize.exists(), "claude-code-cli finalize prompt should exist"
+    assert droid_finalize.exists(), "droid finalize prompt should exist"
+
+    # Verify content contains expected workflow steps
+    claude_content = claude_finalize.read_text()
+    assert "Finalize Plan Workflow" in claude_content
+    assert "{PLAN_ID}" in claude_content
+    assert "gh pr create" in claude_content  # PR creation workflow
+
+    droid_content = droid_finalize.read_text()
+    assert "Finalize Plan Workflow" in droid_content
+    assert "{PLAN_ID}" in droid_content
+    assert "gh pr create" in droid_content  # PR creation workflow
 
 
 def test_init_version_file_valid_json(git_repo):

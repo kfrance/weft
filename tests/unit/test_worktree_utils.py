@@ -284,3 +284,116 @@ def test_has_uncommitted_changes_clean_working_dir(tmp_path: Path) -> None:
 
     # Assert
     assert has_uncommitted_changes(tmp_path) is False
+
+
+def test_get_worktree_status_with_modified_and_untracked(tmp_path: Path) -> None:
+    """Test get_worktree_status returns correct categorization of changes."""
+    from weft.worktree_utils import get_worktree_status
+
+    # Setup a git repo with both modified and untracked files
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+
+    # Create and commit a file
+    tracked_file = tmp_path / "tracked.txt"
+    tracked_file.write_text("original content")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_path, check=True)
+
+    # Modify the tracked file
+    tracked_file.write_text("modified content")
+
+    # Create an untracked file
+    untracked_file = tmp_path / "untracked.txt"
+    untracked_file.write_text("new content")
+
+    # Get status
+    status = get_worktree_status(tmp_path)
+
+    # Assert
+    assert "tracked.txt" in status["modified"]
+    assert "untracked.txt" in status["untracked"]
+    assert len(status["modified"]) == 1
+    assert len(status["untracked"]) == 1
+
+
+def test_get_worktree_status_clean_directory(tmp_path: Path) -> None:
+    """Test get_worktree_status returns empty lists for clean worktree."""
+    from weft.worktree_utils import get_worktree_status
+
+    # Setup a clean git repo
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("test content")
+    subprocess.run(["git", "add", "test.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_path, check=True)
+
+    # Get status
+    status = get_worktree_status(tmp_path)
+
+    # Assert
+    assert status["modified"] == []
+    assert status["untracked"] == []
+
+
+def test_get_worktree_status_various_change_types(tmp_path: Path) -> None:
+    """Test get_worktree_status correctly categorizes various types of changes.
+
+    Tests:
+    - Modified tracked file (unstaged)
+    - Staged new file
+    - Staged modification
+    - Deleted file
+    - Untracked file
+    """
+    from weft.worktree_utils import get_worktree_status
+
+    # Setup git repo with initial files
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+
+    # Create and commit initial files
+    (tmp_path / "will_modify.txt").write_text("original")
+    (tmp_path / "will_stage_modify.txt").write_text("original")
+    (tmp_path / "will_delete.txt").write_text("to be deleted")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=tmp_path, check=True)
+
+    # Make various types of changes:
+    # 1. Modify a tracked file (unstaged) - should be in "modified"
+    (tmp_path / "will_modify.txt").write_text("modified content")
+
+    # 2. Stage a modification - should be in "modified"
+    (tmp_path / "will_stage_modify.txt").write_text("staged modification")
+    subprocess.run(["git", "add", "will_stage_modify.txt"], cwd=tmp_path, check=True)
+
+    # 3. Delete a tracked file - should be in "modified"
+    (tmp_path / "will_delete.txt").unlink()
+
+    # 4. Create and stage a new file - should be in "modified" (it's an 'A' status)
+    (tmp_path / "new_staged.txt").write_text("new staged file")
+    subprocess.run(["git", "add", "new_staged.txt"], cwd=tmp_path, check=True)
+
+    # 5. Create an untracked file - should be in "untracked"
+    (tmp_path / "untracked.txt").write_text("untracked content")
+
+    # Get status
+    status = get_worktree_status(tmp_path)
+
+    # Assert - all tracked file changes go to "modified"
+    assert "will_modify.txt" in status["modified"]
+    assert "will_stage_modify.txt" in status["modified"]
+    assert "will_delete.txt" in status["modified"]
+    assert "new_staged.txt" in status["modified"]
+
+    # Untracked files go to "untracked"
+    assert "untracked.txt" in status["untracked"]
+
+    # Verify counts
+    assert len(status["modified"]) == 4
+    assert len(status["untracked"]) == 1
