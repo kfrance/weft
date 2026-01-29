@@ -161,30 +161,44 @@ The forwarding behavior is hardcoded in `src/weft/code_command.py` and currently
 
 ### Git Worktree Isolation
 
-Code execution occurs in isolated Git worktrees created under `.weft/runs/<plan_id>/`:
+Code execution occurs in isolated Git worktrees created under `.weft/worktrees/<plan_id>/`:
 
 ```
-.weft/runs/
-└── my-plan/
-    └── 20251009_143000/
-        ├── prompts/
-        │   └── main.md              # Main coding prompt
-        ├── droids/
-        │   ├── code-review-auditor.md    # Code review subagent prompt
-        │   └── plan-alignment-checker.md  # Plan alignment subagent prompt
-        └── .git                     # Worktree git directory
+.weft/worktrees/
+└── my-feature/                      # Worktree named after plan_id
+    ├── src/                         # Full working copy of the repository
+    ├── ...
+    └── .git                         # Git worktree link file
 ```
 
-Each worktree is a separate Git repository state, allowing safe experimentation without affecting your main working directory.
+Each worktree is a separate Git repository state on a branch matching the plan_id, allowing safe experimentation without affecting your main working directory.
 
-### Retention Policy
+### Session Artifacts
 
-Run directories are automatically pruned after **30 days**. The pruning logic:
+Session artifacts (traces, prompts, eval results) are stored under `.weft/sessions/<plan_id>/`:
+
+```
+.weft/sessions/
+└── my-feature/
+    ├── plan/
+    │   └── trace.md                 # Plan session trace
+    ├── code/
+    │   ├── trace.md                 # Code session trace
+    │   └── prompts/                 # Prompts used during code session
+    └── eval/
+        ├── test_results_before.json
+        ├── test_results_after.json
+        └── judge_*.json             # Judge evaluation results
+```
+
+### Session Retention Policy
+
+Session directories are automatically pruned after **30 days**. The pruning logic:
 - Checks directory modification time
-- Skips the currently active run
-- Removes empty plan directories after all runs are pruned
+- Skips the currently active session
+- Removes empty plan directories after all sessions are pruned
 
-**Note**: If you need to preserve run artifacts long-term, copy them outside the `.weft/runs/` directory.
+**Note**: If you need to preserve session artifacts long-term, copy them outside the `.weft/sessions/` directory.
 
 ## Repository-Level Configuration
 
