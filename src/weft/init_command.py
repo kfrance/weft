@@ -164,7 +164,7 @@ _GITIGNORE_ENTRIES = """
 # weft cache and temporary files
 .weft/dspy_cache/
 .weft/worktrees/
-.weft/runs/
+.weft/sessions/
 .weft/plan-traces/
 """
 
