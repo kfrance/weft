@@ -142,3 +142,12 @@ Links to related documents, tickets, or discussions.
 ### Example ADR
 
 See `docs/adr/001-trace-capture-claude-dependency.md` for a complete example documenting the decision to rely on Claude Code's undocumented internal file format for conversation trace capture.
+
+## Task Files (.weft/tasks/)
+
+Files in `.weft/tasks/` are **historical records** of completed work, not documentation of current state. They capture the planning, design decisions, and implementation details at the time work was done.
+
+- **Do not update** task files when refactoring or removing features they describe
+- **Do not delete** task files even if the feature they describe has been removed or superseded
+- These files provide context for why decisions were made and how we got to the current state
+- When documentation references outdated task files, that's expected - they're historical artifacts

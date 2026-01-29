@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-# IMPORTANT: Set NO_PROXY before any imports that might initialize httpx/litellm
-# This prevents SOCKS proxy errors during test collection when litellm initializes
 import os
-os.environ["NO_PROXY"] = "*"
 
 # TEMPORARY: Redirect DSPy cache to temp directory to avoid read-only issues
 # with ~/.weft/dspy_cache during testing in sandboxed environments

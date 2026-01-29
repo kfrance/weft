@@ -21,7 +21,6 @@ isolation via bwrap is only applied to CLI resume sessions (see host_runner.py).
 from __future__ import annotations
 
 import asyncio
-import os
 from pathlib import Path
 from typing import Any
 
@@ -137,86 +136,63 @@ async def run_sdk_session(
     # Use empty config if none provided
     effective_config = sandbox_config or SandboxConfig()
 
-    # Save original NO_PROXY value for restoration after SDK session
-    # NO_PROXY is documented at https://code.claude.com/docs/en/settings
-    # Setting NO_PROXY="*" bypasses proxy for all network requests, enabling
-    # tools like WebFetch to function correctly during SDK execution
-    original_no_proxy = os.environ.get("NO_PROXY")
+    # Build options for the SDK client
+    # NOTE: agents parameter provides programmatic agent registration since
+    # SDK does not discover filesystem agents in .claude/agents/ directories.
+    # permission_mode="acceptEdits" auto-accepts Edit/Write tool calls.
+    # Filesystem isolation is handled by weft's external bwrap sandbox.
+    options = ClaudeAgentOptions(
+        cwd=worktree_path,
+        model=model,
+        settings=str(sdk_settings_path),
+        permission_mode="acceptEdits",
+        can_use_tool=_create_can_use_tool_callback(effective_config),
+        agents=agents,
+    )
+
+    session_id: str | None = None
 
     try:
-        # Set NO_PROXY="*" to enable network access for SDK session
-        os.environ["NO_PROXY"] = "*"
-        logger.debug("Set NO_PROXY='*' for SDK session network access")
+        async with ClaudeSDKClient(options=options) as client:
+            # Send the query
+            await client.query(prompt_content)
 
-        # Build options for the SDK client
-        # NOTE: agents parameter provides programmatic agent registration since
-        # SDK does not discover filesystem agents in .claude/agents/ directories.
-        # permission_mode="acceptEdits" auto-accepts Edit/Write tool calls.
-        # Filesystem isolation is handled by weft's external bwrap sandbox.
-        options = ClaudeAgentOptions(
-            cwd=worktree_path,
-            model=model,
-            settings=str(sdk_settings_path),
-            permission_mode="acceptEdits",
-            can_use_tool=_create_can_use_tool_callback(effective_config),
-            agents=agents,
-        )
-
-        session_id: str | None = None
-
-        try:
-            async with ClaudeSDKClient(options=options) as client:
-                # Send the query
-                await client.query(prompt_content)
-
-                # Receive all messages until ResultMessage
-                async for message in client.receive_response():
-                    if isinstance(message, ResultMessage):
-                        session_id = message.session_id
-                        logger.info(
-                            "SDK session completed: session_id=%s, turns=%d, cost=$%.4f",
-                            session_id,
-                            message.num_turns,
-                            message.total_cost_usd or 0.0,
+            # Receive all messages until ResultMessage
+            async for message in client.receive_response():
+                if isinstance(message, ResultMessage):
+                    session_id = message.session_id
+                    logger.info(
+                        "SDK session completed: session_id=%s, turns=%d, cost=$%.4f",
+                        session_id,
+                        message.num_turns,
+                        message.total_cost_usd or 0.0,
+                    )
+                    if message.is_error:
+                        raise SDKRunnerError(
+                            f"SDK session completed with error: {message.result}"
                         )
-                        if message.is_error:
-                            raise SDKRunnerError(
-                                f"SDK session completed with error: {message.result}"
-                            )
-                    elif isinstance(message, AssistantMessage):
-                        # Print assistant messages to terminal
-                        for block in message.content:
-                            if isinstance(block, TextBlock):
-                                print(block.text)
-                            elif isinstance(block, ToolUseBlock):
-                                desc = block.input.get("description", "")
-                                if desc:
-                                    print(f"{block.name}: {desc}")
-                                else:
-                                    print(block.name)
+                elif isinstance(message, AssistantMessage):
+                    # Print assistant messages to terminal
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            print(block.text)
+                        elif isinstance(block, ToolUseBlock):
+                            desc = block.input.get("description", "")
+                            if desc:
+                                print(f"{block.name}: {desc}")
+                            else:
+                                print(block.name)
 
-        except SDKRunnerError:
-            # Re-raise our own errors
-            raise
-        except Exception as exc:
-            raise SDKRunnerError(f"SDK session failed: {exc}") from exc
+    except SDKRunnerError:
+        # Re-raise our own errors
+        raise
+    except Exception as exc:
+        raise SDKRunnerError(f"SDK session failed: {exc}") from exc
 
-        if not session_id:
-            raise SDKRunnerError("Failed to capture session ID from SDK session")
+    if not session_id:
+        raise SDKRunnerError("Failed to capture session ID from SDK session")
 
-        return session_id
-
-    finally:
-        # Restore original NO_PROXY value to ensure environment is not polluted
-        # This guarantees cleanup even if SDK session raises exceptions
-        if original_no_proxy is None:
-            # NO_PROXY was not set originally, remove it
-            os.environ.pop("NO_PROXY", None)
-            logger.debug("Restored NO_PROXY to original value (unset)")
-        else:
-            # Restore to original value
-            os.environ["NO_PROXY"] = original_no_proxy
-            logger.debug("Restored NO_PROXY to original value: %s", original_no_proxy)
+    return session_id
 
 
 def run_sdk_session_sync(
