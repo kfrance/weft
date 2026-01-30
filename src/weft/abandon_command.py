@@ -252,7 +252,7 @@ def _cleanup_worktree(repo_root: Path, plan_id: str) -> CleanupResult:
 
     try:
         # Force-remove worktree
-        result = subprocess.run(
+        subprocess.run(
             ["git", "-C", str(repo_root), "worktree", "remove", "--force", str(worktree_path)],
             check=True,
             stdout=subprocess.PIPE,
@@ -285,7 +285,7 @@ def _cleanup_branch(repo_root: Path, plan_id: str) -> CleanupResult:
 
     try:
         # Force-delete branch (ignores unmerged commits)
-        result = subprocess.run(
+        subprocess.run(
             ["git", "-C", str(repo_root), "branch", "-D", branch_name],
             check=True,
             stdout=subprocess.PIPE,

@@ -283,7 +283,7 @@ def load_finalize_prompt(repo_root: Path, tool: str) -> str:
     )
 
     # Get bundled template path
-    from .host_runner import get_weft_src_dir
+    from .paths import get_weft_src_dir
 
     try:
         src_dir = get_weft_src_dir()

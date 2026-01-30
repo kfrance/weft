@@ -11,12 +11,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from .host_runner import check_os_support
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
-
-# Import OS detection functions from host_runner
-from .host_runner import check_os_support
 
 
 class HomeEnvError(Exception):
@@ -53,7 +51,7 @@ def load_home_env() -> Path:
 
     # Check readability by attempting to open
     try:
-        with open(env_path, "r") as f:
+        with open(env_path, "r"):
             # Just check if we can open it
             pass
     except (PermissionError, OSError) as e:

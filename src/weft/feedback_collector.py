@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from .claude_session import ClaudeSessionError, run_interactive_session
-from .host_runner import get_weft_src_dir
+from .paths import get_weft_src_dir
 from .logging_config import get_logger
 
 logger = get_logger(__name__)

@@ -1,23 +1,21 @@
 from __future__ import annotations
 
 import os
-
-# TEMPORARY: Redirect DSPy cache to temp directory to avoid read-only issues
-# with ~/.weft/dspy_cache during testing in sandboxed environments
-import tempfile
-_dspy_test_cache = tempfile.mkdtemp(prefix="dspy_test_cache_")
-os.environ["DSPY_CACHEDIR"] = _dspy_test_cache
-
 import subprocess
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import weft.hooks as hooks_module
-
-# Import shared test helpers from the dedicated module
 from tests.helpers import GitRepo, write_plan
+
+# Redirect DSPy cache to temp directory to avoid read-only issues
+# with ~/.weft/dspy_cache during testing in sandboxed environments.
+# Must be set before any code imports dspy.
+_dspy_test_cache = tempfile.mkdtemp(prefix="dspy_test_cache_")
+os.environ["DSPY_CACHEDIR"] = _dspy_test_cache
 
 
 @pytest.fixture(scope="session", autouse=True)

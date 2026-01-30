@@ -26,7 +26,8 @@ def test_get_cache_dir_returns_expected_path() -> None:
 def test_sandbox_config_with_dspy_cache_path(tmp_path: Path) -> None:
     """Test that sandbox config correctly handles DSPy cache path."""
     # Create sandbox config with DSPy cache path (as used in weft repo)
-    config = SandboxConfig(
+    # Config is created to verify SandboxConfig accepts the path without error
+    SandboxConfig(
         read_write_paths=["~/.weft/dspy_cache"],
     )
 

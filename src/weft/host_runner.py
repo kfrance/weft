@@ -63,10 +63,6 @@ def check_os_support() -> None:
         print(warning_msg, file=sys.stderr)
 
 
-# Re-export from paths module for backwards compatibility
-from .paths import get_weft_src_dir
-
-
 def _validate_path_exists(path: Path, name: str) -> None:
     """Validate that a required path exists.
 

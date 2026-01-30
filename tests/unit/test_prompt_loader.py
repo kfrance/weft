@@ -145,7 +145,7 @@ def test_load_finalize_prompt_auto_copy_from_bundled(tmp_path: Path) -> None:
     # Mock the bundled prompt location
     bundled_content = "# Bundled finalize prompt for {PLAN_ID}"
 
-    with patch("weft.host_runner.get_weft_src_dir") as mock_src_dir:
+    with patch("weft.paths.get_weft_src_dir") as mock_src_dir:
         # Create a temp bundled location
         bundled_dir = tmp_path / "bundled" / "prompts" / "claude-code"
         bundled_dir.mkdir(parents=True)
@@ -165,7 +165,7 @@ def test_load_finalize_prompt_auto_copy_is_idempotent(tmp_path: Path) -> None:
     """Test that calling auto-copy twice doesn't fail."""
     bundled_content = "# Bundled finalize prompt for {PLAN_ID}"
 
-    with patch("weft.host_runner.get_weft_src_dir") as mock_src_dir:
+    with patch("weft.paths.get_weft_src_dir") as mock_src_dir:
         # Create a temp bundled location
         bundled_dir = tmp_path / "bundled" / "prompts" / "claude-code"
         bundled_dir.mkdir(parents=True)
@@ -183,7 +183,7 @@ def test_load_finalize_prompt_auto_copy_is_idempotent(tmp_path: Path) -> None:
 
 def test_load_finalize_prompt_error_when_bundled_missing(tmp_path: Path) -> None:
     """Test error when both repo-specific and bundled prompts are missing."""
-    with patch("weft.host_runner.get_weft_src_dir") as mock_src_dir:
+    with patch("weft.paths.get_weft_src_dir") as mock_src_dir:
         # Point to a directory without the finalize prompt
         empty_dir = tmp_path / "empty_src"
         empty_dir.mkdir(parents=True)
@@ -197,7 +197,7 @@ def test_load_finalize_prompt_error_when_bundled_missing(tmp_path: Path) -> None
 
 def test_load_finalize_prompt_error_when_get_weft_src_dir_fails(tmp_path: Path) -> None:
     """Test error when get_weft_src_dir raises RuntimeError."""
-    with patch("weft.host_runner.get_weft_src_dir") as mock_src_dir:
+    with patch("weft.paths.get_weft_src_dir") as mock_src_dir:
         mock_src_dir.side_effect = RuntimeError("Could not determine source directory")
 
         with pytest.raises(PromptLoadingError) as exc_info:
@@ -253,7 +253,7 @@ def test_load_finalize_prompt_creates_parent_directories(tmp_path: Path) -> None
     """Test that auto-copy creates parent directories when they don't exist."""
     bundled_content = "# Bundled prompt"
 
-    with patch("weft.host_runner.get_weft_src_dir") as mock_src_dir:
+    with patch("weft.paths.get_weft_src_dir") as mock_src_dir:
         bundled_dir = tmp_path / "bundled" / "prompts" / "claude-code"
         bundled_dir.mkdir(parents=True)
         (bundled_dir / "finalize.md").write_text(bundled_content)

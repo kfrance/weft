@@ -12,11 +12,9 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 
 import weft.finalize_command as finalize_command
 from weft.finalize_command import (
-    FinalizeCommandError,
     run_finalize_command,
 )
 from weft.worktree.file_sync import FileSyncConfig

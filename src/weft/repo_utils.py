@@ -112,7 +112,7 @@ def load_prompt_template(tool: str, template_name: str) -> str:
     Raises:
         RepoUtilsError: If the template file cannot be loaded.
     """
-    from .host_runner import get_weft_src_dir
+    from .paths import get_weft_src_dir
 
     try:
         src_dir = get_weft_src_dir()

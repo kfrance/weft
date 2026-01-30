@@ -79,9 +79,6 @@ class TestCaptureAiPatch:
             call_sequence.append(cmd_str)
             # Fail on diff --cached
             if "diff" in cmd and "--cached" in cmd:
-                result = subprocess.CompletedProcess(
-                    cmd, returncode=1, stdout="", stderr="mock diff error"
-                )
                 raise subprocess.CalledProcessError(1, cmd, stderr="mock diff error")
             return original_run(cmd, *args, **kwargs)
 

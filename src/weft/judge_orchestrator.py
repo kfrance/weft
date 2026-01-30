@@ -53,7 +53,6 @@ def execute_judges_parallel(
     logger.info("Executing %d judge(s) in parallel", len(judges))
 
     results: list[JudgeResult] = []
-    errors: list[str] = []
 
     # Use ThreadPoolExecutor for parallel execution
     # DSPy operations are I/O bound (API calls), so threads work well

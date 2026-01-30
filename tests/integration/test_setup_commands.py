@@ -144,7 +144,7 @@ command = "touch $WEFT_WORKTREE_PATH/.setup-second"
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 
@@ -287,7 +287,7 @@ schema_version = "1.0"
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 
@@ -398,7 +398,7 @@ command = "exit 1"
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 

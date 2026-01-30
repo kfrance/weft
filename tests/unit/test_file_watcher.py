@@ -58,7 +58,7 @@ class TestPlanFileWatcher:
         watch_dir.mkdir()
         callback = MagicMock()
 
-        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01) as watcher:
+        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01):
             # Create a .md file
             test_file = watch_dir / "test-plan.md"
             test_file.write_text("# Test Plan\n")
@@ -78,7 +78,7 @@ class TestPlanFileWatcher:
         watch_dir.mkdir()
         callback = MagicMock()
 
-        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01) as watcher:
+        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01):
             # Create non-.md files
             (watch_dir / "test.txt").write_text("test")
             (watch_dir / "test.json").write_text("{}")
@@ -96,7 +96,7 @@ class TestPlanFileWatcher:
         watch_dir.mkdir()
         callback = MagicMock()
 
-        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01) as watcher:
+        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01):
             # Create a subdirectory
             (watch_dir / "subdir").mkdir()
 
@@ -112,7 +112,7 @@ class TestPlanFileWatcher:
         watch_dir.mkdir()
         callback = MagicMock()
 
-        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01) as watcher:
+        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01):
             # Create an empty .md file
             (watch_dir / "empty.md").touch()
 
@@ -128,7 +128,7 @@ class TestPlanFileWatcher:
         watch_dir.mkdir()
         callback = MagicMock()
 
-        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01) as watcher:
+        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01):
             # Create multiple .md files
             (watch_dir / "plan1.md").write_text("# Plan 1")
             time.sleep(0.05)
@@ -198,7 +198,7 @@ class TestPlanFileWatcher:
         watch_dir.mkdir()
         callback = MagicMock()
 
-        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01) as watcher:
+        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01):
             # Create file
             test_file = watch_dir / "plan.md"
             test_file.write_text("# Plan")
@@ -220,7 +220,7 @@ class TestPlanFileWatcher:
         watch_dir.mkdir()
         callback = MagicMock()
 
-        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01) as watcher:
+        with PlanFileWatcher(watch_dir, callback, debounce_seconds=0.01):
             test_file = watch_dir / "my-test-plan.md"
             test_file.write_text("# Test Plan")
 

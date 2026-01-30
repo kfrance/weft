@@ -48,6 +48,7 @@ Thumbs.db
 .weft/temp-worktrees/
 /plan.md
 .claude/agents/
+.claude/settings.local.json
 
 # Cleanup script (user-specific, not committed)
 cleanup_old_storage.py

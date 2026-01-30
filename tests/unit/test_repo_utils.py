@@ -84,7 +84,7 @@ def test_load_prompt_template_success(tmp_path: Path, monkeypatch) -> None:
 
     # Mock get_weft_src_dir
     monkeypatch.setattr(
-        "weft.host_runner.get_weft_src_dir",
+        "weft.paths.get_weft_src_dir",
         lambda: src_dir
     )
 
@@ -103,7 +103,7 @@ def test_load_prompt_template_not_found(tmp_path: Path, monkeypatch) -> None:
 
     # Mock get_weft_src_dir
     monkeypatch.setattr(
-        "weft.host_runner.get_weft_src_dir",
+        "weft.paths.get_weft_src_dir",
         lambda: src_dir
     )
 
@@ -131,7 +131,7 @@ def test_load_prompt_template_different_tools(tmp_path: Path, monkeypatch, tool:
 
     # Mock get_weft_src_dir
     monkeypatch.setattr(
-        "weft.host_runner.get_weft_src_dir",
+        "weft.paths.get_weft_src_dir",
         lambda: src_dir
     )
 

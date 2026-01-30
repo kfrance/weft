@@ -141,7 +141,7 @@ command = "echo $TEST_VAR > $WEFT_WORKTREE_PATH/.env-marker && echo $ANOTHER_VAR
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 
@@ -280,7 +280,7 @@ schema_version = "1.0"
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 
@@ -379,7 +379,7 @@ INVALID-KEY = "value"
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 
