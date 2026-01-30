@@ -14,7 +14,8 @@ from .executors import ExecutorError, ExecutorRegistry
 from .headless import is_headless
 from .file_watcher import PlanFileWatcher
 from .hooks import get_hook_manager, trigger_hook
-from .host_runner import build_host_command, get_weft_src_dir, host_runner_config
+from .host_runner import build_host_command, host_runner_config
+from .paths import get_weft_src_dir
 from .logging_config import get_logger
 from .param_validation import get_effective_model
 from .plan_backup import PlanBackupError, create_backup
@@ -374,7 +375,7 @@ def run_plan_command(
             copy_result: CopyResult | None = None
             try:
                 copy_result = copy_plan_files(worktree_tasks_dir, main_tasks_dir, existing_files)
-            except PlanFileCopyError as exc:
+            except PlanFileCopyError:
                 should_cleanup_worktree = False
                 msg = WORKTREE_PRESERVED_COPY_FAILED.format(worktree_path=temp_worktree)
                 logger.error(msg)

@@ -68,7 +68,7 @@ from .worktree.file_sync import (
 )
 from .fingerprint import compute_prompt_fingerprint
 from .training_types import SessionMetadata, SubagentDefinition
-from .sandbox import SandboxConfig, SandboxConfigError, load_sandbox_config
+from .sandbox import SandboxConfigError, load_sandbox_config
 
 logger = get_logger(__name__)
 
@@ -748,7 +748,6 @@ def run_code_command(
     auth_file = Path.home() / ".factory" / "auth.json"
 
     # Launch host-based session with sandbox isolation
-    executor_env = executor.get_env_vars(Path.home() / ".factory")
     runner_config = host_runner_config(
         worktree_path=worktree_path,
         repo_git_dir=metadata.repo_root / ".git",

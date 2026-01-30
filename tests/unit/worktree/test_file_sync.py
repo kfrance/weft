@@ -227,7 +227,7 @@ class TestFileSyncOperation:
             max_total_size_bytes=500 * 1024 * 1024,
         )
 
-        created = op.execute()
+        op.execute()
 
         # Verify structure
         assert dest_config.exists()

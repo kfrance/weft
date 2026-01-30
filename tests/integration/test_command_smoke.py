@@ -133,7 +133,7 @@ class TestPlanCommandSmoke:
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 
@@ -229,7 +229,7 @@ class TestCodeCommandSmoke:
             mock_get_weft_src_dir
         )
         monkeypatch.setattr(
-            "weft.host_runner.get_weft_src_dir",
+            "weft.paths.get_weft_src_dir",
             mock_get_weft_src_dir
         )
 

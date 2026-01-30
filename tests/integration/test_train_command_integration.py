@@ -174,9 +174,9 @@ def test_train_command_end_to_end(tmp_path: Path) -> None:
 
     No mocks for the DSPy/LLM call - uses real API calls with caching.
     """
-    # Get API key (will fail with clear message if not available)
+    # Verify API key is available (will fail with clear message if not)
     try:
-        api_key = get_openrouter_api_key()
+        get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.fail(
             "OPENROUTER_API_KEY not found in ~/.weft/.env. "
@@ -271,7 +271,7 @@ def test_train_command_end_to_end(tmp_path: Path) -> None:
 def test_train_command_multiple_samples(tmp_path: Path) -> None:
     """Test training with multiple samples."""
     try:
-        api_key = get_openrouter_api_key()
+        get_openrouter_api_key()
     except JudgeExecutionError:
         pytest.fail(
             "OPENROUTER_API_KEY not found in ~/.weft/.env. "

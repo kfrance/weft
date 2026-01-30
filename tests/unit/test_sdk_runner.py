@@ -7,13 +7,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from claude_agent_sdk import AgentDefinition, ResultMessage
 
 from weft.sdk_runner import (
     run_sdk_session_sync,
-    SDKRunnerError,
 )
 
 

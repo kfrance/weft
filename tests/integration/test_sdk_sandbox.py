@@ -74,8 +74,8 @@ class TestBwrapSandboxOperational:
         bwrap_cmd = build_bwrap_command(command, config, worktree)
 
         try:
-            # Run the sandboxed command
-            result = subprocess.run(
+            # Run the sandboxed command (result unused - we check file existence instead)
+            subprocess.run(
                 bwrap_cmd,
                 capture_output=True,
                 text=True,

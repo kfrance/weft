@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .claude_session import ClaudeSessionError, run_headless_session
-from .host_runner import get_weft_src_dir
+from .paths import get_weft_src_dir
 from .logging_config import get_logger
 from .patch_utils import PatchApplicationError, apply_patch
 from .plan_validator import extract_front_matter
