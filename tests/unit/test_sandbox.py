@@ -473,6 +473,145 @@ class TestBuildBwrapCommand:
         assert f"--setenv XDG_RUNTIME_DIR {xdg_runtime}" in cmd_str
         assert "--setenv DBUS_SESSION_BUS_ADDRESS" in cmd_str
 
+    def test_build_bwrap_command_forwards_ssh_agent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that SSH agent socket is forwarded when available."""
+        # Create a fake SSH agent socket directory
+        ssh_agent_dir = tmp_path / "ssh-agent"
+        ssh_agent_dir.mkdir()
+        ssh_socket = ssh_agent_dir / "agent.12345"
+        ssh_socket.touch()  # Create the socket file
+        monkeypatch.setenv("SSH_AUTH_SOCK", str(ssh_socket))
+        # Clear XDG_RUNTIME_DIR to test standalone SSH mount
+        monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+
+        # Create ~/.ssh directory with config file in the fake home (conftest patches Path.home())
+        fake_home = tmp_path / "fake_home"
+        fake_home.mkdir(exist_ok=True)
+        ssh_dir = fake_home / ".ssh"
+        ssh_dir.mkdir()
+        ssh_config = ssh_dir / "config"
+        ssh_config.touch()  # Create empty config file
+
+        sandbox_config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        cmd = build_bwrap_command("git push", sandbox_config, worktree)
+        cmd_str = " ".join(cmd)
+
+        # SSH agent socket directory should be mounted
+        assert f"--bind {ssh_agent_dir}" in cmd_str
+        # SSH_AUTH_SOCK should be set
+        assert f"--setenv SSH_AUTH_SOCK {ssh_socket}" in cmd_str
+        # ~/.ssh should be mounted read-only
+        assert f"--ro-bind {ssh_dir}" in cmd_str
+        # GIT_SSH_COMMAND should use user's config file
+        assert f"--setenv GIT_SSH_COMMAND ssh -F {ssh_config}" in cmd_str
+
+    def test_build_bwrap_command_ssh_agent_in_xdg_runtime(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test SSH agent socket already covered by XDG_RUNTIME_DIR is not double-mounted."""
+        # Create XDG_RUNTIME_DIR containing SSH socket
+        xdg_runtime = tmp_path / "runtime"
+        xdg_runtime.mkdir()
+        ssh_socket = xdg_runtime / "ssh-agent" / "agent.12345"
+        ssh_socket.parent.mkdir()
+        ssh_socket.touch()
+        monkeypatch.setenv("XDG_RUNTIME_DIR", str(xdg_runtime))
+        monkeypatch.setenv("SSH_AUTH_SOCK", str(ssh_socket))
+
+        # Create ~/.ssh directory in the fake home (conftest patches Path.home())
+        fake_home = tmp_path / "fake_home"
+        fake_home.mkdir(exist_ok=True)
+        ssh_dir = fake_home / ".ssh"
+        ssh_dir.mkdir()
+
+        config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        cmd = build_bwrap_command("git push", config, worktree)
+        cmd_str = " ".join(cmd)
+
+        # XDG_RUNTIME_DIR is mounted, so SSH socket parent shouldn't be separately mounted
+        # Count occurrences of the ssh-agent dir - should only appear once (from XDG mount)
+        assert cmd_str.count(f"--bind {xdg_runtime}") == 1
+        # But SSH_AUTH_SOCK should still be set
+        assert f"--setenv SSH_AUTH_SOCK {ssh_socket}" in cmd_str
+
+    def test_build_bwrap_command_ssh_config_symlink(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that symlinked SSH config has its target directory mounted."""
+        # Create SSH agent socket
+        ssh_agent_dir = tmp_path / "ssh-agent"
+        ssh_agent_dir.mkdir()
+        ssh_socket = ssh_agent_dir / "agent.12345"
+        ssh_socket.touch()
+        monkeypatch.setenv("SSH_AUTH_SOCK", str(ssh_socket))
+        monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+
+        # Create fake home with ~/.ssh
+        fake_home = tmp_path / "fake_home"
+        fake_home.mkdir(exist_ok=True)
+        ssh_dir = fake_home / ".ssh"
+        ssh_dir.mkdir()
+
+        # Create dotfiles directory with actual config
+        dotfiles_dir = tmp_path / "dotfiles"
+        dotfiles_dir.mkdir()
+        real_config = dotfiles_dir / "ssh_config"
+        real_config.write_text("# SSH config")
+
+        # Symlink ~/.ssh/config -> dotfiles/ssh_config
+        ssh_config_link = ssh_dir / "config"
+        ssh_config_link.symlink_to(real_config)
+
+        sandbox_config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        cmd = build_bwrap_command("git push", sandbox_config, worktree)
+        cmd_str = " ".join(cmd)
+
+        # Both ~/.ssh and dotfiles dir should be mounted
+        assert f"--ro-bind {ssh_dir}" in cmd_str
+        assert f"--ro-bind {dotfiles_dir}" in cmd_str
+        # GIT_SSH_COMMAND should use the symlink path
+        assert f"--setenv GIT_SSH_COMMAND ssh -F {ssh_config_link}" in cmd_str
+
+    def test_build_bwrap_command_ssh_no_config_uses_dev_null(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that missing SSH config falls back to /dev/null."""
+        # Create SSH agent socket
+        ssh_agent_dir = tmp_path / "ssh-agent"
+        ssh_agent_dir.mkdir()
+        ssh_socket = ssh_agent_dir / "agent.12345"
+        ssh_socket.touch()
+        monkeypatch.setenv("SSH_AUTH_SOCK", str(ssh_socket))
+        monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+
+        # Create fake home with ~/.ssh but NO config file
+        fake_home = tmp_path / "fake_home"
+        fake_home.mkdir(exist_ok=True)
+        ssh_dir = fake_home / ".ssh"
+        ssh_dir.mkdir()
+        # Note: not creating config file
+
+        sandbox_config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        cmd = build_bwrap_command("git push", sandbox_config, worktree)
+        cmd_str = " ".join(cmd)
+
+        # Should use /dev/null to skip system config
+        assert "--setenv GIT_SSH_COMMAND ssh -F /dev/null" in cmd_str
+
     def test_build_bwrap_command_mounts_user_paths(self, tmp_path: Path) -> None:
         """Test that user-configured paths are mounted."""
         # Create paths to mount

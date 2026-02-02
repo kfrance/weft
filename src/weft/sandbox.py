@@ -235,11 +235,13 @@ def build_bwrap_command(
     - Mounts ~/.claude read-write (Claude config/sessions/todos)
     - Mounts ~/.claude.json read-write (global Claude config with onboarding state)
     - Mounts ~/.gitconfig read-only (git user identity and global settings)
+    - Mounts ~/.config/gh read-only (GitHub CLI authentication)
     - Mounts XDG_RUNTIME_DIR read-write (D-Bus session bus for authentication)
     - Mounts the worktree path read-write
     - Mounts repo .git directory read-write (for git worktree operations)
     - Mounts configured paths from SandboxConfig
-    - Passes through HOME, PATH, XDG_RUNTIME_DIR, and DBUS_SESSION_BUS_ADDRESS
+    - Passes through HOME, PATH, XDG_RUNTIME_DIR, DBUS_SESSION_BUS_ADDRESS, and SSH_AUTH_SOCK
+    - Mounts SSH agent socket for git operations over SSH (secure - no key exposure)
 
     Args:
         command: The command string to wrap with bwrap.
@@ -329,6 +331,11 @@ def build_bwrap_command(
     if Path(gitconfig).exists():
         bwrap_args.extend(["--ro-bind", gitconfig, gitconfig])
 
+    # Mount ~/.config/gh read-only (GitHub CLI authentication)
+    gh_config = os.path.join(home, ".config", "gh")
+    if Path(gh_config).exists():
+        bwrap_args.extend(["--ro-bind", gh_config, gh_config])
+
     # Mount XDG_RUNTIME_DIR for D-Bus session bus access (needed for authentication)
     xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     if xdg_runtime_dir and Path(xdg_runtime_dir).exists():
@@ -368,6 +375,41 @@ def build_bwrap_command(
     dbus_address = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
     if dbus_address:
         bwrap_args.extend(["--setenv", "DBUS_SESSION_BUS_ADDRESS", dbus_address])
+
+    # SSH agent forwarding for git push/pull over SSH
+    # This allows SSH authentication without exposing private keys directly.
+    # The agent socket only permits signing operations, not key extraction.
+    ssh_auth_sock = os.environ.get("SSH_AUTH_SOCK")
+    if ssh_auth_sock and Path(ssh_auth_sock).exists():
+        # Mount the socket's parent directory (agent sockets are often in subdirs)
+        sock_path = Path(ssh_auth_sock)
+        sock_dir = str(sock_path.parent)
+        # Only mount if not already covered by XDG_RUNTIME_DIR mount
+        if not (xdg_runtime_dir and sock_dir.startswith(xdg_runtime_dir)):
+            bwrap_args.extend(["--bind", sock_dir, sock_dir])
+        bwrap_args.extend(["--setenv", "SSH_AUTH_SOCK", ssh_auth_sock])
+
+        # Mount ~/.ssh read-only for SSH config and known_hosts
+        ssh_dir = os.path.join(home, ".ssh")
+        if Path(ssh_dir).exists():
+            bwrap_args.extend(["--ro-bind", ssh_dir, ssh_dir])
+
+        # Skip system SSH config which has permission issues inside bwrap.
+        # The -F flag tells SSH to use only the user's config, bypassing
+        # /etc/ssh/ssh_config which fails ownership checks in the sandbox.
+        ssh_config = Path(ssh_dir) / "config"
+        if ssh_config.exists():
+            # Resolve symlinks - if config is a symlink (e.g., to dotfiles),
+            # we need to mount the target directory too
+            resolved_config = ssh_config.resolve()
+            if resolved_config != ssh_config:
+                # It's a symlink - mount the target's parent directory
+                config_parent = str(resolved_config.parent)
+                bwrap_args.extend(["--ro-bind", config_parent, config_parent])
+            bwrap_args.extend(["--setenv", "GIT_SSH_COMMAND", f"ssh -F {ssh_config}"])
+        else:
+            # No user config - use /dev/null to skip system config entirely
+            bwrap_args.extend(["--setenv", "GIT_SSH_COMMAND", "ssh -F /dev/null"])
 
     # Set working directory
     bwrap_args.extend(["--chdir", worktree])
