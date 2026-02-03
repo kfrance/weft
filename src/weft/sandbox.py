@@ -279,6 +279,13 @@ def build_bwrap_command(
     # Network sharing (required for API calls)
     bwrap_args.append("--share-net")
 
+    # Mount systemd-resolved directory for DNS resolution on modern systemd distros
+    # On Ubuntu and similar, /etc/resolv.conf is a symlink to /run/systemd/resolve/stub-resolv.conf
+    # Without this mount, DNS resolution fails inside the sandbox
+    systemd_resolve = Path("/run/systemd/resolve")
+    if systemd_resolve.exists():
+        bwrap_args.extend(["--ro-bind", str(systemd_resolve), str(systemd_resolve)])
+
     # Mount exact PATH directories read-only (not parent directories)
     # This avoids exposing credential files like ~/.cargo/credentials.toml
     user_path = os.environ.get("PATH", "")

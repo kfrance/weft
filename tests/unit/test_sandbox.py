@@ -309,6 +309,20 @@ class TestBuildBwrapCommand:
         assert "--bind /tmp/claude /tmp/claude" in cmd_str
         assert "--share-net" in cmd_str
 
+    def test_build_bwrap_command_mounts_systemd_resolve(self, tmp_path: Path) -> None:
+        """Test that /run/systemd/resolve is mounted for DNS on systemd distros."""
+        config = SandboxConfig()
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        cmd = build_bwrap_command("echo hello", config, worktree)
+        cmd_str = " ".join(cmd)
+
+        # On systemd distros with /run/systemd/resolve, it should be mounted
+        # This is needed because /etc/resolv.conf is often a symlink to this directory
+        if Path("/run/systemd/resolve").exists():
+            assert "--ro-bind /run/systemd/resolve /run/systemd/resolve" in cmd_str
+
     def test_build_bwrap_command_mounts_worktree_readwrite(self, tmp_path: Path) -> None:
         """Test that worktree is mounted read-write."""
         config = SandboxConfig()
