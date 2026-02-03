@@ -10,6 +10,7 @@ import shlex
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from .constants import SUPPORTED_TOOLS
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -167,7 +168,10 @@ class ClaudeCodeExecutor(Executor):
 
 
 class ExecutorRegistry:
-    """Registry for managing available executors."""
+    """Registry for managing available executors.
+
+    The set of supported tools is defined in constants.SUPPORTED_TOOLS.
+    """
 
     _executors: dict[str, Executor] = {
         "droid": DroidExecutor(),
@@ -180,17 +184,23 @@ class ExecutorRegistry:
 
         Args:
             tool: Name of the tool (e.g., "droid", "claude-code").
+                  Valid tool names are defined in constants.SUPPORTED_TOOLS.
 
         Returns:
             Executor instance for the specified tool.
 
         Raises:
-            ExecutorError: If the tool is not registered.
+            ExecutorError: If the tool is not in SUPPORTED_TOOLS or not registered.
         """
-        if tool not in cls._executors:
-            available = ", ".join(sorted(cls._executors.keys()))
+        if tool not in SUPPORTED_TOOLS:
+            available = ", ".join(sorted(SUPPORTED_TOOLS))
             raise ExecutorError(
-                f"Unknown executor tool '{tool}'. Available tools: {available}"
+                f"Unknown tool '{tool}'. Supported tools: {available}"
+            )
+        if tool not in cls._executors:
+            raise ExecutorError(
+                f"Executor for tool '{tool}' not registered. "
+                f"This may indicate a bug in the executor registry."
             )
         return cls._executors[tool]
 

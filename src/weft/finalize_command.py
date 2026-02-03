@@ -245,9 +245,7 @@ def run_finalize_command(
         _move_plan_to_worktree(resolved_plan_path, worktree_path, plan_id)
 
         # Load finalize prompt from repo-specific location (auto-copies from bundled if missing)
-        # Map tool name to prompt directory name (same mapping as code command)
-        prompt_tool = "claude-code-cli" if tool == "claude-code" else tool
-        template = load_finalize_prompt(repo_root, prompt_tool)
+        template = load_finalize_prompt(repo_root, tool)
 
         # Replace placeholder with plan_id
         combined_prompt = template.replace("{PLAN_ID}", plan_id)

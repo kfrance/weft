@@ -518,7 +518,7 @@ def run_code_command(
             logger.info("Loading optimized prompts for Claude Code CLI (%s model)...", effective_model)
             prompts = load_prompts(
                 repo_root=metadata.repo_root,
-                tool="claude-code-cli",
+                tool="claude-code",
                 model=effective_model,
             )
             logger.info("Prompts loaded successfully from %s/.weft/prompts/active/", metadata.repo_root)

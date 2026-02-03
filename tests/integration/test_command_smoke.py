@@ -56,7 +56,7 @@ def _copy_prompts_to_repo(dest_repo: Path, real_repo: Path) -> None:
     """Copy prompt files and SDK settings from real repo to test repo.
 
     Copies:
-    - .weft/prompts/active/ directory (for claude-code-cli prompts)
+    - .weft/prompts/active/ directory (for claude-code prompts)
     - src/weft/prompts/ directory (for plan subagent prompts and templates)
     - src/weft/sdk_settings.json (for SDK configuration)
 
@@ -64,7 +64,7 @@ def _copy_prompts_to_repo(dest_repo: Path, real_repo: Path) -> None:
         dest_repo: Destination test repository path.
         real_repo: Real weft repository root to copy from.
     """
-    # Copy .weft/prompts/active/ for claude-code-cli
+    # Copy .weft/prompts/active/ for claude-code
     weft_prompts_src = real_repo / ".weft" / "prompts" / "active"
     if weft_prompts_src.exists():
         weft_prompts_dest = dest_repo / ".weft" / "prompts" / "active"

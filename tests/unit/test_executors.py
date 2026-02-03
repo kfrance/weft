@@ -44,7 +44,7 @@ class TestExecutorRegistry:
 
     def test_get_executor_unknown(self) -> None:
         """Test getting an unknown executor raises error."""
-        with pytest.raises(ExecutorError, match="Unknown executor tool"):
+        with pytest.raises(ExecutorError, match="Unknown tool"):
             ExecutorRegistry.get_executor("unknown-tool")
 
     def test_list_executors(self) -> None:
@@ -55,10 +55,11 @@ class TestExecutorRegistry:
         assert sorted(executors) == executors
 
     def test_register_executor(self, clean_registry) -> None:
-        """Test registering a new executor with cleanup."""
+        """Test registering an executor (can override existing tools with cleanup)."""
         mock_executor = MagicMock(spec=Executor)
-        ExecutorRegistry.register_executor("test-tool", mock_executor)
-        assert ExecutorRegistry.get_executor("test-tool") == mock_executor
+        # Register as an override for an existing supported tool
+        ExecutorRegistry.register_executor("claude-code", mock_executor)
+        assert ExecutorRegistry.get_executor("claude-code") == mock_executor
 
 
 class TestDroidExecutor:
@@ -233,3 +234,17 @@ class TestExecutorInterface:
     """Tests for Executor abstract interface."""
 
     pass
+
+
+class TestSupportedToolsSynchronization:
+    """Tests for synchronization between SUPPORTED_TOOLS and executor registry."""
+
+    def test_executors_match_supported_tools(self) -> None:
+        """Verify all SUPPORTED_TOOLS have registered executors and vice versa."""
+        from weft.constants import SUPPORTED_TOOLS
+
+        # Ensure every tool in SUPPORTED_TOOLS has a registered executor
+        assert set(ExecutorRegistry._executors.keys()) == SUPPORTED_TOOLS, (
+            f"SUPPORTED_TOOLS {SUPPORTED_TOOLS} does not match "
+            f"registered executors {set(ExecutorRegistry._executors.keys())}"
+        )

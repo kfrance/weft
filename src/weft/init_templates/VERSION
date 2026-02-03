@@ -10,37 +10,37 @@
     "judges/plan-compliance.md": {
       "hash": "sha256:bc0d20ae19f769110fb1834d326df3ead279457532c33e1f8832b48a811f1f03"
     },
-    "prompts/claude-code-cli/finalize.md": {
+    "prompts/active/claude-code/finalize.md": {
       "hash": "sha256:95038be70010b96421c5fe1fd2351e2dab63ce9a752cb694c3149a88f8aec8ea"
     },
-    "prompts/claude-code-cli/haiku/code-review-auditor.md": {
+    "prompts/active/claude-code/haiku/code-review-auditor.md": {
       "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
-    "prompts/claude-code-cli/haiku/main.md": {
+    "prompts/active/claude-code/haiku/main.md": {
       "hash": "sha256:6ebadaf7324a24f37fad6c65a81b151f1910a591f487cd023c35ce5a8008c055"
     },
-    "prompts/claude-code-cli/haiku/plan-alignment-checker.md": {
+    "prompts/active/claude-code/haiku/plan-alignment-checker.md": {
       "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
     },
-    "prompts/claude-code-cli/opus/code-review-auditor.md": {
+    "prompts/active/claude-code/opus/code-review-auditor.md": {
       "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
-    "prompts/claude-code-cli/opus/main.md": {
+    "prompts/active/claude-code/opus/main.md": {
       "hash": "sha256:202add50cf63f76ee73ab5d078df6059994bb0bd5d3cf5732bf85c67bea8435d"
     },
-    "prompts/claude-code-cli/opus/plan-alignment-checker.md": {
+    "prompts/active/claude-code/opus/plan-alignment-checker.md": {
       "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
     },
-    "prompts/claude-code-cli/sonnet/code-review-auditor.md": {
+    "prompts/active/claude-code/sonnet/code-review-auditor.md": {
       "hash": "sha256:65805d8313fe397a367aa60431009b8c2b55c89a21cdf4e853488426a599013f"
     },
-    "prompts/claude-code-cli/sonnet/main.md": {
+    "prompts/active/claude-code/sonnet/main.md": {
       "hash": "sha256:2f0d46619372ecfd438db981da68346bd24f2537accdb1770437b7b5a3ec4a89"
     },
-    "prompts/claude-code-cli/sonnet/plan-alignment-checker.md": {
+    "prompts/active/claude-code/sonnet/plan-alignment-checker.md": {
       "hash": "sha256:2264523e3417a6af98c4e7a5f0a2b70d278d29b6070494dd1510500aa491d585"
     },
-    "prompts/droid/finalize.md": {
+    "prompts/active/droid/finalize.md": {
       "hash": "sha256:fb2665d52f1171b321467af9eadb8ba511d6e5f04966bd55f6c26d0dc8921372"
     }
   }

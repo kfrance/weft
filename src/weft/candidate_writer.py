@@ -23,14 +23,14 @@ class CandidateWriteError(Exception):
 
 def get_next_candidate_number(
     repo_root: Path,
-    tool: str = "claude-code-cli",
+    tool: str = "claude-code",
     model: str = "sonnet",
 ) -> int:
     """Get the next sequential candidate number.
 
     Args:
         repo_root: Repository root directory
-        tool: Tool name (default: claude-code-cli)
+        tool: Tool name (default: claude-code)
         model: Model variant (default: sonnet)
 
     Returns:

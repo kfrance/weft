@@ -8,6 +8,7 @@ import pytest
 
 from weft.prompt_loader import (
     PromptLoadingError,
+    _migrate_legacy_tool_directory,
     _migrate_prompts_if_needed,
     load_current_prompts_for_training,
     load_prompts,
@@ -21,7 +22,7 @@ def create_prompts_at_location(base_dir: Path, location: str) -> None:
         base_dir: Repository root
         location: Either "optimized_prompts" (old) or "prompts/active" (new)
     """
-    prompts_dir = base_dir / ".weft" / location / "claude-code-cli" / "sonnet"
+    prompts_dir = base_dir / ".weft" / location / "claude-code" / "sonnet"
     prompts_dir.mkdir(parents=True)
 
     (prompts_dir / "main.md").write_text("Main prompt content")
@@ -36,7 +37,7 @@ class TestPromptMigration:
         """Loads from prompts/active/ when available."""
         create_prompts_at_location(tmp_path, "prompts/active")
 
-        result = load_prompts(tmp_path, tool="claude-code-cli", model="sonnet")
+        result = load_prompts(tmp_path, tool="claude-code", model="sonnet")
 
         assert result["main_prompt"] == "Main prompt content"
         assert result["code_review_auditor"] == "Code review prompt"
@@ -46,7 +47,7 @@ class TestPromptMigration:
         """Migrates optimized_prompts/ to prompts/active/."""
         create_prompts_at_location(tmp_path, "optimized_prompts")
 
-        result = load_prompts(tmp_path, tool="claude-code-cli", model="sonnet")
+        result = load_prompts(tmp_path, tool="claude-code", model="sonnet")
 
         # Should still work
         assert result["main_prompt"] == "Main prompt content"
@@ -59,7 +60,7 @@ class TestPromptMigration:
         """Old directory removed after migration."""
         create_prompts_at_location(tmp_path, "optimized_prompts")
 
-        load_prompts(tmp_path, tool="claude-code-cli", model="sonnet")
+        load_prompts(tmp_path, tool="claude-code", model="sonnet")
 
         old_location = tmp_path / ".weft" / "optimized_prompts"
         assert not old_location.exists()
@@ -70,13 +71,13 @@ class TestPromptMigration:
         create_prompts_at_location(tmp_path, "prompts/active")
 
         # Also create at old location (shouldn't be touched)
-        old_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code-cli" / "sonnet"
+        old_dir = tmp_path / ".weft" / "optimized_prompts" / "claude-code" / "sonnet"
         old_dir.mkdir(parents=True)
         (old_dir / "main.md").write_text("OLD content")
         (old_dir / "code-review-auditor.md").write_text("OLD content")
         (old_dir / "plan-alignment-checker.md").write_text("OLD content")
 
-        result = load_prompts(tmp_path, tool="claude-code-cli", model="sonnet")
+        result = load_prompts(tmp_path, tool="claude-code", model="sonnet")
 
         # Should load from new location, not old
         assert result["main_prompt"] == "Main prompt content"
@@ -106,7 +107,7 @@ class TestLoadCurrentPromptsForTraining:
         """Returns CurrentPrompts object with subagents."""
         create_prompts_at_location(tmp_path, "prompts/active")
 
-        result = load_current_prompts_for_training(tmp_path, tool="claude-code-cli", model="sonnet")
+        result = load_current_prompts_for_training(tmp_path, tool="claude-code", model="sonnet")
 
         assert result.main_prompt == "Main prompt content"
         assert len(result.subagents) == 2
@@ -125,7 +126,7 @@ class TestLoadCurrentPromptsForTraining:
 
     def test_load_current_prompts_for_training_missing_main(self, tmp_path: Path) -> None:
         """Raises error when main.md not found."""
-        prompts_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet"
+        prompts_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code" / "sonnet"
         prompts_dir.mkdir(parents=True)
         # Create subagent but not main.md
         (prompts_dir / "code-review-auditor.md").write_text("Review prompt")
@@ -137,7 +138,7 @@ class TestLoadCurrentPromptsForTraining:
 
     def test_load_current_prompts_for_training_no_subagents(self, tmp_path: Path) -> None:
         """Returns empty subagents when only main.md exists."""
-        prompts_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet"
+        prompts_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code" / "sonnet"
         prompts_dir.mkdir(parents=True)
         (prompts_dir / "main.md").write_text("Main prompt only")
 
@@ -154,3 +155,85 @@ class TestLoadCurrentPromptsForTraining:
 
         assert result.main_prompt == "Main prompt content"
         assert len(result.subagents) == 2
+
+
+class TestLegacyToolDirectoryMigration:
+    """Tests for _migrate_legacy_tool_directory function."""
+
+    def _create_legacy_prompts(self, tmp_path: Path) -> None:
+        """Create prompts at legacy claude-code-cli location."""
+        legacy_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet"
+        legacy_dir.mkdir(parents=True)
+        (legacy_dir / "main.md").write_text("Legacy main prompt")
+        (legacy_dir / "code-review-auditor.md").write_text("Legacy code review")
+        (legacy_dir / "plan-alignment-checker.md").write_text("Legacy plan alignment")
+
+    def test_migrate_legacy_tool_directory_renames_dir(self, tmp_path: Path) -> None:
+        """Legacy claude-code-cli directory is renamed to claude-code."""
+        self._create_legacy_prompts(tmp_path)
+
+        result = _migrate_legacy_tool_directory(tmp_path)
+
+        assert result is True
+        # Legacy directory should no longer exist
+        legacy_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli"
+        assert not legacy_dir.exists()
+        # New directory should exist with contents
+        new_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code" / "sonnet"
+        assert new_dir.exists()
+        assert (new_dir / "main.md").read_text() == "Legacy main prompt"
+
+    def test_migrate_legacy_tool_directory_no_legacy(self, tmp_path: Path) -> None:
+        """Returns False when legacy directory doesn't exist."""
+        result = _migrate_legacy_tool_directory(tmp_path)
+        assert result is False
+
+    def test_migrate_legacy_tool_directory_both_exist_no_overwrite(self, tmp_path: Path) -> None:
+        """Doesn't overwrite when both directories exist."""
+        # Create legacy prompts
+        self._create_legacy_prompts(tmp_path)
+
+        # Also create new location with different content
+        new_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code" / "sonnet"
+        new_dir.mkdir(parents=True)
+        (new_dir / "main.md").write_text("New main prompt")
+
+        result = _migrate_legacy_tool_directory(tmp_path)
+
+        assert result is False
+        # Legacy should still exist (not deleted)
+        legacy_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli"
+        assert legacy_dir.exists()
+        # New content should be unchanged
+        assert (new_dir / "main.md").read_text() == "New main prompt"
+
+    def test_load_prompts_migrates_legacy_tool_dir(self, tmp_path: Path) -> None:
+        """load_prompts automatically migrates legacy tool directory."""
+        self._create_legacy_prompts(tmp_path)
+
+        result = load_prompts(tmp_path, tool="claude-code", model="sonnet")
+
+        assert result["main_prompt"] == "Legacy main prompt"
+        # Legacy directory should be migrated
+        legacy_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli"
+        assert not legacy_dir.exists()
+        new_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code"
+        assert new_dir.exists()
+
+    def test_load_finalize_prompt_migrates_legacy_tool_dir(self, tmp_path: Path) -> None:
+        """load_finalize_prompt automatically migrates legacy tool directory."""
+        from weft.prompt_loader import load_finalize_prompt
+
+        # Create legacy finalize prompt at claude-code-cli location
+        legacy_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code-cli"
+        legacy_dir.mkdir(parents=True)
+        (legacy_dir / "finalize.md").write_text("Legacy finalize prompt for {PLAN_ID}")
+
+        result = load_finalize_prompt(tmp_path, "claude-code")
+
+        assert result == "Legacy finalize prompt for {PLAN_ID}"
+        # Legacy directory should be migrated
+        assert not legacy_dir.exists()
+        new_dir = tmp_path / ".weft" / "prompts" / "active" / "claude-code"
+        assert new_dir.exists()
+        assert (new_dir / "finalize.md").read_text() == "Legacy finalize prompt for {PLAN_ID}"

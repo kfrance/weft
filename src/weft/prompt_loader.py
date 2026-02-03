@@ -19,6 +19,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from .constants import DEFAULT_CODING_TOOL, LEGACY_TOOL_NAMES
 from .logging_config import get_logger
 from .training_types import PromptSnapshot, SubagentDefinition
 
@@ -27,6 +28,60 @@ logger = get_logger(__name__)
 
 class PromptLoadingError(Exception):
     """Raised when prompt loading fails."""
+
+
+def _migrate_legacy_tool_directory(repo_root: Path) -> bool:
+    """Migrate legacy tool directory names to current names.
+
+    Checks if any legacy tool directories exist (e.g., claude-code-cli/)
+    and renames them to the current name (e.g., claude-code/).
+
+    Args:
+        repo_root: Repository root directory
+
+    Returns:
+        True if migration occurred, False otherwise
+    """
+    active_prompts_dir = repo_root / ".weft" / "prompts" / "active"
+
+    if not active_prompts_dir.exists():
+        return False
+
+    migrated = False
+    for legacy_name, current_name in LEGACY_TOOL_NAMES.items():
+        legacy_dir = active_prompts_dir / legacy_name
+        current_dir = active_prompts_dir / current_name
+
+        if not legacy_dir.exists():
+            continue
+
+        if current_dir.exists():
+            # Both directories exist - don't overwrite, log warning
+            logger.warning(
+                "Both legacy (%s) and current (%s) tool directories exist. "
+                "Manual consolidation may be needed.",
+                legacy_dir,
+                current_dir,
+            )
+            continue
+
+        # Rename legacy directory to current name
+        logger.info(
+            "Migrating legacy tool directory: %s -> %s",
+            legacy_name,
+            current_name,
+        )
+        try:
+            legacy_dir.rename(current_dir)
+            migrated = True
+        except OSError as exc:
+            logger.warning(
+                "Failed to migrate legacy tool directory %s: %s",
+                legacy_dir,
+                exc,
+            )
+
+    return migrated
 
 
 def _migrate_prompts_if_needed(repo_root: Path) -> bool:
@@ -99,7 +154,7 @@ def _get_prompts_base(repo_root: Path, tool: str, model: str) -> Path:
 
 def load_prompts(
     repo_root: Path | str,
-    tool: str = "claude-code-cli",
+    tool: str = DEFAULT_CODING_TOOL,
     model: str = "sonnet",
 ) -> dict[str, str]:
     """Load optimized prompts for a given tool and model from the project directory.
@@ -109,7 +164,7 @@ def load_prompts(
 
     Args:
         repo_root: Path to the project root directory where .weft/ exists.
-        tool: Name of the tool (default: "claude-code-cli").
+        tool: Name of the tool (default: "claude-code").
         model: Model variant (default: "sonnet"). Valid options: "sonnet", "opus", "haiku".
 
     Returns:
@@ -124,6 +179,9 @@ def load_prompts(
     # Convert to Path if string
     if isinstance(repo_root, str):
         repo_root = Path(repo_root)
+
+    # Migrate legacy tool directories if needed (e.g., claude-code-cli -> claude-code)
+    _migrate_legacy_tool_directory(repo_root)
 
     # Validate model parameter
     valid_models = {"sonnet", "opus", "haiku"}
@@ -172,7 +230,7 @@ def load_prompts(
 
 def load_current_prompts_for_training(
     repo_root: Path,
-    tool: str = "claude-code-cli",
+    tool: str = DEFAULT_CODING_TOOL,
     model: str = "sonnet",
 ) -> PromptSnapshot:
     """Load current prompts as PromptSnapshot object for training.
@@ -181,7 +239,7 @@ def load_current_prompts_for_training(
 
     Args:
         repo_root: Repository root directory
-        tool: Tool name (default: claude-code-cli)
+        tool: Tool name (default: claude-code)
         model: Model variant (default: sonnet)
 
     Returns:
@@ -258,6 +316,9 @@ def load_finalize_prompt(repo_root: Path, tool: str) -> str:
     Raises:
         PromptLoadingError: If prompt cannot be loaded or auto-copied.
     """
+    # Migrate legacy tool directories if needed (e.g., claude-code-cli -> claude-code)
+    _migrate_legacy_tool_directory(repo_root)
+
     # Check for repo-specific prompt
     repo_prompt_path = repo_root / ".weft" / "prompts" / "active" / tool / "finalize.md"
 
@@ -290,10 +351,8 @@ def load_finalize_prompt(repo_root: Path, tool: str) -> str:
     except RuntimeError as exc:
         raise PromptLoadingError(f"Failed to locate source directory: {exc}") from exc
 
-    # Map prompt directory name back to bundled template location
-    # (repo-specific uses claude-code-cli, bundled uses claude-code)
-    bundled_tool = "claude-code" if tool == "claude-code-cli" else tool
-    bundled_prompt_path = src_dir / "prompts" / bundled_tool / "finalize.md"
+    # Use tool name directly for bundled template location
+    bundled_prompt_path = src_dir / "prompts" / tool / "finalize.md"
 
     if not bundled_prompt_path.exists():
         raise PromptLoadingError(

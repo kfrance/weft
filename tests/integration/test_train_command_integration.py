@@ -127,7 +127,7 @@ The implementation addresses the core requirements but:
 
 def create_test_active_prompts(repo_root: Path) -> None:
     """Create minimal active prompts structure for testing."""
-    prompts_dir = repo_root / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet"
+    prompts_dir = repo_root / ".weft" / "prompts" / "active" / "claude-code" / "sonnet"
     prompts_dir.mkdir(parents=True)
 
     (prompts_dir / "main.md").write_text("""# Claude Code CLI Main Prompt (Sonnet)
@@ -197,7 +197,7 @@ def test_train_command_end_to_end(tmp_path: Path) -> None:
 
     # Step 2: Load current prompts
     current_prompts = load_current_prompts_for_training(
-        tmp_path, tool="claude-code-cli", model="sonnet"
+        tmp_path, tool="claude-code", model="sonnet"
     )
     assert current_prompts.main_prompt is not None
     assert len(current_prompts.subagents) == 2
@@ -244,7 +244,7 @@ def test_train_command_end_to_end(tmp_path: Path) -> None:
     # Step 4: Write candidate (verify it can be written successfully)
     candidate_dir = write_candidate(
         repo_root=tmp_path,
-        tool="claude-code-cli",
+        tool="claude-code",
         model="sonnet",
         candidate=candidate,
     )
@@ -301,7 +301,7 @@ def test_train_command_multiple_samples(tmp_path: Path) -> None:
     assert len(training_samples) == 2
 
     current_prompts = load_current_prompts_for_training(
-        tmp_path, tool="claude-code-cli", model="sonnet"
+        tmp_path, tool="claude-code", model="sonnet"
     )
 
     # Should work with multiple samples

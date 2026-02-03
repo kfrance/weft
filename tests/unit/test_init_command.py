@@ -224,9 +224,9 @@ def test_init_copies_optimized_prompts(git_repo):
     assert result == 0
     prompts_dir = git_repo.path / ".weft" / "prompts" / "active"
     assert prompts_dir.exists()
-    assert (prompts_dir / "claude-code-cli" / "sonnet" / "main.md").exists()
-    assert (prompts_dir / "claude-code-cli" / "opus" / "main.md").exists()
-    assert (prompts_dir / "claude-code-cli" / "haiku" / "main.md").exists()
+    assert (prompts_dir / "claude-code" / "sonnet" / "main.md").exists()
+    assert (prompts_dir / "claude-code" / "opus" / "main.md").exists()
+    assert (prompts_dir / "claude-code" / "haiku" / "main.md").exists()
 
 
 def test_init_copies_version_file(git_repo):
@@ -269,13 +269,13 @@ def test_init_preserves_directory_structure(git_repo):
     expected_paths = [
         "judges/code-reuse.md",
         "judges/plan-compliance.md",
-        "prompts/active/claude-code-cli/sonnet/main.md",
-        "prompts/active/claude-code-cli/sonnet/code-review-auditor.md",
-        "prompts/active/claude-code-cli/sonnet/plan-alignment-checker.md",
-        "prompts/active/claude-code-cli/opus/main.md",
-        "prompts/active/claude-code-cli/haiku/main.md",
+        "prompts/active/claude-code/sonnet/main.md",
+        "prompts/active/claude-code/sonnet/code-review-auditor.md",
+        "prompts/active/claude-code/sonnet/plan-alignment-checker.md",
+        "prompts/active/claude-code/opus/main.md",
+        "prompts/active/claude-code/haiku/main.md",
         # Finalize prompts for both tools
-        "prompts/active/claude-code-cli/finalize.md",
+        "prompts/active/claude-code/finalize.md",
         "prompts/active/droid/finalize.md",
         "VERSION",
     ]
@@ -294,10 +294,10 @@ def test_init_copies_finalize_prompts(git_repo):
 
     # Check that finalize prompts are copied
     weft_dir = git_repo.path / ".weft"
-    claude_finalize = weft_dir / "prompts" / "active" / "claude-code-cli" / "finalize.md"
+    claude_finalize = weft_dir / "prompts" / "active" / "claude-code" / "finalize.md"
     droid_finalize = weft_dir / "prompts" / "active" / "droid" / "finalize.md"
 
-    assert claude_finalize.exists(), "claude-code-cli finalize prompt should exist"
+    assert claude_finalize.exists(), "claude-code finalize prompt should exist"
     assert droid_finalize.exists(), "droid finalize prompt should exist"
 
     # Verify content contains expected workflow steps
@@ -402,7 +402,7 @@ def test_init_force_respects_no_to_judges(initialized_repo, monkeypatch):
 def test_init_force_respects_no_to_prompts(initialized_repo, monkeypatch):
     """Test init --force respects 'no' to overwrite prompts."""
     # Modify a prompt to detect if it gets overwritten
-    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
+    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code" / "sonnet" / "main.md"
     modified_content = "# MODIFIED PROMPT"
     prompt_file.write_text(modified_content, encoding="utf-8")
 
@@ -425,7 +425,7 @@ def test_init_force_respects_no_to_both(initialized_repo, monkeypatch, capsys):
     """Test init --force respects 'no' to both judges and prompts."""
     # Modify files to detect if they get overwritten
     judge_file = initialized_repo.path / ".weft" / "judges" / "code-reuse.md"
-    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
+    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code" / "sonnet" / "main.md"
     version_file = initialized_repo.path / ".weft" / "VERSION"
 
     modified_judge = "# MODIFIED JUDGE"
@@ -484,7 +484,7 @@ def test_init_detects_customized_judges(initialized_repo, capsys):
 def test_init_detects_customized_prompts(initialized_repo, capsys):
     """Test init --force detects and warns about customized prompts."""
     # Modify a prompt (at the new location)
-    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code-cli" / "sonnet" / "main.md"
+    prompt_file = initialized_repo.path / ".weft" / "prompts" / "active" / "claude-code" / "sonnet" / "main.md"
     prompt_file.write_text("# CUSTOMIZED", encoding="utf-8")
 
     responses = iter(["n", "n"])  # No to both

@@ -41,7 +41,7 @@ def _copy_prompts_to_repo(dest_repo: Path, real_repo: Path) -> None:
         dest_repo: Destination test repository path.
         real_repo: Real weft repository root to copy from.
     """
-    # Copy .weft/prompts/active/ for claude-code-cli
+    # Copy .weft/prompts/active/ for claude-code
     weft_prompts_src = real_repo / ".weft" / "prompts" / "active"
     if weft_prompts_src.exists():
         weft_prompts_dest = dest_repo / ".weft" / "prompts" / "active"

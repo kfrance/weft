@@ -654,9 +654,9 @@ weft train sonnet --model openai/gpt-5.2
 The train command:
 
 1. **Loads training data** from `.weft/training_data/<plan_id>/`
-2. **Loads current active prompts** from `.weft/prompts/active/claude-code-cli/<variant>/`
+2. **Loads current active prompts** from `.weft/prompts/active/claude-code/<variant>/`
 3. **Analyzes patterns** using the specified OpenRouter model
-4. **Generates candidate prompts** saved to `.weft/prompts/candidates/claude-code-cli/<variant>/`
+4. **Generates candidate prompts** saved to `.weft/prompts/candidates/claude-code/<variant>/`
 
 ### Parameters
 
@@ -679,7 +679,7 @@ Before running `train`, you need:
 
 Candidates are saved to:
 ```
-.weft/prompts/candidates/claude-code-cli/<model>/candidate-NNN/
+.weft/prompts/candidates/claude-code/<model>/candidate-NNN/
 ├── main.md              # Improved main prompt
 ├── code-review-auditor.md  # Generated subagent (if applicable)
 ├── test-validator.md       # Generated subagent (if applicable)
@@ -694,7 +694,7 @@ Candidates are saved to:
 Training Complete
 ========================================================================
 
-Candidate saved to: .weft/prompts/candidates/claude-code-cli/sonnet/candidate-001/
+Candidate saved to: .weft/prompts/candidates/claude-code/sonnet/candidate-001/
 
 Generated 3 subagent(s):
   - code-review-auditor

@@ -125,7 +125,7 @@ def run_train_command(
         logger.info("Loading current prompts...")
         try:
             current_prompts = load_current_prompts_for_training(
-                repo_root, tool="claude-code-cli", model=variant
+                repo_root, tool="claude-code", model=variant
             )
         except PromptLoadingError as exc:
             logger.error("Failed to load current prompts: %s", exc)
@@ -159,7 +159,7 @@ def run_train_command(
         try:
             candidate_dir = write_candidate(
                 repo_root=repo_root,
-                tool="claude-code-cli",
+                tool="claude-code",
                 model=variant,
                 candidate=candidate,
             )

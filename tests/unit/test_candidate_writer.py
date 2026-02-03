@@ -18,13 +18,13 @@ class TestGetNextCandidateNumber:
 
     def test_get_next_candidate_number_empty(self, tmp_path: Path) -> None:
         """Returns 1 when no candidates exist."""
-        result = get_next_candidate_number(tmp_path, "claude-code-cli", "sonnet")
+        result = get_next_candidate_number(tmp_path, "claude-code", "sonnet")
         assert result == 1
 
     def test_get_next_candidate_number_sequential(self, tmp_path: Path) -> None:
         """Returns next number after existing."""
         candidates_dir = (
-            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
+            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code" / "sonnet"
         )
         candidates_dir.mkdir(parents=True)
 
@@ -33,13 +33,13 @@ class TestGetNextCandidateNumber:
         (candidates_dir / "candidate-002").mkdir()
         (candidates_dir / "candidate-003").mkdir()
 
-        result = get_next_candidate_number(tmp_path, "claude-code-cli", "sonnet")
+        result = get_next_candidate_number(tmp_path, "claude-code", "sonnet")
         assert result == 4
 
     def test_get_next_candidate_number_gaps(self, tmp_path: Path) -> None:
         """Returns number after highest, ignoring gaps."""
         candidates_dir = (
-            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
+            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code" / "sonnet"
         )
         candidates_dir.mkdir(parents=True)
 
@@ -47,13 +47,13 @@ class TestGetNextCandidateNumber:
         (candidates_dir / "candidate-001").mkdir()
         (candidates_dir / "candidate-005").mkdir()
 
-        result = get_next_candidate_number(tmp_path, "claude-code-cli", "sonnet")
+        result = get_next_candidate_number(tmp_path, "claude-code", "sonnet")
         assert result == 6
 
     def test_get_next_candidate_number_ignores_non_matching(self, tmp_path: Path) -> None:
         """Ignores directories that don't match pattern."""
         candidates_dir = (
-            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code-cli" / "sonnet"
+            tmp_path / ".weft" / "prompts" / "candidates" / "claude-code" / "sonnet"
         )
         candidates_dir.mkdir(parents=True)
 
@@ -61,7 +61,7 @@ class TestGetNextCandidateNumber:
         (candidates_dir / "other-directory").mkdir()
         (candidates_dir / "candidate-bad").mkdir()
 
-        result = get_next_candidate_number(tmp_path, "claude-code-cli", "sonnet")
+        result = get_next_candidate_number(tmp_path, "claude-code", "sonnet")
         assert result == 2
 
 
@@ -93,7 +93,7 @@ class TestWriteCandidate:
     ) -> None:
         """Creates candidate-NNN directory."""
         result_path = write_candidate(
-            tmp_path, "claude-code-cli", "sonnet", sample_candidate
+            tmp_path, "claude-code", "sonnet", sample_candidate
         )
 
         assert result_path.exists()
@@ -105,7 +105,7 @@ class TestWriteCandidate:
     ) -> None:
         """Writes main.md."""
         result_path = write_candidate(
-            tmp_path, "claude-code-cli", "sonnet", sample_candidate
+            tmp_path, "claude-code", "sonnet", sample_candidate
         )
 
         main_path = result_path / "main.md"
@@ -117,7 +117,7 @@ class TestWriteCandidate:
     ) -> None:
         """Writes subagent .md files."""
         result_path = write_candidate(
-            tmp_path, "claude-code-cli", "sonnet", sample_candidate
+            tmp_path, "claude-code", "sonnet", sample_candidate
         )
 
         # Check code-review-auditor.md
@@ -135,7 +135,7 @@ class TestWriteCandidate:
     ) -> None:
         """Writes ANALYSIS.md with summary."""
         result_path = write_candidate(
-            tmp_path, "claude-code-cli", "sonnet", sample_candidate
+            tmp_path, "claude-code", "sonnet", sample_candidate
         )
 
         analysis_path = result_path / "ANALYSIS.md"
@@ -149,7 +149,7 @@ class TestWriteCandidate:
     ) -> None:
         """Returns path to created directory."""
         result_path = write_candidate(
-            tmp_path, "claude-code-cli", "sonnet", sample_candidate
+            tmp_path, "claude-code", "sonnet", sample_candidate
         )
 
         expected = (
@@ -157,7 +157,7 @@ class TestWriteCandidate:
             / ".weft"
             / "prompts"
             / "candidates"
-            / "claude-code-cli"
+            / "claude-code"
             / "sonnet"
             / "candidate-001"
         )
@@ -168,15 +168,15 @@ class TestWriteCandidate:
     ) -> None:
         """Creates sequentially numbered directories."""
         # Write first candidate
-        path1 = write_candidate(tmp_path, "claude-code-cli", "sonnet", sample_candidate)
+        path1 = write_candidate(tmp_path, "claude-code", "sonnet", sample_candidate)
         assert path1.name == "candidate-001"
 
         # Write second candidate
-        path2 = write_candidate(tmp_path, "claude-code-cli", "sonnet", sample_candidate)
+        path2 = write_candidate(tmp_path, "claude-code", "sonnet", sample_candidate)
         assert path2.name == "candidate-002"
 
         # Write third candidate
-        path3 = write_candidate(tmp_path, "claude-code-cli", "sonnet", sample_candidate)
+        path3 = write_candidate(tmp_path, "claude-code", "sonnet", sample_candidate)
         assert path3.name == "candidate-003"
 
     def test_write_candidate_empty_subagents(self, tmp_path: Path) -> None:
@@ -188,7 +188,7 @@ class TestWriteCandidate:
         )
 
         result_path = write_candidate(
-            tmp_path, "claude-code-cli", "sonnet", candidate
+            tmp_path, "claude-code", "sonnet", candidate
         )
 
         # Should only have main.md and ANALYSIS.md
@@ -202,10 +202,10 @@ class TestWriteCandidate:
     ) -> None:
         """Creates separate directories for different models."""
         path_sonnet = write_candidate(
-            tmp_path, "claude-code-cli", "sonnet", sample_candidate
+            tmp_path, "claude-code", "sonnet", sample_candidate
         )
         path_opus = write_candidate(
-            tmp_path, "claude-code-cli", "opus", sample_candidate
+            tmp_path, "claude-code", "opus", sample_candidate
         )
 
         assert "sonnet" in str(path_sonnet)
