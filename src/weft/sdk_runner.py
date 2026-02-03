@@ -30,14 +30,13 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ResultMessage,
     AssistantMessage,
-    TextBlock,
-    ToolUseBlock,
     PermissionResultAllow,
     PermissionResultDeny,
     ToolPermissionContext,
 )
 
 from .logging_config import get_logger
+from .output import print_assistant_message
 from .sandbox import SandboxConfig, matches_disallowed_command
 
 logger = get_logger(__name__)
@@ -172,16 +171,8 @@ async def run_sdk_session(
                             f"SDK session completed with error: {message.result}"
                         )
                 elif isinstance(message, AssistantMessage):
-                    # Print assistant messages to terminal
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            print(block.text)
-                        elif isinstance(block, ToolUseBlock):
-                            desc = block.input.get("description", "")
-                            if desc:
-                                print(f"{block.name}: {desc}")
-                            else:
-                                print(block.name)
+                    # Print assistant messages with styled formatting
+                    print_assistant_message(message)
 
     except SDKRunnerError:
         # Re-raise our own errors
