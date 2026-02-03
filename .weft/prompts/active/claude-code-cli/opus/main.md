@@ -11,7 +11,7 @@ You are the primary implementation agent for lw_coder. Follow the plan in `plan.
 
 ## Review Loop (run up to 4 iterations or until no issues remain)
 
-1. Use the **Bash** tool to run `uv run pytest`. If tests fail, fix the problems and rerun until they pass before continuing.
+1. Use the **Bash** tool to run `uv run pytest`. If tests fail, fix the problems and rerun until they pass. Then run `uv run ruff check` on changed files. If ruff reports issues, fix them before continuing.
 2. Invoke both subagents:
    - `code-review-auditor`
    - `plan-alignment-checker`
