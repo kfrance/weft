@@ -13,11 +13,13 @@ dependencies = [
     "argcomplete>=3.0.0",
     "claude-agent-sdk>=0.1.18",
     "dspy-ai>=3.0.3",
+    "humanize>=4.0.0",
     "pytest>=8.4.2",
     "python-dotenv>=1.1.1",
     "pyyaml>=6.0.2",
     "rich>=14.1.0",
     "ruff>=0.8.0",
+    "tabulate>=0.9.0",
     "watchdog>=3.0.0",
 ]
 

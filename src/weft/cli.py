@@ -315,6 +315,35 @@ def create_parser() -> argparse.ArgumentParser:
         help="Delete and regenerate all trace summaries before training",
     )
 
+    # Status command
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show dashboard view of all plans and their pipeline state",
+    )
+    status_parser.add_argument(
+        "--status",
+        dest="status_filter",
+        help="Filter by status (comma-separated, e.g., --status ready,coding)",
+    )
+    status_parser.add_argument(
+        "--sort",
+        dest="sort_field",
+        choices=["plan_id", "status", "modified"],
+        help="Sort by field (default: status then modified)",
+    )
+    status_parser.add_argument(
+        "--reverse",
+        dest="reverse",
+        action="store_true",
+        help="Reverse sort order",
+    )
+    status_parser.add_argument(
+        "--all",
+        dest="show_all",
+        action="store_true",
+        help="Show all plans including done (by default, done plans are hidden)",
+    )
+
     return parser
 
 
@@ -514,6 +543,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_subagents=max_subagents,
             model=model,
             regenerate_summaries=regenerate_summaries,
+        )
+
+    # Status command
+    if args.command == "status":
+        # Lazy import to avoid loading heavy dependencies during tab completion
+        from .status_command import run_status_command
+
+        return run_status_command(
+            status_filter=args.status_filter,
+            sort_field=args.sort_field,
+            reverse=args.reverse,
+            show_all=args.show_all,
         )
 
     # Code command
