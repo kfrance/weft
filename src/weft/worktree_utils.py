@@ -387,3 +387,80 @@ def get_worktree_status(worktree_path: Path) -> dict[str, list[str]]:
             result_dict["modified"].append(filename)
 
     return result_dict
+
+
+def list_branches_matching_pattern(repo_root: Path, pattern: str) -> list[str]:
+    """List branch names (local and remote) matching a given pattern.
+
+    Uses `git for-each-ref` with pattern-specific refs for efficient matching.
+    Queries both local branches (refs/heads/) and remote tracking branches
+    (refs/remotes/*/).
+
+    Args:
+        repo_root: The root directory of the Git repository.
+        pattern: Pattern to match branch names (e.g., "quick-fix-2026.02-*").
+            The pattern uses shell glob syntax.
+
+    Returns:
+        List of branch names (short form, without refs/heads/ or refs/remotes/*/
+        prefix). May contain duplicates if the same branch exists locally and
+        on a remote.
+
+    Raises:
+        WorktreeError: If git command fails.
+    """
+    branches: list[str] = []
+
+    # Query local branches: refs/heads/<pattern>
+    try:
+        local_result = subprocess.run(
+            [
+                "git", "-C", str(repo_root),
+                "for-each-ref",
+                "--format=%(refname:short)",
+                f"refs/heads/{pattern}",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for line in local_result.stdout.splitlines():
+            line = line.strip()
+            if line:
+                branches.append(line)
+    except subprocess.CalledProcessError as exc:
+        raise WorktreeError(
+            f"Failed to list local branches matching '{pattern}': {exc.stderr}"
+        ) from exc
+
+    # Query remote tracking branches: refs/remotes/*/<pattern>
+    try:
+        remote_result = subprocess.run(
+            [
+                "git", "-C", str(repo_root),
+                "for-each-ref",
+                "--format=%(refname:short)",
+                f"refs/remotes/*/{pattern}",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for line in remote_result.stdout.splitlines():
+            line = line.strip()
+            if line:
+                # Remote branches are formatted as "origin/branch-name"
+                # Extract just the branch name (after the first /)
+                parts = line.split("/", 1)
+                if len(parts) == 2:
+                    branches.append(parts[1])
+                else:
+                    branches.append(line)
+    except subprocess.CalledProcessError as exc:
+        raise WorktreeError(
+            f"Failed to list remote branches matching '{pattern}': {exc.stderr}"
+        ) from exc
+
+    return branches
