@@ -95,6 +95,7 @@ def test_code_command_text_multiline(monkeypatch, git_repo) -> None:
     "completion",
     "eval",
     "judge",
+    "status",
 ])
 def test_subcommand_help_no_import_errors(subcommand: str) -> None:
     """Test that all subcommands can show --help without import errors.
@@ -132,6 +133,7 @@ def test_all_subcommands_dispatch_without_import_errors(monkeypatch, tmp_path) -
     monkeypatch.setattr("weft.abandon_command.run_abandon_command", lambda *args, **kwargs: 0)
     monkeypatch.setattr("weft.eval_command.run_eval_command", lambda *args, **kwargs: 0)
     monkeypatch.setattr("weft.judge_command.run_judge_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.status_command.run_status_command", lambda *args, **kwargs: 0)
 
     # Test each subcommand with minimal valid arguments
     # These exercise the dispatch code paths where import errors would manifest
@@ -144,6 +146,7 @@ def test_all_subcommands_dispatch_without_import_errors(monkeypatch, tmp_path) -
         (["abandon", str(plan_file), "--yes"], "abandon"),
         (["eval", "test-plan"], "eval"),
         (["judge", "test-plan"], "judge"),
+        (["status"], "status"),
     ]
 
     for args, cmd_name in test_cases:
