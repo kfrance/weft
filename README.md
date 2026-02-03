@@ -37,6 +37,18 @@ uv tool install --force .
 
 The `--force` flag ensures the tool is reinstalled with all current dependencies. After installation, you can run `weft` from anywhere.
 
+**PATH configuration**: If `weft` isn't found after installation, ensure the uv tool bin directory is on your PATH:
+
+```bash
+# Check where uv installs tool executables
+uv tool dir --bin
+
+# Automatically update your shell profile to include it
+uv tool update-shell
+```
+
+After running `update-shell`, restart your terminal or source your shell profile.
+
 For an editable install (where code changes are immediately reflected without reinstalling):
 
 ```bash
