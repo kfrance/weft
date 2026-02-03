@@ -10,6 +10,7 @@ import pytest
 from weft.plan_file_copier import (
     PlanFileCopyError,
     copy_plan_files,
+    copy_plan_files_with_collision_resolution,
     get_existing_files,
 )
 
@@ -134,3 +135,200 @@ class TestCopyPlanFilesBehavior:
 
         with pytest.raises(PlanFileCopyError, match="Destination directory does not exist"):
             copy_plan_files(source_dir, dest_dir, existing_files)
+
+
+class TestCopyPlanFilesWithCollisionResolution:
+    """Tests for copy_plan_files_with_collision_resolution function."""
+
+    def test_collision_resolver_called_after_copy(self, tmp_path: Path) -> None:
+        """Verify collision resolver is called after copy completes."""
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "dest"
+        source_dir.mkdir()
+        dest_dir.mkdir()
+
+        existing_files = get_existing_files(source_dir)
+        (source_dir / "plan.md").write_text("# Plan content")
+
+        with patch(
+            "weft.plan_id_collision_resolver.resolve_plan_id_collisions"
+        ) as mock_resolve:
+            mock_resolve.return_value = {}
+
+            result = copy_plan_files_with_collision_resolution(
+                source_dir=source_dir,
+                dest_dir=dest_dir,
+                existing_files=existing_files,
+                api_key="fake-key",
+                cache_dir=tmp_path,
+            )
+
+            mock_resolve.assert_called_once()
+            assert result.files_found == 1
+            assert "plan.md" in result.file_mapping
+
+    def test_file_mapping_reflects_renamed_files(self, tmp_path: Path) -> None:
+        """Verify CopyResult.file_mapping reflects renamed files."""
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "dest"
+        source_dir.mkdir()
+        dest_dir.mkdir()
+
+        existing_files = get_existing_files(source_dir)
+        (source_dir / "plan.md").write_text("# Plan content")
+
+        with patch(
+            "weft.plan_id_collision_resolver.resolve_plan_id_collisions"
+        ) as mock_resolve:
+            # Simulate collision resolver renaming the file
+            mock_resolve.return_value = {"plan.md": "renamed-plan.md"}
+
+            result = copy_plan_files_with_collision_resolution(
+                source_dir=source_dir,
+                dest_dir=dest_dir,
+                existing_files=existing_files,
+                api_key="fake-key",
+                cache_dir=tmp_path,
+            )
+
+            # File mapping should reflect the rename
+            assert result.file_mapping == {"plan.md": "renamed-plan.md"}
+
+    def test_no_llm_call_when_no_collisions(self, tmp_path: Path) -> None:
+        """Verify no LLM call when no collisions detected."""
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "dest"
+        source_dir.mkdir()
+        dest_dir.mkdir()
+
+        existing_files = get_existing_files(source_dir)
+        (source_dir / "plan.md").write_text("# Plan content")
+
+        with patch(
+            "weft.plan_id_collision_resolver.resolve_plan_id_collisions"
+        ) as mock_resolve:
+            # No collisions - resolver returns empty dict
+            mock_resolve.return_value = {}
+
+            result = copy_plan_files_with_collision_resolution(
+                source_dir=source_dir,
+                dest_dir=dest_dir,
+                existing_files=existing_files,
+                api_key="fake-key",
+                cache_dir=tmp_path,
+            )
+
+            # Original file mapping should be preserved
+            assert result.file_mapping == {"plan.md": "plan.md"}
+
+    def test_no_collision_resolution_without_api_key(self, tmp_path: Path) -> None:
+        """Verify collision resolution is skipped without API key."""
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "dest"
+        source_dir.mkdir()
+        dest_dir.mkdir()
+
+        existing_files = get_existing_files(source_dir)
+        (source_dir / "plan.md").write_text("# Plan content")
+
+        with patch(
+            "weft.plan_id_collision_resolver.resolve_plan_id_collisions"
+        ) as mock_resolve:
+            result = copy_plan_files_with_collision_resolution(
+                source_dir=source_dir,
+                dest_dir=dest_dir,
+                existing_files=existing_files,
+                api_key=None,  # No API key
+                cache_dir=tmp_path,
+            )
+
+            # Resolver should not be called
+            mock_resolve.assert_not_called()
+            # But copy should still work
+            assert result.files_found == 1
+
+    def test_no_collision_resolution_without_cache_dir(self, tmp_path: Path) -> None:
+        """Verify collision resolution is skipped without cache dir."""
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "dest"
+        source_dir.mkdir()
+        dest_dir.mkdir()
+
+        existing_files = get_existing_files(source_dir)
+        (source_dir / "plan.md").write_text("# Plan content")
+
+        with patch(
+            "weft.plan_id_collision_resolver.resolve_plan_id_collisions"
+        ) as mock_resolve:
+            result = copy_plan_files_with_collision_resolution(
+                source_dir=source_dir,
+                dest_dir=dest_dir,
+                existing_files=existing_files,
+                api_key="fake-key",
+                cache_dir=None,  # No cache dir
+            )
+
+            # Resolver should not be called
+            mock_resolve.assert_not_called()
+            assert result.files_found == 1
+
+    def test_collision_resolver_error_is_logged_not_raised(
+        self, tmp_path: Path
+    ) -> None:
+        """Verify collision resolver errors are logged but don't fail the copy."""
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "dest"
+        source_dir.mkdir()
+        dest_dir.mkdir()
+
+        existing_files = get_existing_files(source_dir)
+        (source_dir / "plan.md").write_text("# Plan content")
+
+        with patch(
+            "weft.plan_id_collision_resolver.resolve_plan_id_collisions"
+        ) as mock_resolve:
+            from weft.plan_id_collision_resolver import CollisionResolverError
+
+            mock_resolve.side_effect = CollisionResolverError("LLM failed")
+
+            # Should not raise - error is logged but copy succeeds
+            result = copy_plan_files_with_collision_resolution(
+                source_dir=source_dir,
+                dest_dir=dest_dir,
+                existing_files=existing_files,
+                api_key="fake-key",
+                cache_dir=tmp_path,
+            )
+
+            assert result.files_found == 1
+            assert result.file_mapping == {"plan.md": "plan.md"}
+
+    def test_passes_worktree_tasks_dir_to_resolver(self, tmp_path: Path) -> None:
+        """Verify worktree_tasks_dir is passed to collision resolver."""
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "dest"
+        worktree_tasks = tmp_path / "worktree" / ".weft" / "tasks"
+        source_dir.mkdir()
+        dest_dir.mkdir()
+        worktree_tasks.mkdir(parents=True)
+
+        existing_files = get_existing_files(source_dir)
+        (source_dir / "plan.md").write_text("# Plan content")
+
+        with patch(
+            "weft.plan_id_collision_resolver.resolve_plan_id_collisions"
+        ) as mock_resolve:
+            mock_resolve.return_value = {}
+
+            copy_plan_files_with_collision_resolution(
+                source_dir=source_dir,
+                dest_dir=dest_dir,
+                existing_files=existing_files,
+                worktree_tasks_dir=worktree_tasks,
+                api_key="fake-key",
+                cache_dir=tmp_path,
+            )
+
+            call_kwargs = mock_resolve.call_args.kwargs
+            assert call_kwargs["worktree_tasks_dir"] == worktree_tasks
+            assert call_kwargs["main_tasks_dir"] == dest_dir

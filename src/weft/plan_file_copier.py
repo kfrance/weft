@@ -2,7 +2,7 @@
 
 This module provides functions to track and copy plan files generated during
 plan command execution from a temporary worktree to the main repository,
-resolving naming conflicts using Chrome-style numbering.
+resolving naming conflicts using Chrome-style numbering and plan_id collisions.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from .logging_config import get_logger
 
@@ -194,5 +194,93 @@ def copy_plan_files(
                 exc,
             )
             result.files_failed.append(source_file.name)
+
+    return result
+
+
+def copy_plan_files_with_collision_resolution(
+    source_dir: Path,
+    dest_dir: Path,
+    existing_files: Set[str],
+    worktree_tasks_dir: Optional[Path] = None,
+    api_key: Optional[str] = None,
+    cache_dir: Optional[Path] = None,
+) -> CopyResult:
+    """Copy plan files with collision resolution for duplicate plan_ids.
+
+    This is the main entry point for copying plan files when plan_id
+    collision resolution is desired. It performs the standard copy operation
+    and then resolves any plan_id collisions.
+
+    Args:
+        source_dir: Source directory (worktree's .weft/tasks/).
+        dest_dir: Destination directory (main repo's .weft/tasks/).
+        existing_files: Set of filenames that existed before execution.
+        worktree_tasks_dir: Path to worktree's tasks dir for collision detection.
+        api_key: OpenRouter API key for LLM-based plan_id generation.
+        cache_dir: Directory for DSPy cache.
+
+    Returns:
+        CopyResult containing file_mapping, files_found count, and files_failed list.
+        The file_mapping reflects any renames due to plan_id collision resolution.
+
+    Raises:
+        PlanFileCopyError: If copy fails critically.
+    """
+    # First, perform the standard copy operation
+    result = copy_plan_files(source_dir, dest_dir, existing_files)
+
+    # If we have the required credentials for collision resolution, attempt it
+    if api_key and cache_dir:
+        try:
+            # Import here to avoid circular dependency issues
+            from .plan_id_collision_resolver import (
+                CollisionResolverError,
+                resolve_plan_id_collisions,
+            )
+
+            # Get the list of successfully copied files in the destination
+            copied_files = [
+                dest_dir / new_name
+                for new_name in result.file_mapping.values()
+            ]
+
+            if copied_files:
+                # Resolve any plan_id collisions
+                rename_mapping = resolve_plan_id_collisions(
+                    copied_files=copied_files,
+                    worktree_tasks_dir=worktree_tasks_dir,
+                    main_tasks_dir=dest_dir,
+                    api_key=api_key,
+                    cache_dir=cache_dir,
+                )
+
+                # Update file_mapping with any renames
+                if rename_mapping:
+                    updated_mapping: Dict[str, str] = {}
+                    for orig_name, copied_name in result.file_mapping.items():
+                        if copied_name in rename_mapping:
+                            updated_mapping[orig_name] = rename_mapping[copied_name]
+                            logger.debug(
+                                "Plan_id collision resolved: %s -> %s",
+                                copied_name,
+                                rename_mapping[copied_name],
+                            )
+                        else:
+                            updated_mapping[orig_name] = copied_name
+                    result.file_mapping = updated_mapping
+
+        except CollisionResolverError as e:
+            # Log but don't fail - collision resolution is a nice-to-have
+            logger.warning(
+                "Failed to resolve plan_id collisions: %s",
+                e,
+            )
+        except ImportError as e:
+            # This shouldn't happen in normal operation
+            logger.debug(
+                "Could not import collision resolver: %s",
+                e,
+            )
 
     return result
