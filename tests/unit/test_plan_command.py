@@ -1217,10 +1217,14 @@ disallowed_commands = ["git add:*", "git commit:*"]
         f"Command must include --disallowed-tools from sandbox config. Got: {command}"
     )
     assert "Bash(git add:*)" in command, (
-        f"Command should include disallowed patterns from config.toml. Got: {command}"
+        f"Command should include disallowed pattern 'git add:*' from config.toml. Got: {command}"
     )
     assert "Bash(git commit:*)" in command, (
-        f"Command should include disallowed patterns from config.toml. Got: {command}"
+        f"Command should include disallowed pattern 'git commit:*' from config.toml. Got: {command}"
+    )
+    # Verify comma-separated format (single arg, not variadic) so prompt isn't consumed
+    assert "Bash(git add:*),Bash(git commit:*)" in command, (
+        f"Disallowed tools must be comma-separated in a single arg. Got: {command}"
     )
 
     # Verify flag ordering: --disallowed-tools must appear before prompt (variadic consumption)

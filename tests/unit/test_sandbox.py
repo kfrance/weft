@@ -10,6 +10,7 @@ Tests for the weft sandbox implementation including:
 from __future__ import annotations
 
 import os
+import shlex
 from pathlib import Path
 
 import pytest
@@ -706,24 +707,24 @@ class TestGetDisallowedToolsArgs:
         assert args == []
 
     def test_single_pattern(self) -> None:
-        """Test generating args for single pattern."""
+        """Test generating args for single pattern as comma-separated value."""
         config = SandboxConfig(disallowed_commands=["git add:*"])
         args = get_disallowed_tools_args(config)
 
+        assert len(args) == 2
         assert args[0] == "--disallowed-tools"
-        assert "Bash(git add:*)" in args
+        assert args[1] == "'Bash(git add:*)'"
 
     def test_multiple_patterns(self) -> None:
-        """Test generating args for multiple patterns."""
+        """Test generating args as single comma-separated shell-quoted value."""
         config = SandboxConfig(
             disallowed_commands=["git add:*", "git commit:*", "docker:*"]
         )
         args = get_disallowed_tools_args(config)
 
+        assert len(args) == 2
         assert args[0] == "--disallowed-tools"
-        assert "Bash(git add:*)" in args
-        assert "Bash(git commit:*)" in args
-        assert "Bash(docker:*)" in args
+        assert args[1] == "'Bash(git add:*),Bash(git commit:*),Bash(docker:*)'"
 
 
 class TestMatchesDisallowedCommand:
@@ -791,3 +792,130 @@ class TestMatchesDisallowedCommand:
         for cmd in ["git status", "git diff", "git log --oneline", "git branch -a"]:
             is_blocked, _ = matches_disallowed_command(cmd, config)
             assert is_blocked is False, f"Command should be allowed: {cmd}"
+
+
+class TestCommandBashSyntax:
+    """Tests that validate the generated command at the bash parsing level.
+
+    These tests compose get_disallowed_tools_args() with
+    ClaudeCodeExecutor.build_command() and verify that bash can correctly
+    parse the resulting command string. This catches issues like unquoted
+    parentheses or variadic flags consuming positional arguments.
+    """
+
+    def _build_command_with_disallowed(
+        self, disallowed_commands: list[str]
+    ) -> str:
+        """Helper to build a full claude command with disallowed tools."""
+        from weft.executors import ClaudeCodeExecutor
+
+        config = SandboxConfig(disallowed_commands=disallowed_commands)
+        args = get_disallowed_tools_args(config)
+        executor = ClaudeCodeExecutor()
+        return executor.build_command(
+            prompt_path=Path("/tmp/claude/prompt.txt"),
+            model="sonnet",
+            headless=True,
+            skip_permissions=True,
+            disallowed_tools=args,
+        )
+
+    def test_disallowed_tools_args_produce_valid_bash_syntax(self) -> None:
+        """Verify bash can parse a command with disallowed tools containing parens.
+
+        Parentheses in Bash(pattern) must be properly quoted, otherwise
+        bash treats them as subshell syntax and fails to parse.
+        """
+        import subprocess
+
+        command = self._build_command_with_disallowed(
+            ["git add:*", "git commit:*"]
+        )
+        result = subprocess.run(
+            ["bash", "-n", "-c", command],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"bash -n failed on generated command.\n"
+            f"Command: {command}\n"
+            f"stderr: {result.stderr}"
+        )
+
+    def test_double_dash_separator_present_before_prompt(self) -> None:
+        """Verify -- separator exists between disallowed-tools and the prompt.
+
+        Without --, the variadic --disallowed-tools flag consumes the
+        prompt as another tool pattern instead of a positional argument.
+        """
+        command = self._build_command_with_disallowed(["git push:*"])
+        tokens = command.split()
+
+        # Find the -- token
+        assert "--" in tokens, (
+            f"Missing -- separator in command: {command}"
+        )
+        separator_idx = tokens.index("--")
+
+        # The prompt $(cat ...) must come after --
+        prompt_part = '"$(cat'
+        prompt_tokens = [t for t in tokens[separator_idx + 1:] if prompt_part in t]
+        assert prompt_tokens, (
+            f"Prompt not found after -- separator.\n"
+            f"Command: {command}\n"
+            f"Tokens after --: {tokens[separator_idx + 1:]}"
+        )
+
+    def test_bash_argument_parsing_preserves_prompt_with_disallowed_tools(
+        self,
+    ) -> None:
+        """Verify bash parses the prompt as its own argument, not part of --disallowed-tools.
+
+        Replaces 'claude' with a bash function that prints each argument
+        on its own line, then inspects the parsed argument list.
+        """
+        import subprocess
+
+        command = self._build_command_with_disallowed(
+            ["git add:*", "git commit:*", "docker:*"]
+        )
+
+        # Create a prompt file with known content
+        prompt_content = "Implement the feature"
+        # Replace 'claude' invocation with a function that prints args
+        # and create the prompt file inline
+        wrapper = (
+            f'prompt_file=$(mktemp) && echo -n {shlex.quote(prompt_content)} > "$prompt_file" && '
+            + command.replace(
+                "claude ",
+                'claude_mock() { for arg in "$@"; do echo "$arg"; done; }; claude_mock ',
+                1,
+            ).replace("/tmp/claude/prompt.txt", '$prompt_file')
+        )
+
+        result = subprocess.run(
+            ["bash", "-c", wrapper],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"bash execution failed.\nWrapper: {wrapper}\nstderr: {result.stderr}"
+        )
+
+        args = result.stdout.strip().splitlines()
+
+        # The prompt content must appear as its own argument (last one)
+        assert args[-1] == prompt_content, (
+            f"Prompt was not parsed as a standalone argument.\n"
+            f"Expected last arg: {prompt_content!r}\n"
+            f"Actual args: {args}"
+        )
+
+        # --disallowed-tools value must NOT contain the prompt
+        dt_indices = [i for i, a in enumerate(args) if a == "--disallowed-tools"]
+        for idx in dt_indices:
+            value = args[idx + 1] if idx + 1 < len(args) else ""
+            assert prompt_content not in value, (
+                f"Prompt was consumed by --disallowed-tools.\n"
+                f"--disallowed-tools value: {value!r}"
+            )

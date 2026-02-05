@@ -17,6 +17,7 @@ Configuration is loaded from the repository's .weft/config.toml [sandbox] sectio
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -435,21 +436,21 @@ def get_disallowed_tools_args(config: SandboxConfig) -> list[str]:
     --disallowed-tools format. Each pattern like "git add:*" becomes
     "Bash(git add:*)" to block bash commands matching that pattern.
 
+    Uses comma-separated format in a single shell-quoted argument so the
+    variadic --disallowed-tools flag doesn't consume subsequent positional
+    arguments (like the prompt).
+
     Args:
         config: Sandbox configuration with disallowed_commands.
 
     Returns:
-        List of CLI arguments, e.g. ["--disallowed-tools", "Bash(git add:*)", "Bash(git commit:*)"]
+        List of two CLI arguments: ["--disallowed-tools", "<comma-separated tools>"]
     """
     if not config.disallowed_commands:
         return []
 
-    args = ["--disallowed-tools"]
-    for pattern in config.disallowed_commands:
-        # Wrap pattern in Bash() for CLI format
-        args.append(f"Bash({pattern})")
-
-    return args
+    tools = [f"Bash({pattern})" for pattern in config.disallowed_commands]
+    return ["--disallowed-tools", shlex.quote(",".join(tools))]
 
 
 def matches_disallowed_command(command: str, config: SandboxConfig) -> tuple[bool, str | None]:

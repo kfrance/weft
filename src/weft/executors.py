@@ -195,11 +195,14 @@ class ClaudeCodeExecutor(Executor):
         if skip_permissions:
             parts.append("--dangerously-skip-permissions")
 
-        # Add disallowed tools args BEFORE the prompt (variadic flag would consume prompt)
         if disallowed_tools:
             parts.extend(disallowed_tools)
 
-        # Add the prompt as the final argument
+        # Use -- to stop flag parsing before the positional prompt argument.
+        # Without this, variadic flags like --disallowed-tools consume the prompt.
+        parts.append("--")
+
+        # Add the prompt as the final positional argument
         parts.append(f'"$(cat {prompt_path_escaped})"')
 
         return " ".join(parts)
