@@ -32,7 +32,14 @@ class Executor(ABC):
         """
 
     @abstractmethod
-    def build_command(self, prompt_path: Path, model: str, headless: bool = False) -> str:
+    def build_command(
+        self,
+        prompt_path: Path,
+        model: str,
+        headless: bool = False,
+        skip_permissions: bool = False,
+        disallowed_tools: list[str] | None = None,
+    ) -> str:
         """Build the command to run with the prompt file.
 
         Args:
@@ -43,6 +50,11 @@ class Executor(ABC):
                    it; other executors may ignore it.
             headless: If True, build command for non-interactive execution.
                      ClaudeCodeExecutor adds -p flag; other executors may ignore.
+            skip_permissions: If True, add --dangerously-skip-permissions flag.
+                     ClaudeCodeExecutor uses this; other executors may ignore.
+            disallowed_tools: Pre-formatted CLI args from get_disallowed_tools_args()
+                     (e.g., ["--disallowed-tools", "Bash(git add:*)", ...]).
+                     ClaudeCodeExecutor appends these; other executors may ignore.
 
         Returns:
             Command string to execute (e.g., 'droid "$(cat /path/to/prompt.txt)"')
@@ -81,13 +93,22 @@ class DroidExecutor(Executor):
         except DroidAuthError as exc:
             raise ExecutorError(str(exc)) from exc
 
-    def build_command(self, prompt_path: Path, model: str, headless: bool = False) -> str:
+    def build_command(
+        self,
+        prompt_path: Path,
+        model: str,
+        headless: bool = False,
+        skip_permissions: bool = False,
+        disallowed_tools: list[str] | None = None,
+    ) -> str:
         """Build the droid command.
 
         Args:
             prompt_path: Path to the prompt file.
             model: Model variant to use (unused for Droid).
             headless: Unused for Droid (always runs non-interactively).
+            skip_permissions: Unused for Droid (Claude Code specific).
+            disallowed_tools: Unused for Droid (Claude Code specific).
 
         Returns:
             Droid command string with properly escaped paths.
@@ -124,13 +145,26 @@ class ClaudeCodeExecutor(Executor):
         """
         logger.debug("Claude Code CLI authentication check (no-op)")
 
-    def build_command(self, prompt_path: Path, model: str, headless: bool = False) -> str:
+    def build_command(
+        self,
+        prompt_path: Path,
+        model: str,
+        headless: bool = False,
+        skip_permissions: bool = False,
+        disallowed_tools: list[str] | None = None,
+    ) -> str:
         """Build the Claude Code command.
 
         Args:
             prompt_path: Path to the prompt file.
             model: Model variant to use (e.g., "sonnet", "opus", "haiku").
             headless: If True, add -p flag for non-interactive execution.
+            skip_permissions: If True, add --dangerously-skip-permissions flag to
+                     bypass Claude Code's permission system inside weft's sandbox.
+            disallowed_tools: Pre-formatted CLI args from get_disallowed_tools_args()
+                     (e.g., ["--disallowed-tools", "Bash(git add:*)", ...]).
+                     These are placed before the prompt to avoid the variadic flag
+                     consuming the prompt argument.
 
         Returns:
             Claude Code CLI command string with properly escaped paths.
@@ -151,9 +185,24 @@ class ClaudeCodeExecutor(Executor):
         prompt_path_escaped = shlex.quote(str(prompt_path))
         model_escaped = shlex.quote(model)
 
+        # Build command parts
+        parts = ["claude"]
         if headless:
-            return f'claude -p --model {model_escaped} "$(cat {prompt_path_escaped})"'
-        return f'claude --model {model_escaped} "$(cat {prompt_path_escaped})"'
+            parts.append("-p")
+        parts.extend(["--model", model_escaped])
+
+        # Add permission bypass flags (for running inside weft's bwrap sandbox)
+        if skip_permissions:
+            parts.append("--dangerously-skip-permissions")
+
+        # Add disallowed tools args BEFORE the prompt (variadic flag would consume prompt)
+        if disallowed_tools:
+            parts.extend(disallowed_tools)
+
+        # Add the prompt as the final argument
+        parts.append(f'"$(cat {prompt_path_escaped})"')
+
+        return " ".join(parts)
 
     def get_env_vars(self, host_factory_dir: Path) -> dict[str, str] | None:
         """Get Claude Code-specific environment variables.

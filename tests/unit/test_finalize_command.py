@@ -579,6 +579,92 @@ evaluation_notes: []
 # =============================================================================
 
 
+# =============================================================================
+# Regression guard: finalize must NOT use permission bypass flags
+# =============================================================================
+
+
+def test_finalize_does_not_use_permission_bypass_flags(monkeypatch, tmp_path: Path, caplog) -> None:
+    """Regression guard: finalize command must NOT use --dangerously-skip-permissions or --disallowed-tools.
+
+    The finalize command intentionally requires user approval for git operations
+    (git add, git commit, git push). Unlike weft plan/code which run in an automated
+    context, finalize is interactive to ensure users explicitly approve destructive operations.
+    """
+    # Setup plan file
+    plan_path = tmp_path / "test-plan.md"
+    plan_content = """---
+plan_id: test-plan
+git_sha: abcd1234abcd1234abcd1234abcd1234abcd1234
+status: coding
+evaluation_notes: []
+---
+
+# Test Plan
+"""
+    plan_path.write_text(plan_content)
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Mock dependencies
+    monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+    monkeypatch.setattr(
+        finalize_command, "validate_worktree_exists",
+        lambda repo_root, plan_id: worktree_path
+    )
+    monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
+    monkeypatch.setattr(
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
+    )
+    monkeypatch.setattr(finalize_command, "host_runner_config", lambda **kwargs: kwargs)
+    monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
+
+    # Track executor.build_command calls to inspect arguments
+    build_command_calls: list[dict] = []
+
+    def mock_build_command(prompt_file, model, headless=False, skip_permissions=False, disallowed_tools=None):
+        build_command_calls.append({
+            "prompt_file": prompt_file,
+            "model": model,
+            "headless": headless,
+            "skip_permissions": skip_permissions,
+            "disallowed_tools": disallowed_tools,
+        })
+        return f'claude --model {model} "$(cat {prompt_file})"'
+
+    # Mock executor with our tracking build_command
+    mock_executor = SimpleNamespace(
+        check_auth=lambda: None,
+        build_command=mock_build_command,
+        get_env_vars=lambda factory_dir: None
+    )
+
+    from weft.executors import ExecutorRegistry
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+    # Mock subprocess to return failure (stop execution early, we only care about build_command args)
+    mock_result = SimpleNamespace(returncode=1)
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: mock_result)
+
+    # Execute
+    caplog.set_level(logging.INFO)
+    run_finalize_command(plan_path, tool="claude-code")
+
+    # Assert that build_command was called
+    assert len(build_command_calls) == 1, "build_command should have been called once"
+
+    # CRITICAL: Verify permission bypass flags are NOT used
+    call_args = build_command_calls[0]
+    assert call_args["skip_permissions"] is False, (
+        "finalize must NOT use skip_permissions=True - user approval required for git operations"
+    )
+    assert call_args["disallowed_tools"] is None, (
+        "finalize must NOT use disallowed_tools - no need since permissions are not bypassed"
+    )
+
+
 class TestFinalizeCommandFileSync:
     """Tests for file sync command scope in finalize_command."""
 

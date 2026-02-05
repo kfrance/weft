@@ -68,7 +68,7 @@ from .worktree.file_sync import (
 )
 from .fingerprint import compute_prompt_fingerprint
 from .training_types import SessionMetadata, SubagentDefinition
-from .sandbox import SandboxConfigError, load_sandbox_config
+from .sandbox import SandboxConfigError, get_disallowed_tools_args, load_sandbox_config
 
 logger = get_logger(__name__)
 
@@ -736,7 +736,18 @@ def run_code_command(
             return 0
 
         # Build CLI resume command: claude -r <session_id> --model <model>
+        # NOTE: This is a parallel code path to ClaudeCodeExecutor.build_command(skip_permissions=True,
+        # disallowed_tools=...) for permission flags. The command structure differs: build_command()
+        # uses a prompt file while this uses -r <session_id> for session resume. Both code paths
+        # must apply the same permission flags (--dangerously-skip-permissions, --disallowed-tools).
         command = f"claude -r {shlex.quote(session_id)} --model {shlex.quote(effective_model)}"
+
+        # Add permission bypass flags for running inside weft's bwrap sandbox
+        command += " --dangerously-skip-permissions"
+        disallowed_tools_args = get_disallowed_tools_args(sandbox_config)
+        if disallowed_tools_args:
+            command += " " + " ".join(disallowed_tools_args)
+
         logger.info("Resuming with CLI session...")
     else:
         # For droid or other tools: use executor pattern directly

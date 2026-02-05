@@ -477,6 +477,188 @@ class TestCodeCommandPatchCapture:
             pass  # Cleanup is best-effort
 
 
+# =============================================================================
+# Tests for permission bypass flags in CLI resume command
+# =============================================================================
+
+
+class TestCodeCommandPermissionFlags:
+    """Tests for permission bypass flags in code command's CLI resume command."""
+
+    def test_cli_resume_with_empty_disallowed_commands(self, monkeypatch, git_repo) -> None:
+        """Test CLI resume command works correctly when disallowed_commands is empty.
+
+        When the [sandbox] section has no disallowed_commands, only --dangerously-skip-permissions
+        should be added, without --disallowed-tools.
+        """
+        plan_path = git_repo.path / "test-plan.md"
+        write_plan(plan_path, {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": "test-empty-disallowed",
+            "status": "draft",
+        })
+
+        # Create config.toml WITHOUT disallowed_commands
+        config_dir = git_repo.path / ".weft"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "config.toml"
+        config_path.write_text("""
+[sandbox]
+# No disallowed_commands configured
+""")
+
+        # Mock sandbox dependency check
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+
+        # Mock prompts
+        mock_prompts = {
+            "main_prompt": "Main prompt",
+            "code_review_auditor": "Code review",
+            "plan_alignment_checker": "Plan alignment",
+        }
+        monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+
+        # Create worktree
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-empty-disallowed"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
+
+        # Track the command passed to host_runner_config
+        captured_commands: list[str] = []
+
+        def mock_host_runner_config(**kwargs):
+            if "command" in kwargs:
+                captured_commands.append(kwargs["command"])
+            return kwargs
+
+        monkeypatch.setattr(code_command, "host_runner_config", mock_host_runner_config)
+        monkeypatch.setattr(code_command, "build_host_command", lambda config: (["echo"], {}))
+
+        # Mock subprocess to return failure (stop execution after command is built)
+        import subprocess as sp
+        original_run = sp.run
+
+        def mock_subprocess_run(cmd, *args, **kwargs):
+            if isinstance(cmd, list) and len(cmd) > 0:
+                if cmd[0] == "git":
+                    return original_run(cmd, *args, **kwargs)
+                return sp.CompletedProcess(cmd, returncode=1, stdout="", stderr="")
+            return original_run(cmd, *args, **kwargs)
+
+        monkeypatch.setattr(sp, "run", mock_subprocess_run)
+
+        # Execute
+        run_code_command(plan_path)
+
+        # Verify we captured the CLI resume command
+        assert len(captured_commands) > 0, "Should have captured at least one command"
+
+        # Find the CLI resume command (claude -r ...)
+        cli_resume_commands = [cmd for cmd in captured_commands if "claude -r" in cmd]
+        assert len(cli_resume_commands) == 1, "Should have exactly one CLI resume command"
+
+        cli_resume_cmd = cli_resume_commands[0]
+
+        # Verify --dangerously-skip-permissions is present
+        assert "--dangerously-skip-permissions" in cli_resume_cmd, (
+            "CLI resume command must include --dangerously-skip-permissions for weft's sandbox"
+        )
+
+        # Verify --disallowed-tools is NOT present when disallowed_commands is empty
+        assert "--disallowed-tools" not in cli_resume_cmd, (
+            "CLI resume command should NOT include --disallowed-tools when no disallowed_commands configured"
+        )
+
+    def test_cli_resume_includes_permission_bypass_flags(self, monkeypatch, git_repo) -> None:
+        """Test that CLI resume command includes --dangerously-skip-permissions and --disallowed-tools.
+
+        The CLI resume command (claude -r <session_id> ...) is built directly in code_command.py,
+        not through the executor. This test verifies that it includes the permission bypass flags
+        for running inside weft's bwrap sandbox.
+        """
+        plan_path = git_repo.path / "test-plan.md"
+        write_plan(plan_path, {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": "test-permission-flags",
+            "status": "draft",
+        })
+
+        # Create config.toml with disallowed_commands
+        config_dir = git_repo.path / ".weft"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "config.toml"
+        config_path.write_text("""
+[sandbox]
+disallowed_commands = ["git add:*", "git commit:*"]
+""")
+
+        # Mock sandbox dependency check
+        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+
+        # Mock prompts
+        mock_prompts = {
+            "main_prompt": "Main prompt",
+            "code_review_auditor": "Code review",
+            "plan_alignment_checker": "Plan alignment",
+        }
+        monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+
+        # Create worktree
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-permission-flags"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
+
+        # Track the command passed to host_runner_config
+        captured_commands: list[str] = []
+
+        def mock_host_runner_config(**kwargs):
+            if "command" in kwargs:
+                captured_commands.append(kwargs["command"])
+            return kwargs
+
+        monkeypatch.setattr(code_command, "host_runner_config", mock_host_runner_config)
+        monkeypatch.setattr(code_command, "build_host_command", lambda config: (["echo"], {}))
+
+        # Mock subprocess to return failure (stop execution after command is built)
+        import subprocess as sp
+        original_run = sp.run
+
+        def mock_subprocess_run(cmd, *args, **kwargs):
+            if isinstance(cmd, list) and len(cmd) > 0:
+                if cmd[0] == "git":
+                    return original_run(cmd, *args, **kwargs)
+                return sp.CompletedProcess(cmd, returncode=1, stdout="", stderr="")
+            return original_run(cmd, *args, **kwargs)
+
+        monkeypatch.setattr(sp, "run", mock_subprocess_run)
+
+        # Execute
+        run_code_command(plan_path)
+
+        # Verify we captured the CLI resume command
+        assert len(captured_commands) > 0, "Should have captured at least one command"
+
+        # Find the CLI resume command (claude -r ...)
+        cli_resume_commands = [cmd for cmd in captured_commands if "claude -r" in cmd]
+        assert len(cli_resume_commands) == 1, "Should have exactly one CLI resume command"
+
+        cli_resume_cmd = cli_resume_commands[0]
+
+        # CRITICAL: Verify permission bypass flags are present
+        assert "--dangerously-skip-permissions" in cli_resume_cmd, (
+            "CLI resume command must include --dangerously-skip-permissions for weft's sandbox"
+        )
+        assert "--disallowed-tools" in cli_resume_cmd, (
+            "CLI resume command must include --disallowed-tools from sandbox config"
+        )
+        assert "Bash(git add:*)" in cli_resume_cmd, (
+            "CLI resume command should include disallowed command patterns"
+        )
+        assert "Bash(git commit:*)" in cli_resume_cmd, (
+            "CLI resume command should include disallowed command patterns"
+        )
+
+
 class TestCodeCommandFileSync:
     """Tests for file sync command scope in code_command."""
 

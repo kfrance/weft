@@ -1046,6 +1046,191 @@ class TestWorktreePreservation:
         assert "2 of 2" in captured.out
 
 
+# =============================================================================
+# Tests for permission bypass flags
+# =============================================================================
+
+
+def test_plan_command_with_empty_disallowed_commands(tmp_path: Path, monkeypatch) -> None:
+    """Test plan command produces correct command string when disallowed_commands is empty.
+
+    Uses the real ClaudeCodeExecutor (not mocked) to verify the full chain:
+    config.toml → load_sandbox_config → get_disallowed_tools_args → executor.build_command → command string.
+
+    When the [sandbox] section has no disallowed_commands, the command should include
+    --dangerously-skip-permissions but NOT --disallowed-tools.
+    """
+    from unittest.mock import Mock
+    from weft.plan_command import run_plan_command
+
+    # Setup
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    tasks_dir = repo_root / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create config.toml WITHOUT disallowed_commands
+    config_dir = repo_root / ".weft"
+    config_path = config_dir / "config.toml"
+    config_path.write_text("""
+[sandbox]
+# No disallowed_commands configured
+""")
+
+    monkeypatch.setattr("weft.plan_command.find_repo_root", Mock(return_value=repo_root))
+
+    # Mock temp worktree
+    temp_worktree = tmp_path / "worktree"
+    temp_worktree.mkdir()
+    worktree_tasks_dir = temp_worktree / ".weft" / "tasks"
+    worktree_tasks_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("weft.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("weft.plan_command.remove_temp_worktree", Mock())
+    monkeypatch.setattr("weft.plan_command.get_weft_src_dir", Mock(return_value=tmp_path / "src"))
+    monkeypatch.setattr("weft.plan_command._write_plan_subagents", Mock())
+
+    # DO NOT mock ExecutorRegistry - use the real ClaudeCodeExecutor
+    # This tests the full chain from config.toml through to the final command string
+
+    # Capture the actual command string passed to host_runner_config
+    captured_commands: list[str] = []
+
+    def mock_host_runner_config(**kwargs):
+        if "command" in kwargs:
+            captured_commands.append(kwargs["command"])
+        return kwargs
+
+    monkeypatch.setattr("weft.plan_command.host_runner_config", mock_host_runner_config)
+    monkeypatch.setattr("weft.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+    monkeypatch.setattr("weft.plan_command.load_prompt_template", Mock(return_value="test template"))
+
+    # Mock trace/session management
+    monkeypatch.setattr("weft.plan_command.prune_old_sessions", Mock())
+
+    # Mock subprocess (we only care about the command string built before this)
+    monkeypatch.setattr("weft.plan_command.subprocess.run", Mock(return_value=MagicMock(returncode=1)))
+
+    # Mock copy_plan_files to return empty result
+    from weft.plan_file_copier import CopyResult
+    monkeypatch.setattr(
+        "weft.plan_command.copy_plan_files",
+        Mock(return_value=CopyResult(file_mapping={}, files_found=0, files_failed=[]))
+    )
+
+    # Execute
+    run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+    # Assert on the actual command string produced by the real executor
+    assert len(captured_commands) == 1, "Should have captured one command"
+    command = captured_commands[0]
+
+    assert "--dangerously-skip-permissions" in command, (
+        f"Command must include --dangerously-skip-permissions even with empty disallowed_commands. Got: {command}"
+    )
+    assert "--disallowed-tools" not in command, (
+        f"Command should NOT include --disallowed-tools when no disallowed_commands configured. Got: {command}"
+    )
+
+
+def test_plan_command_uses_permission_bypass_flags(tmp_path: Path, monkeypatch) -> None:
+    """Test plan command produces a command with --dangerously-skip-permissions and --disallowed-tools.
+
+    Uses the real ClaudeCodeExecutor (not mocked) to verify the full chain:
+    config.toml → load_sandbox_config → get_disallowed_tools_args → executor.build_command → command string.
+
+    This catches bugs that kwargs-only tests would miss, such as:
+    - executor.build_command silently ignoring the disallowed_tools parameter
+    - get_disallowed_tools_args producing incorrect CLI format
+    - Flag ordering issues (--disallowed-tools must appear before prompt)
+    """
+    from unittest.mock import Mock
+    from weft.plan_command import run_plan_command
+
+    # Setup
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    tasks_dir = repo_root / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create config.toml with disallowed_commands
+    config_dir = repo_root / ".weft"
+    config_path = config_dir / "config.toml"
+    config_path.write_text("""
+[sandbox]
+disallowed_commands = ["git add:*", "git commit:*"]
+""")
+
+    monkeypatch.setattr("weft.plan_command.find_repo_root", Mock(return_value=repo_root))
+
+    # Mock temp worktree
+    temp_worktree = tmp_path / "worktree"
+    temp_worktree.mkdir()
+    worktree_tasks_dir = temp_worktree / ".weft" / "tasks"
+    worktree_tasks_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("weft.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("weft.plan_command.remove_temp_worktree", Mock())
+    monkeypatch.setattr("weft.plan_command.get_weft_src_dir", Mock(return_value=tmp_path / "src"))
+    monkeypatch.setattr("weft.plan_command._write_plan_subagents", Mock())
+
+    # DO NOT mock ExecutorRegistry - use the real ClaudeCodeExecutor
+    # This tests the full chain from config.toml through to the final command string
+
+    # Capture the actual command string passed to host_runner_config
+    captured_commands: list[str] = []
+
+    def mock_host_runner_config(**kwargs):
+        if "command" in kwargs:
+            captured_commands.append(kwargs["command"])
+        return kwargs
+
+    monkeypatch.setattr("weft.plan_command.host_runner_config", mock_host_runner_config)
+    monkeypatch.setattr("weft.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+    monkeypatch.setattr("weft.plan_command.load_prompt_template", Mock(return_value="test template"))
+
+    # Mock trace/session management
+    monkeypatch.setattr("weft.plan_command.prune_old_sessions", Mock())
+
+    # Mock subprocess (we only care about the command string built before this)
+    monkeypatch.setattr("weft.plan_command.subprocess.run", Mock(return_value=MagicMock(returncode=1)))
+
+    # Mock copy_plan_files to return empty result
+    from weft.plan_file_copier import CopyResult
+    monkeypatch.setattr(
+        "weft.plan_command.copy_plan_files",
+        Mock(return_value=CopyResult(file_mapping={}, files_found=0, files_failed=[]))
+    )
+
+    # Execute
+    run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+    # Assert on the actual command string produced by the real executor
+    assert len(captured_commands) == 1, "Should have captured one command"
+    command = captured_commands[0]
+
+    # Verify the real executor produced a command with all permission bypass flags
+    assert "--dangerously-skip-permissions" in command, (
+        f"Command must include --dangerously-skip-permissions. Got: {command}"
+    )
+    assert "--disallowed-tools" in command, (
+        f"Command must include --disallowed-tools from sandbox config. Got: {command}"
+    )
+    assert "Bash(git add:*)" in command, (
+        f"Command should include disallowed patterns from config.toml. Got: {command}"
+    )
+    assert "Bash(git commit:*)" in command, (
+        f"Command should include disallowed patterns from config.toml. Got: {command}"
+    )
+
+    # Verify flag ordering: --disallowed-tools must appear before prompt (variadic consumption)
+    disallowed_pos = command.find("--disallowed-tools")
+    prompt_pos = command.find("$(cat")
+    assert disallowed_pos < prompt_pos, (
+        f"--disallowed-tools must appear before prompt to avoid variadic consumption. Got: {command}"
+    )
+
+
 class TestPlanCommandFileSync:
     """Tests for file sync command scope in plan_command."""
 

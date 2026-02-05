@@ -41,6 +41,7 @@ from .worktree.file_sync import (
     sync_files_to_worktree,
     validate_worktree_file_sync_config,
 )
+from .sandbox import SandboxConfigError, get_disallowed_tools_args, load_sandbox_config
 
 logger = get_logger(__name__)
 
@@ -299,11 +300,23 @@ def run_plan_command(
         except PlanCommandError as exc:
             raise PlanCommandError(f"Failed to set up plan subagents: {exc}") from exc
 
+        # Load sandbox configuration from .weft/config.toml for disallowed commands
+        config_path = repo_root / ".weft" / "config.toml"
+        try:
+            sandbox_config = load_sandbox_config(config_path)
+        except SandboxConfigError as exc:
+            raise PlanCommandError(f"Failed to load sandbox configuration: {exc}") from exc
+
         # Build command using the executor
         # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (sonnet)
+        # Pass skip_permissions=True and disallowed_tools for running inside weft's sandbox
         effective_model = get_effective_model(model, "plan")
         command = executor.build_command(
-            prompt_file, model=effective_model, headless=is_headless()
+            prompt_file,
+            model=effective_model,
+            headless=is_headless(),
+            skip_permissions=True,
+            disallowed_tools=get_disallowed_tools_args(sandbox_config),
         )
 
         # Get executor-specific environment variables

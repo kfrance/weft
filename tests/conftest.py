@@ -85,7 +85,12 @@ def git_repo(tmp_path: Path) -> GitRepo:
 
 @pytest.fixture()
 def mock_executor_factory():
-    """Factory fixture for creating mock executors in tests."""
+    """Factory fixture for creating mock executors in tests.
+
+    Delegates to real executor's build_command to avoid duplicating implementation
+    logic that could drift out of sync. Only overrides check_auth (to skip real
+    auth checks that may require external dependencies) and get_env_vars.
+    """
     def _factory(tool="claude-code"):
         """Create a mock executor for the specified tool.
 
@@ -95,18 +100,13 @@ def mock_executor_factory():
         Returns:
             SimpleNamespace with mock executor methods.
         """
-        if tool == "droid":
-            return SimpleNamespace(
-                check_auth=lambda: None,
-                build_command=lambda p, model: f'droid "$(cat {p})"',
-                get_env_vars=lambda factory_dir: {}
-            )
-        else:  # claude-code
-            return SimpleNamespace(
-                check_auth=lambda: None,
-                build_command=lambda p, model: f'claude --model {model} "$(cat {p})"',
-                get_env_vars=lambda factory_dir: {}
-            )
+        from weft.executors import ExecutorRegistry
+        real_executor = ExecutorRegistry.get_executor(tool)
+        return SimpleNamespace(
+            check_auth=lambda: None,
+            build_command=real_executor.build_command,
+            get_env_vars=lambda factory_dir: {}
+        )
     return _factory
 
 

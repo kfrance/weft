@@ -107,6 +107,27 @@ class TestDroidExecutor:
         with pytest.raises(ExecutorError):
             executor.check_auth()
 
+    def test_build_command_accepts_skip_permissions_and_disallowed_tools(self, tmp_path: Path) -> None:
+        """Test DroidExecutor.build_command() accepts new parameters and ignores them."""
+        executor = DroidExecutor()
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("test prompt")
+
+        # These parameters should be accepted but ignored for Droid
+        command = executor.build_command(
+            prompt_path,
+            model="sonnet",
+            headless=True,
+            skip_permissions=True,
+            disallowed_tools=["--disallowed-tools", "Bash(git add:*)"],
+        )
+
+        # Command should be the standard droid command without Claude-specific flags
+        assert "droid" in command
+        assert "$(cat" in command
+        assert "--dangerously-skip-permissions" not in command
+        assert "--disallowed-tools" not in command
+
 
 class TestClaudeCodeExecutor:
     """Tests for ClaudeCodeExecutor."""
@@ -225,9 +246,114 @@ class TestClaudeCodeExecutor:
             assert command.startswith("claude --model")
             assert f"--model {shlex.quote(safe_model)}" in command or f"--model '{safe_model}'" in command
 
-            # Ensure no extra flags were injected
-            # Count occurrences of '--' - should only be in '--model' flag
-            assert command.count("--") == 1, f"Unexpected flags in command: {command}"
+            # Verify expected flags are present and no unexpected flags
+            # When skip_permissions=False, should only have --model flag
+            assert "--model" in command
+            assert "--dangerously-skip-permissions" not in command
+            assert "--disallowed-tools" not in command
+
+    @pytest.mark.parametrize("skip_permissions", [True, False])
+    def test_build_command_skip_permissions(self, tmp_path: Path, skip_permissions: bool) -> None:
+        """Test skip_permissions parameter adds or omits the flag."""
+        executor = ClaudeCodeExecutor()
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("test prompt")
+
+        command = executor.build_command(
+            prompt_path, model="sonnet", skip_permissions=skip_permissions
+        )
+
+        if skip_permissions:
+            assert "--dangerously-skip-permissions" in command
+        else:
+            assert "--dangerously-skip-permissions" not in command
+
+    def test_build_command_with_disallowed_tools(self, tmp_path: Path) -> None:
+        """Test disallowed_tools parameter adds the args to the command."""
+        executor = ClaudeCodeExecutor()
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("test prompt")
+
+        disallowed_tools = ["--disallowed-tools", "Bash(git add:*)", "Bash(git commit:*)"]
+        command = executor.build_command(
+            prompt_path, model="sonnet", disallowed_tools=disallowed_tools
+        )
+
+        # Verify disallowed tools are in the command
+        assert "--disallowed-tools" in command
+        assert "Bash(git add:*)" in command
+        assert "Bash(git commit:*)" in command
+
+    def test_build_command_disallowed_tools_none(self, tmp_path: Path) -> None:
+        """Test disallowed_tools=None does not add any args."""
+        executor = ClaudeCodeExecutor()
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("test prompt")
+
+        command = executor.build_command(
+            prompt_path, model="sonnet", disallowed_tools=None
+        )
+
+        assert "--disallowed-tools" not in command
+
+    def test_build_command_disallowed_tools_empty_list(self, tmp_path: Path) -> None:
+        """Test disallowed_tools=[] does not add any args."""
+        executor = ClaudeCodeExecutor()
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("test prompt")
+
+        command = executor.build_command(
+            prompt_path, model="sonnet", disallowed_tools=[]
+        )
+
+        assert "--disallowed-tools" not in command
+
+    def test_build_command_all_flags_combined(self, tmp_path: Path) -> None:
+        """Test headless + skip_permissions + disallowed_tools all work together."""
+        executor = ClaudeCodeExecutor()
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("test prompt")
+
+        disallowed_tools = ["--disallowed-tools", "Bash(git add:*)"]
+        command = executor.build_command(
+            prompt_path,
+            model="opus",
+            headless=True,
+            skip_permissions=True,
+            disallowed_tools=disallowed_tools,
+        )
+
+        # Verify all flags are present
+        assert command.startswith("claude -p")
+        assert "--model opus" in command
+        assert "--dangerously-skip-permissions" in command
+        assert "--disallowed-tools" in command
+        assert "Bash(git add:*)" in command
+        assert "$(cat" in command
+
+    def test_build_command_disallowed_tools_before_prompt(self, tmp_path: Path) -> None:
+        """Test --disallowed-tools args appear before the prompt argument.
+
+        The --disallowed-tools flag is variadic, so if placed after the prompt,
+        it would consume the prompt as one of its arguments.
+        """
+        executor = ClaudeCodeExecutor()
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("test prompt")
+
+        disallowed_tools = ["--disallowed-tools", "Bash(git add:*)"]
+        command = executor.build_command(
+            prompt_path, model="sonnet", disallowed_tools=disallowed_tools
+        )
+
+        # Find positions in command
+        disallowed_pos = command.find("--disallowed-tools")
+        prompt_pos = command.find("$(cat")
+
+        # Disallowed tools should come before the prompt
+        assert disallowed_pos < prompt_pos, (
+            f"--disallowed-tools should appear before prompt. Command: {command}"
+        )
 
 
 class TestExecutorInterface:

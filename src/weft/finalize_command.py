@@ -269,6 +269,10 @@ def run_finalize_command(
 
         # Build command using the executor
         # Use 3-tier precedence: CLI flag > config.toml > hardcoded default (haiku)
+        # NOTE: Intentionally NOT passing skip_permissions=True or disallowed_tools here.
+        # The finalize command requires user approval for git operations (git add, commit, push).
+        # Unlike weft plan/code which run in an automated context, finalize is intentionally
+        # interactive to ensure users explicitly approve destructive operations.
         effective_model = get_effective_model(model, "finalize")
         command = executor.build_command(prompt_file, model=effective_model)
 
