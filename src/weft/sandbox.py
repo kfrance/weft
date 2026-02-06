@@ -19,6 +19,8 @@ from __future__ import annotations
 import os
 import shlex
 import shutil
+import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -32,6 +34,190 @@ except ImportError:
     import tomli as tomllib  # type: ignore[import-not-found]
 
 logger = get_logger(__name__)
+
+
+class SandboxDependencyError(Exception):
+    """Raised when required sandbox dependencies are not installed or not functional.
+
+    Weft's sandbox functionality requires bubblewrap (bwrap) to be installed
+    and able to create user namespaces. This error provides targeted diagnostics
+    for common failure modes (e.g., AppArmor restrictions on Ubuntu 24.04+).
+    """
+
+    pass
+
+
+BWRAP_APPARMOR_PROFILE = """\
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap>
+}
+"""
+
+
+def _run_bwrap_test() -> subprocess.CompletedProcess:
+    """Run a minimal bwrap command to verify user namespace support.
+
+    Returns:
+        CompletedProcess from the bwrap test invocation.
+
+    Raises:
+        SandboxDependencyError: If the bwrap process cannot be started or times out.
+    """
+    try:
+        return subprocess.run(
+            ["bwrap", "--ro-bind", "/", "/", "true"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SandboxDependencyError(
+            f"Failed to run bwrap functional test: {exc}"
+        ) from exc
+
+
+def _is_apparmor_userns_restricted() -> bool:
+    """Check if AppArmor is restricting unprivileged user namespaces.
+
+    Returns:
+        True if the AppArmor sysctl exists and is set to 1.
+    """
+    apparmor_sysctl = Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns")
+    if not apparmor_sysctl.exists():
+        return False
+    try:
+        return apparmor_sysctl.read_text().strip() == "1"
+    except OSError:
+        return False
+
+
+def _install_bwrap_apparmor_profile() -> bool:
+    """Install the AppArmor profile for bwrap and reload AppArmor.
+
+    Writes the profile to /etc/apparmor.d/bwrap via sudo tee, then
+    reloads AppArmor via sudo systemctl reload apparmor.
+
+    Returns:
+        True if the profile was installed and AppArmor reloaded successfully.
+    """
+    logger.info("Installing AppArmor profile for bwrap...")
+
+    try:
+        # Write profile via sudo tee
+        write_result = subprocess.run(
+            ["sudo", "tee", "/etc/apparmor.d/bwrap"],
+            input=BWRAP_APPARMOR_PROFILE,
+            capture_output=True,
+            text=True,
+        )
+        if write_result.returncode != 0:
+            logger.error("Failed to write AppArmor profile: %s", write_result.stderr.strip())
+            return False
+
+        # Reload AppArmor
+        reload_result = subprocess.run(
+            ["sudo", "systemctl", "reload", "apparmor"],
+            capture_output=True,
+            text=True,
+        )
+        if reload_result.returncode != 0:
+            logger.error("Failed to reload AppArmor: %s", reload_result.stderr.strip())
+            return False
+
+    except OSError as exc:
+        logger.error("Failed to run sudo: %s", exc)
+        return False
+
+    logger.info("AppArmor profile installed and reloaded successfully.")
+    return True
+
+
+def check_sandbox_dependencies() -> None:
+    """Verify that sandbox dependencies (bubblewrap) are installed and functional.
+
+    Performs a two-step check:
+    1. Verify the bwrap binary exists in PATH
+    2. Run a functional test (bwrap --ro-bind / / true) to confirm bwrap can
+       actually create user namespaces
+
+    If the functional test fails due to AppArmor restricting user namespaces
+    (Ubuntu 24.04+), and stdin is a TTY, offers to install the AppArmor profile
+    automatically via sudo.
+
+    Raises:
+        SandboxDependencyError: If bwrap is missing or cannot create user namespaces.
+    """
+    # Step 1: Check bwrap binary exists
+    if shutil.which("bwrap") is None:
+        raise SandboxDependencyError(
+            "Missing sandbox dependency: bubblewrap (bwrap). "
+            "Weft sandbox requires this to be installed for filesystem isolation. "
+            "Install with: sudo apt install bubblewrap"
+        )
+
+    # Step 2: Functional test - verify bwrap can create user namespaces
+    result = _run_bwrap_test()
+
+    if result.returncode == 0:
+        return
+
+    # Diagnose: check if AppArmor is restricting unprivileged user namespaces
+    if _is_apparmor_userns_restricted():
+        # Offer to fix automatically if running interactively
+        if sys.stdin.isatty():
+            print(
+                "\nbwrap cannot create user namespaces.\n"
+                "Ubuntu 24.04+ blocks this by default via AppArmor.\n\n"
+                "Weft can install an AppArmor profile that grants bwrap permission\n"
+                "to create user namespaces (this is the only thing it changes).\n\n"
+                "Profile to write to /etc/apparmor.d/bwrap:\n\n"
+                f"{BWRAP_APPARMOR_PROFILE}\n"
+                "Commands to run:\n\n"
+                "  sudo tee /etc/apparmor.d/bwrap   (write the profile above)\n"
+                "  sudo systemctl reload apparmor    (activate it)\n",
+                file=sys.stderr,
+            )
+            try:
+                answer = input("Run these commands now? [Y/n] ")
+            except (EOFError, KeyboardInterrupt):
+                answer = "n"
+
+            if answer.strip().lower() in ("", "y", "yes"):
+                if _install_bwrap_apparmor_profile():
+                    # Verify the fix worked
+                    verify = _run_bwrap_test()
+                    if verify.returncode == 0:
+                        return
+                    logger.warning(
+                        "AppArmor profile installed but bwrap still failing. "
+                        "You may need to log out and back in."
+                    )
+
+        raise SandboxDependencyError(
+            "bwrap cannot create user namespaces. "
+            "Ubuntu 24.04+ restricts unprivileged user namespaces via AppArmor.\n\n"
+            "Fix: Install an AppArmor profile for bwrap:\n\n"
+            "  sudo tee /etc/apparmor.d/bwrap << 'EOF'\n"
+            "  abi <abi/4.0>,\n"
+            "  include <tunables/global>\n\n"
+            "  profile bwrap /usr/bin/bwrap flags=(unconfined) {\n"
+            "    userns,\n"
+            "    include if exists <local/bwrap>\n"
+            "  }\n"
+            "  EOF\n\n"
+            "  sudo systemctl reload apparmor"
+        ) from None
+
+    # Generic failure message with bwrap stderr
+    stderr = result.stderr.strip()
+    raise SandboxDependencyError(
+        f"bwrap cannot create user namespaces (exit code {result.returncode}).\n"
+        f"bwrap output: {stderr}"
+    )
 
 
 def find_claude_install_dir() -> str | None:

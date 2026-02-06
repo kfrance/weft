@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .logging_config import get_logger
-from .sandbox import SandboxConfig, build_bwrap_command
+from .sandbox import SandboxConfig, SandboxDependencyError, build_bwrap_command, check_sandbox_dependencies
 
 logger = get_logger(__name__)
 
@@ -159,6 +159,9 @@ def build_host_command(config: HostRunnerConfig) -> tuple[list[str], dict[str, s
     Returns:
         Tuple of (command_list, environment_dict) for subprocess.run.
     """
+    # Verify bwrap is installed and functional before building the command
+    check_sandbox_dependencies()
+
     # Ensure tasks directory exists
     config.tasks_dir.mkdir(parents=True, exist_ok=True)
 

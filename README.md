@@ -21,6 +21,9 @@ In weaving, the **weft** is the thread that passes back and forth through the wa
 - **Claude Code CLI**
   - Website: [claude.ai/code](https://claude.ai/code)
   - Install with: `curl -fsSL https://claude.ai/install.sh | bash`
+- **bubblewrap** (bwrap) for sandbox isolation
+  - Install with: `sudo apt install bubblewrap`
+  - **Ubuntu 24.04+**: AppArmor restricts unprivileged user namespaces by default, which prevents bwrap from running. An AppArmor profile is needed to grant bwrap the `userns` permission. Weft detects this automatically and offers to install the profile for you (requires sudo).
 
 ## Installation
 

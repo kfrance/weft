@@ -32,6 +32,7 @@ from .worktree_utils import (
     has_uncommitted_changes,
     validate_worktree_exists,
 )
+from .sandbox import SandboxDependencyError
 from .worktree.file_sync import (
     FileSyncError,
     WorktreeFileCleanup,
@@ -362,7 +363,7 @@ def run_finalize_command(
             logger.info("Session interrupted by user.")
             return 130  # Standard Unix convention: 128 + signal number (SIGINT = 2)
 
-    except (ExecutorError, FinalizeCommandError, WorktreeError, RepoUtilsError, PlanValidationError, PromptLoadingError) as exc:
+    except (ExecutorError, FinalizeCommandError, WorktreeError, RepoUtilsError, PlanValidationError, PromptLoadingError, SandboxDependencyError) as exc:
         logger.error("%s", exc)
         return 1
 

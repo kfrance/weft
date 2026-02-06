@@ -41,7 +41,7 @@ from .worktree.file_sync import (
     sync_files_to_worktree,
     validate_worktree_file_sync_config,
 )
-from .sandbox import SandboxConfigError, get_disallowed_tools_args, load_sandbox_config
+from .sandbox import SandboxConfigError, SandboxDependencyError, get_disallowed_tools_args, load_sandbox_config
 
 logger = get_logger(__name__)
 
@@ -507,7 +507,7 @@ def run_plan_command(
 
             return 0
 
-    except (ExecutorError, PlanCommandError, TempWorktreeError, RepoUtilsError) as exc:
+    except (ExecutorError, PlanCommandError, TempWorktreeError, RepoUtilsError, SandboxDependencyError) as exc:
         logger.error("%s", exc)
         return 1
 

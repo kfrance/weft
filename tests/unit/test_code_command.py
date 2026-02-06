@@ -4,7 +4,7 @@ Focused tests for the code_command module. Per CLAUDE.md, we don't test
 interactive commands extensively - integration smoke tests cover the happy path.
 These tests focus on:
 - Pure function tests (_filter_env_vars)
-- Sandbox dependency check tests (_check_sandbox_dependencies)
+- Sandbox dependency check integration tests (check_sandbox_dependencies in host_runner)
 - Critical error path tests with minimal mocking
 - Patch capture workflow test (happy path with mocked SDK and CLI)
 - File sync command scope tests
@@ -13,21 +13,18 @@ These tests focus on:
 from __future__ import annotations
 
 import logging
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
-
 import pytest
 
 import weft.code_command as code_command
+import weft.host_runner as host_runner
 from weft.code_command import (
     _filter_env_vars,
-    _check_sandbox_dependencies,
     run_code_command,
-    SandboxDependencyError,
 )
+from weft.sandbox import SandboxDependencyError
 from weft.patch_utils import EmptyPatchError, PatchCaptureError
 from weft.plan_validator import PlanValidationError
 from weft.worktree.file_sync import FileSyncConfig
@@ -41,7 +38,7 @@ def test_run_code_command_validation_failure(monkeypatch, caplog, tmp_path: Path
     plan_path = tmp_path / "plan.md"
 
     # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap)
-    monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+    monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
     # Mock load_plan_metadata to raise PlanValidationError
     def mock_load_plan_metadata(path):
@@ -74,7 +71,7 @@ def test_run_code_command_worktree_failure(monkeypatch, caplog, git_repo) -> Non
     })
 
     # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap)
-    monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+    monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
     # Mock load_prompts so we can reach the worktree preparation step
     mock_prompts = {
@@ -131,59 +128,29 @@ def test_filter_env_vars_no_matches(monkeypatch) -> None:
 
 
 class TestSandboxDependencyCheck:
-    """Tests for sandbox dependency checking.
+    """Tests for sandbox dependency check integration in code command.
 
-    These tests mock shutil.which to simulate presence/absence of sandbox
-    dependency (bubblewrap) without requiring actual binary.
-
-    Weft's sandbox only requires bwrap (not socat) for filesystem isolation.
+    Unit tests for check_sandbox_dependencies() itself are in test_sandbox.py.
+    These tests verify that code_command properly handles the error when
+    build_host_command raises SandboxDependencyError.
     """
 
-    def test_sandbox_dependency_check_passes_when_bwrap_installed(self) -> None:
-        """Verify check passes when bwrap is installed.
-
-        Mocks shutil.which to return path for bwrap, simulating
-        a system where sandbox dependency is correctly installed.
-        """
-        with patch.object(shutil, "which") as mock_which:
-            # Mock bwrap as found
-            mock_which.return_value = "/usr/bin/bwrap"
-
-            # Should not raise any exception
-            _check_sandbox_dependencies()
-
-            # Verify bwrap was checked
-            mock_which.assert_called_once_with("bwrap")
-
-    def test_sandbox_dependency_check_fails_when_bwrap_missing(self) -> None:
-        """Verify check fails with clear error when bwrap is missing.
-
-        Mocks shutil.which to return None for bwrap, simulating a system
-        where bubblewrap is not installed.
-        """
-        with patch.object(shutil, "which") as mock_which:
-            # Mock bwrap as missing
-            mock_which.return_value = None
-
-            with pytest.raises(SandboxDependencyError) as exc_info:
-                _check_sandbox_dependencies()
-
-            # Verify error message mentions bwrap
-            assert "bubblewrap (bwrap)" in str(exc_info.value)
-            # Verify error includes installation instructions
-            assert "sudo apt install bubblewrap" in str(exc_info.value)
-            # Verify error references weft sandbox (not Claude Code sandbox)
-            assert "Weft sandbox" in str(exc_info.value)
-
     def test_run_code_command_fails_on_missing_sandbox_deps(
-        self, monkeypatch, caplog, tmp_path: Path
+        self, monkeypatch, caplog, git_repo
     ) -> None:
-        """Verify run_code_command fails early when sandbox deps are missing.
+        """Verify run_code_command fails when sandbox deps are missing.
 
-        This test ensures the dependency check is called early in the
-        command execution and returns error code 1 with appropriate logging.
+        The check is now in build_host_command (host_runner.py), so we mock
+        check_sandbox_dependencies there to raise SandboxDependencyError.
         """
-        # Mock _check_sandbox_dependencies to raise
+        plan_path = git_repo.path / "test-plan.md"
+        write_plan(plan_path, {
+            "git_sha": git_repo.latest_commit(),
+            "plan_id": "test-sandbox-deps",
+            "status": "draft",
+        })
+
+        # Mock check_sandbox_dependencies to raise
         def mock_check_deps() -> None:
             raise SandboxDependencyError(
                 "Missing sandbox dependency: bubblewrap (bwrap). "
@@ -191,9 +158,20 @@ class TestSandboxDependencyCheck:
                 "Install with: sudo apt install bubblewrap"
             )
 
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", mock_check_deps)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", mock_check_deps)
 
-        plan_path = tmp_path / "plan.md"
+        # Mock prompts so we can reach the build_host_command step
+        mock_prompts = {
+            "main_prompt": "Main prompt content",
+            "code_review_auditor": "Code review prompt",
+            "plan_alignment_checker": "Plan alignment prompt",
+        }
+        monkeypatch.setattr(code_command, "load_prompts", lambda *_args, **_kwargs: mock_prompts)
+
+        # Create worktree
+        worktree_path = git_repo.path / ".weft" / "worktrees" / "test-sandbox-deps"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(code_command, "ensure_worktree", lambda m: worktree_path)
 
         caplog.set_level(logging.ERROR)
         exit_code = run_code_command(plan_path)
@@ -221,7 +199,7 @@ def test_run_code_command_fails_on_sandbox_config_error(
     })
 
     # Mock sandbox dependency check to pass
-    monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+    monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
     # Mock load_sandbox_config to raise SandboxConfigError
     def mock_load_sandbox_config(path):
@@ -244,7 +222,7 @@ def test_code_command_error_when_sha_mismatch(git_repo, caplog, monkeypatch) -> 
     Uses git_repo fixture for real git operations - minimal mocking.
     """
     # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap)
-    monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+    monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
     initial_sha = git_repo.latest_commit()
     extra_file = git_repo.path / "extra.txt"
@@ -289,7 +267,7 @@ class TestCodeCommandPatchCapture:
         })
 
         # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap)
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         # Mock all the components needed to reach the patch capture step
         mock_prompts = {
@@ -330,7 +308,7 @@ class TestCodeCommandPatchCapture:
         })
 
         # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap)
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         mock_prompts = {
             "main_prompt": "Main prompt content",
@@ -372,7 +350,7 @@ class TestCodeCommandPatchCapture:
         })
 
         # Mock sandbox dependency check to pass (test doesn't depend on real bubblewrap)
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         # Mock prompts
         mock_prompts = {
@@ -508,7 +486,7 @@ class TestCodeCommandPermissionFlags:
 """)
 
         # Mock sandbox dependency check
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         # Mock prompts
         mock_prompts = {
@@ -593,7 +571,7 @@ disallowed_commands = ["git add:*", "git commit:*"]
 """)
 
         # Mock sandbox dependency check
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         # Mock prompts
         mock_prompts = {
@@ -672,7 +650,7 @@ class TestCodeCommandFileSync:
         })
 
         # Mock sandbox dependency check
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         # Mock prompts
         mock_prompts = {
@@ -723,7 +701,7 @@ class TestCodeCommandFileSync:
             "status": "draft",
         })
 
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         mock_prompts = {
             "main_prompt": "Main prompt",
@@ -772,7 +750,7 @@ class TestCodeCommandFileSync:
             "status": "draft",
         })
 
-        monkeypatch.setattr(code_command, "_check_sandbox_dependencies", lambda: None)
+        monkeypatch.setattr(host_runner, "check_sandbox_dependencies", lambda: None)
 
         mock_prompts = {
             "main_prompt": "Main prompt",

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,9 @@ import pytest
 from weft.sandbox import (
     SandboxConfig,
     SandboxConfigError,
+    SandboxDependencyError,
     build_bwrap_command,
+    check_sandbox_dependencies,
     expand_path,
     find_claude_install_dir,
     get_disallowed_tools_args,
@@ -919,3 +922,142 @@ class TestCommandBashSyntax:
                 f"Prompt was consumed by --disallowed-tools.\n"
                 f"--disallowed-tools value: {value!r}"
             )
+
+
+class TestCheckSandboxDependencies:
+    """Tests for the check_sandbox_dependencies() preflight check.
+
+    Verifies bwrap binary existence check, functional user namespace test,
+    AppArmor-specific diagnostics, and automatic profile installation.
+    """
+
+    def test_raises_when_bwrap_not_in_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify error with install instructions when bwrap binary is missing."""
+        import weft.sandbox as sandbox_mod
+
+        monkeypatch.setattr(sandbox_mod.shutil, "which", lambda cmd: None)
+
+        with pytest.raises(SandboxDependencyError) as exc_info:
+            check_sandbox_dependencies()
+
+        error_msg = str(exc_info.value)
+        assert "bubblewrap (bwrap)" in error_msg
+        assert "sudo apt install bubblewrap" in error_msg
+
+    def test_passes_when_bwrap_functional(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify check passes when bwrap exists and can create user namespaces."""
+        import weft.sandbox as sandbox_mod
+
+        monkeypatch.setattr(sandbox_mod.shutil, "which", lambda cmd: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            sandbox_mod, "_run_bwrap_test",
+            lambda: subprocess.CompletedProcess(args=[], returncode=0),
+        )
+
+        # Should not raise
+        check_sandbox_dependencies()
+
+    def test_userns_failure_with_apparmor_non_interactive(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify Ubuntu-specific error when AppArmor restricts userns (non-TTY)."""
+        import weft.sandbox as sandbox_mod
+
+        monkeypatch.setattr(sandbox_mod.shutil, "which", lambda cmd: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            sandbox_mod, "_run_bwrap_test",
+            lambda: subprocess.CompletedProcess(
+                args=[], returncode=1,
+                stderr="bwrap: setting up uid map: Permission denied",
+            ),
+        )
+        monkeypatch.setattr(sandbox_mod, "_is_apparmor_userns_restricted", lambda: True)
+        monkeypatch.setattr(sandbox_mod.sys.stdin, "isatty", lambda: False)
+
+        with pytest.raises(SandboxDependencyError) as exc_info:
+            check_sandbox_dependencies()
+
+        error_msg = str(exc_info.value)
+        assert "AppArmor" in error_msg
+        assert "/etc/apparmor.d/bwrap" in error_msg
+        assert "userns" in error_msg
+        assert "sudo systemctl reload apparmor" in error_msg
+
+    def test_userns_failure_without_apparmor_sysctl(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify generic error with bwrap stderr when AppArmor sysctl is absent."""
+        import weft.sandbox as sandbox_mod
+
+        monkeypatch.setattr(sandbox_mod.shutil, "which", lambda cmd: "/usr/bin/bwrap")
+
+        bwrap_stderr = "bwrap: some other error"
+        monkeypatch.setattr(
+            sandbox_mod, "_run_bwrap_test",
+            lambda: subprocess.CompletedProcess(
+                args=[], returncode=1, stderr=bwrap_stderr,
+            ),
+        )
+        monkeypatch.setattr(sandbox_mod, "_is_apparmor_userns_restricted", lambda: False)
+
+        with pytest.raises(SandboxDependencyError) as exc_info:
+            check_sandbox_dependencies()
+
+        error_msg = str(exc_info.value)
+        assert "cannot create user namespaces" in error_msg
+        assert bwrap_stderr in error_msg
+        assert "AppArmor" not in error_msg
+
+    def test_apparmor_interactive_auto_fix_succeeds(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify auto-fix installs profile and retries when user accepts."""
+        import weft.sandbox as sandbox_mod
+
+        monkeypatch.setattr(sandbox_mod.shutil, "which", lambda cmd: "/usr/bin/bwrap")
+        monkeypatch.setattr(sandbox_mod, "_is_apparmor_userns_restricted", lambda: True)
+        monkeypatch.setattr(sandbox_mod.sys.stdin, "isatty", lambda: True)
+
+        # First call fails, second call (after fix) succeeds
+        call_count = 0
+
+        def mock_bwrap_test():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return subprocess.CompletedProcess(
+                    args=[], returncode=1,
+                    stderr="bwrap: setting up uid map: Permission denied",
+                )
+            return subprocess.CompletedProcess(args=[], returncode=0)
+
+        monkeypatch.setattr(sandbox_mod, "_run_bwrap_test", mock_bwrap_test)
+        monkeypatch.setattr(sandbox_mod, "_install_bwrap_apparmor_profile", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt: "y")
+
+        # Should not raise — auto-fix succeeds
+        check_sandbox_dependencies()
+        assert call_count == 2
+
+    def test_apparmor_interactive_user_declines(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verify error is raised when user declines auto-fix."""
+        import weft.sandbox as sandbox_mod
+
+        monkeypatch.setattr(sandbox_mod.shutil, "which", lambda cmd: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            sandbox_mod, "_run_bwrap_test",
+            lambda: subprocess.CompletedProcess(
+                args=[], returncode=1,
+                stderr="bwrap: setting up uid map: Permission denied",
+            ),
+        )
+        monkeypatch.setattr(sandbox_mod, "_is_apparmor_userns_restricted", lambda: True)
+        monkeypatch.setattr(sandbox_mod.sys.stdin, "isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt: "n")
+
+        with pytest.raises(SandboxDependencyError) as exc_info:
+            check_sandbox_dependencies()
+
+        assert "AppArmor" in str(exc_info.value)

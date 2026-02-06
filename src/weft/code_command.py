@@ -68,47 +68,9 @@ from .worktree.file_sync import (
 )
 from .fingerprint import compute_prompt_fingerprint
 from .training_types import SessionMetadata, SubagentDefinition
-from .sandbox import SandboxConfigError, get_disallowed_tools_args, load_sandbox_config
+from .sandbox import SandboxConfigError, SandboxDependencyError, get_disallowed_tools_args, load_sandbox_config
 
 logger = get_logger(__name__)
-
-
-class SandboxDependencyError(Exception):
-    """Raised when required sandbox dependencies are not installed.
-
-    Weft's sandbox functionality requires bubblewrap (bwrap) to be installed
-    on the system. If this dependency is missing, the sandbox cannot provide
-    filesystem isolation.
-
-    This error prevents silent failures by catching missing dependencies
-    at startup rather than discovering the sandbox is non-functional later.
-    """
-
-    pass
-
-
-def _check_sandbox_dependencies() -> None:
-    """Verify that sandbox dependencies (bubblewrap) are installed.
-
-    Weft's sandbox uses bubblewrap (bwrap) for filesystem isolation.
-    Without bwrap, the sandbox cannot protect the filesystem.
-
-    This preflight check catches missing dependencies early, before any
-    session setup, giving the user a clear error message with
-    installation instructions.
-
-    Raises:
-        SandboxDependencyError: If bwrap is not found in PATH,
-            with a message listing missing dependencies and installation
-            instructions.
-    """
-    # shutil.which returns None if the binary is not found in PATH
-    if shutil.which("bwrap") is None:
-        raise SandboxDependencyError(
-            "Missing sandbox dependency: bubblewrap (bwrap). "
-            "Weft sandbox requires this to be installed for filesystem isolation. "
-            "Install with: sudo apt install bubblewrap"
-        )
 
 
 # Agent descriptions - single source of truth for both filesystem and programmatic agents
@@ -386,14 +348,6 @@ def run_code_command(
     """
     if no_hooks:
         logger.info("Hooks disabled via --no-hooks flag")
-
-    # Verify sandbox dependencies are installed before proceeding
-    # This catches missing bubblewrap early, preventing sandbox failures
-    try:
-        _check_sandbox_dependencies()
-    except SandboxDependencyError as exc:
-        logger.error("Sandbox dependency check failed: %s", exc)
-        return 1
 
     # Resolve plan path
     if isinstance(plan_path, str):
@@ -770,8 +724,12 @@ def run_code_command(
         sandbox_config=sandbox_config,
     )
 
-    # Build host command
-    host_cmd, host_env = build_host_command(runner_config)
+    # Build host command (includes sandbox dependency check)
+    try:
+        host_cmd, host_env = build_host_command(runner_config)
+    except SandboxDependencyError as exc:
+        logger.error("Sandbox dependency check failed: %s", exc)
+        return 1
     logger.info("Launching %s session on host...", tool)
     logger.debug("Host command: %s", " ".join(host_cmd))
 
