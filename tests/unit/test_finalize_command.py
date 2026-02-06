@@ -665,6 +665,92 @@ evaluation_notes: []
     )
 
 
+def test_finalize_command_passes_sandbox_config_to_host_runner(
+    monkeypatch, tmp_path: Path, caplog
+) -> None:
+    """Regression: sandbox config read_write_paths must reach host_runner_config.
+
+    Without this, user-configured paths in .weft/config.toml [sandbox] read_write_paths
+    are silently ignored — the bwrap sandbox won't mount them and tools like asana-skill
+    that live in those paths will fail with 'No such file or directory' inside the sandbox.
+    """
+    from weft.sandbox import SandboxConfig
+
+    # Setup plan file
+    plan_path = tmp_path / "test-plan.md"
+    plan_path.write_text("""---
+plan_id: test-plan
+git_sha: abcd1234abcd1234abcd1234abcd1234abcd1234
+status: coding
+evaluation_notes: []
+---
+
+# Test Plan
+""")
+
+    worktree_path = tmp_path / "worktree"
+    worktree_path.mkdir()
+
+    # Create config.toml with read_write_paths
+    custom_path = tmp_path / "custom-rw-mount"
+    custom_path.mkdir()
+    config_dir = tmp_path / ".weft"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "config.toml").write_text(f"""
+[sandbox]
+read_write_paths = ["{custom_path}"]
+""")
+
+    monkeypatch.setattr(finalize_command, "find_repo_root", lambda start_path=None: tmp_path)
+    monkeypatch.setattr(
+        finalize_command, "validate_worktree_exists",
+        lambda repo_root, plan_id: worktree_path
+    )
+    monkeypatch.setattr(finalize_command, "has_uncommitted_changes", lambda path: True)
+    monkeypatch.setattr(
+        finalize_command, "load_finalize_prompt",
+        lambda repo_root, tool: "Finalize workflow for {PLAN_ID}"
+    )
+
+    mock_executor = SimpleNamespace(
+        check_auth=lambda: None,
+        build_command=lambda prompt_file, model, headless=False: f"claude {prompt_file}",
+        get_env_vars=lambda factory_dir: None
+    )
+    from weft.executors import ExecutorRegistry
+    monkeypatch.setattr(ExecutorRegistry, "get_executor", lambda tool: mock_executor)
+
+    # Capture kwargs passed to host_runner_config
+    captured_kwargs: list[dict] = []
+
+    def mock_host_runner_config(**kwargs):
+        captured_kwargs.append(kwargs)
+        return kwargs
+
+    monkeypatch.setattr(finalize_command, "host_runner_config", mock_host_runner_config)
+    monkeypatch.setattr(finalize_command, "build_host_command", lambda config: (["echo"], {}))
+
+    mock_result = SimpleNamespace(returncode=1)
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: mock_result)
+
+    # Execute
+    caplog.set_level(logging.INFO)
+    run_finalize_command(plan_path, tool="claude-code")
+
+    # Assert sandbox_config was passed and contains our read_write_paths
+    assert len(captured_kwargs) == 1
+    sandbox_config = captured_kwargs[0].get("sandbox_config")
+    assert sandbox_config is not None, (
+        "host_runner_config must receive sandbox_config — without it, "
+        "read_write_paths from config.toml are silently ignored by the bwrap sandbox"
+    )
+    assert isinstance(sandbox_config, SandboxConfig)
+    assert str(custom_path) in sandbox_config.read_write_paths, (
+        f"read_write_paths from config.toml must appear in sandbox_config. "
+        f"Got: {sandbox_config.read_write_paths}"
+    )
+
+
 class TestFinalizeCommandFileSync:
     """Tests for file sync command scope in finalize_command."""
 

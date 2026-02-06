@@ -1235,6 +1235,79 @@ disallowed_commands = ["git add:*", "git commit:*"]
     )
 
 
+def test_plan_command_passes_sandbox_config_to_host_runner(tmp_path: Path, monkeypatch) -> None:
+    """Regression: sandbox config read_write_paths must reach host_runner_config.
+
+    Without this, user-configured paths in .weft/config.toml [sandbox] read_write_paths
+    are silently ignored — the bwrap sandbox won't mount them and tools like asana-skill
+    that live in those paths will fail with 'No such file or directory' inside the sandbox.
+    """
+    from unittest.mock import Mock
+    from weft.plan_command import run_plan_command
+    from weft.sandbox import SandboxConfig
+
+    # Setup
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    tasks_dir = repo_root / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Create config.toml with read_write_paths
+    custom_path = tmp_path / "custom-rw-mount"
+    custom_path.mkdir()
+    config_path = repo_root / ".weft" / "config.toml"
+    config_path.write_text(f"""
+[sandbox]
+read_write_paths = ["{custom_path}"]
+""")
+
+    monkeypatch.setattr("weft.plan_command.find_repo_root", Mock(return_value=repo_root))
+
+    temp_worktree = tmp_path / "worktree"
+    temp_worktree.mkdir()
+    (temp_worktree / ".weft" / "tasks").mkdir(parents=True)
+
+    monkeypatch.setattr("weft.plan_command.create_temp_worktree", Mock(return_value=temp_worktree))
+    monkeypatch.setattr("weft.plan_command.remove_temp_worktree", Mock())
+    monkeypatch.setattr("weft.plan_command.get_weft_src_dir", Mock(return_value=tmp_path / "src"))
+    monkeypatch.setattr("weft.plan_command._write_plan_subagents", Mock())
+    monkeypatch.setattr("weft.plan_command.load_prompt_template", Mock(return_value="test template"))
+    monkeypatch.setattr("weft.plan_command.prune_old_sessions", Mock())
+    monkeypatch.setattr("weft.plan_command.subprocess.run", Mock(return_value=MagicMock(returncode=1)))
+
+    from weft.plan_file_copier import CopyResult
+    monkeypatch.setattr(
+        "weft.plan_command.copy_plan_files",
+        Mock(return_value=CopyResult(file_mapping={}, files_found=0, files_failed=[]))
+    )
+
+    # Capture kwargs passed to host_runner_config
+    captured_kwargs: list[dict] = []
+
+    def mock_host_runner_config(**kwargs):
+        captured_kwargs.append(kwargs)
+        return kwargs
+
+    monkeypatch.setattr("weft.plan_command.host_runner_config", mock_host_runner_config)
+    monkeypatch.setattr("weft.plan_command.build_host_command", Mock(return_value=(["echo"], {})))
+
+    # Execute
+    run_plan_command(plan_path=None, text_input="test idea", tool="claude-code")
+
+    # Assert sandbox_config was passed and contains our read_write_paths
+    assert len(captured_kwargs) == 1
+    sandbox_config = captured_kwargs[0].get("sandbox_config")
+    assert sandbox_config is not None, (
+        "host_runner_config must receive sandbox_config — without it, "
+        "read_write_paths from config.toml are silently ignored by the bwrap sandbox"
+    )
+    assert isinstance(sandbox_config, SandboxConfig)
+    assert str(custom_path) in sandbox_config.read_write_paths, (
+        f"read_write_paths from config.toml must appear in sandbox_config. "
+        f"Got: {sandbox_config.read_write_paths}"
+    )
+
+
 class TestPlanCommandFileSync:
     """Tests for file sync command scope in plan_command."""
 

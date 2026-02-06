@@ -329,6 +329,7 @@ def run_plan_command(
             command=command,
             host_factory_dir=host_factory_dir,
             env_vars=executor_env_vars,
+            sandbox_config=sandbox_config,
         )
 
         # Build host command

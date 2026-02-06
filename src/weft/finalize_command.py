@@ -17,6 +17,7 @@ from pathlib import Path
 from .executors import ExecutorError, ExecutorRegistry
 from .host_runner import build_host_command, host_runner_config
 from .logging_config import get_logger
+from .sandbox import SandboxConfigError, load_sandbox_config
 from .param_validation import get_effective_model
 from .plan_backup import cleanup_backup
 from .plan_lifecycle import PlanLifecycleError, update_plan_fields
@@ -280,6 +281,15 @@ def run_finalize_command(
         # Get executor-specific environment variables
         executor_env_vars = executor.get_env_vars(host_factory_dir)
 
+        # Load sandbox configuration from .weft/config.toml for filesystem mounts
+        config_path = repo_root / ".weft" / "config.toml"
+        try:
+            sandbox_config = load_sandbox_config(config_path)
+        except SandboxConfigError as exc:
+            raise FinalizeCommandError(
+                f"Failed to load sandbox configuration: {exc}"
+            ) from exc
+
         runner_config = host_runner_config(
             worktree_path=worktree_path,
             repo_git_dir=git_dir,
@@ -287,6 +297,7 @@ def run_finalize_command(
             command=command,
             host_factory_dir=host_factory_dir,
             env_vars=executor_env_vars,
+            sandbox_config=sandbox_config,
         )
 
         # Build host command
