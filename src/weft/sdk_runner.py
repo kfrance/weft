@@ -28,6 +28,9 @@ from claude_agent_sdk import (
     AgentDefinition,
     ClaudeSDKClient,
     ClaudeAgentOptions,
+    HookContext,
+    HookMatcher,
+    PreCompactHookInput,
     ResultMessage,
     AssistantMessage,
     PermissionResultAllow,
@@ -93,6 +96,29 @@ def _create_can_use_tool_callback(
     return _can_use_tool_callback
 
 
+async def _precompact_hook(
+    input: PreCompactHookInput,
+    tool_use_id: str | None,
+    context: HookContext,
+) -> dict[str, Any]:
+    """Log when Claude Code triggers context compaction.
+
+    This hook fires before compaction occurs, letting us track how often
+    sessions hit context limits. The hook always allows compaction to proceed.
+    """
+    logger.warning(
+        "Context compaction triggered: trigger=%s, session=%s, cwd=%s",
+        input.get("trigger", "unknown"),
+        input.get("session_id", "unknown"),
+        input.get("cwd", "unknown"),
+    )
+    if input.get("custom_instructions"):
+        logger.debug(
+            "Compaction custom instructions: %s", input["custom_instructions"]
+        )
+    return {"continue_": True}
+
+
 async def run_sdk_session(
     worktree_path: Path,
     prompt_content: str,
@@ -147,6 +173,14 @@ async def run_sdk_session(
         permission_mode="acceptEdits",
         can_use_tool=_create_can_use_tool_callback(effective_config),
         agents=agents,
+        hooks={
+            "PreCompact": [
+                HookMatcher(
+                    matcher=None,
+                    hooks=[_precompact_hook],
+                )
+            ]
+        },
     )
 
     session_id: str | None = None
