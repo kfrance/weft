@@ -13,6 +13,8 @@ patterns = [
 
 # Sandbox configuration for filesystem isolation and command blocking
 [sandbox]
+# Additional paths to mount read-only (beyond automatic mounts)
+read_paths = ["~/kl-tools", "~/.local/share/uv"]
 # Additional paths to mount read-write (beyond automatic mounts)
 read_write_paths = ["~/.weft/dspy_cache", "~/.cache/uv"]
 # Command patterns to block during headless SDK sessions
