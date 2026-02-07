@@ -1017,6 +1017,55 @@ The CLI uses Python's built-in `logging` module for all output:
 
 Log files rotate daily at midnight and maintain 30 days of history automatically.
 
+## Standalone Scripts
+
+The `scripts/` directory contains standalone utilities for development and debugging. Run them from the repository root.
+
+### test_sdk_headless.py
+
+Manual testing and debugging tool for the SDK runner and bwrap sandbox, without going through the full `weft code` workflow. Supports two modes: running a Claude Code SDK session with an arbitrary prompt, or running a bash command inside the bwrap sandbox.
+
+```bash
+# Run an SDK session with a prompt
+python scripts/test_sdk_headless.py sdk "Write a hello world program"
+
+# Run a bash command inside the bwrap sandbox
+python scripts/test_sdk_headless.py bash "ls -la"
+
+# Override the model for SDK mode
+python scripts/test_sdk_headless.py sdk --model opus "Explain this code"
+
+# Run without sandbox isolation
+python scripts/test_sdk_headless.py bash --no-sandbox "echo hello"
+
+# Enable debug logging
+python scripts/test_sdk_headless.py sdk --verbose "Debug this"
+```
+
+**Options** (available on both subcommands):
+- `--workdir <path>`: Target directory (default: current working directory)
+- `--no-sandbox`: Bypass bwrap sandbox isolation
+- `--verbose`: Enable debug-level logging
+
+**SDK-only options:**
+- `--model <model>`: Override model selection (uses the same 3-tier precedence as `weft code`)
+
+### generate_template_version.py
+
+Generates the `VERSION` file for `src/weft/init_templates/`, containing metadata and SHA256 hashes for each template file. Run this after modifying template files.
+
+```bash
+python scripts/generate_template_version.py
+```
+
+### count_lines.sh
+
+Prints a lines-of-code report for the project, broken down by file type (Python, Markdown, JSON, Shell). Excludes build artifacts, caches, and virtual environments.
+
+```bash
+bash scripts/count_lines.sh
+```
+
 ## Further Documentation
 
 For more detailed information, see:

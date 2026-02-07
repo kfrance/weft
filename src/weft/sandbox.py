@@ -513,7 +513,11 @@ def build_bwrap_command(
     claude_path = Path(claude_dir)
     claude_path.mkdir(parents=True, exist_ok=True)
     # Also ensure ~/.claude/skills exists (Claude scans for it at startup)
-    (claude_path / "skills").mkdir(parents=True, exist_ok=True)
+    # Skip if path already exists as a symlink (even dangling) to avoid
+    # clobbering user-managed symlinks
+    skills_path = claude_path / "skills"
+    if not skills_path.exists() and not skills_path.is_symlink():
+        skills_path.mkdir(parents=True, exist_ok=True)
     bwrap_args.extend(["--bind", claude_dir, claude_dir])
 
     # Mount ~/.claude.json read-write (global Claude config with onboarding state)
@@ -594,12 +598,11 @@ def build_bwrap_command(
         ssh_config = Path(ssh_dir) / "config"
         if ssh_config.exists():
             # Resolve symlinks - if config is a symlink (e.g., to dotfiles),
-            # we need to mount the target directory too
+            # we need to mount the target file too
             resolved_config = ssh_config.resolve()
             if resolved_config != ssh_config:
-                # It's a symlink - mount the target's parent directory
-                config_parent = str(resolved_config.parent)
-                bwrap_args.extend(["--ro-bind", config_parent, config_parent])
+                # It's a symlink - mount just the resolved file, not its parent
+                bwrap_args.extend(["--ro-bind", str(resolved_config), str(resolved_config)])
             bwrap_args.extend(["--setenv", "GIT_SSH_COMMAND", f"ssh -F {ssh_config}"])
         else:
             # No user config - use /dev/null to skip system config entirely
