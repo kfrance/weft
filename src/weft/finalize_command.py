@@ -27,6 +27,7 @@ from .repo_utils import (
     RepoUtilsError,
     find_repo_root,
 )
+from .sandbox import SandboxConfig, SandboxConfigError, load_sandbox_config
 from .worktree_utils import (
     WorktreeError,
     get_worktree_status,
@@ -193,7 +194,7 @@ def run_finalize_command(
 
         # Find repository root
         repo_root = find_repo_root()
-        logger.debug("Repository root: %s", repo_root)
+        logger.info("Repository root: %s", repo_root)
 
         # Load plan metadata
         plan_path_obj = Path(plan_path)
@@ -247,10 +248,16 @@ def run_finalize_command(
         _move_plan_to_worktree(resolved_plan_path, worktree_path, plan_id)
 
         # Load finalize prompt from repo-specific location (auto-copies from bundled if missing)
+        prompt_path = repo_root / ".weft" / "prompts" / "active" / tool / "finalize.md"
+        logger.info("Finalize prompt path: %s (exists=%s)", prompt_path, prompt_path.exists())
+        if prompt_path.exists():
+            first_lines = prompt_path.read_text(encoding="utf-8").splitlines()[:3]
+            logger.info("Finalize prompt first 3 lines: %s", first_lines)
         template = load_finalize_prompt(repo_root, tool)
 
         # Replace placeholder with plan_id
         combined_prompt = template.replace("{PLAN_ID}", plan_id)
+        logger.info("Finalize prompt loaded (%d chars), first 80: %s", len(combined_prompt), combined_prompt[:80])
 
         # Write prompt file to /tmp/claude which is bind-mounted into the sandbox
         # (bwrap creates a fresh tmpfs at /tmp, but /tmp/claude is overlaid on top)
@@ -266,6 +273,22 @@ def run_finalize_command(
         tasks_dir = repo_root / ".weft" / "tasks"
         host_factory_dir = Path.home() / ".factory"
         git_dir = repo_root / ".git"
+
+        # Load sandbox config from repo, adding repo root as read-write.
+        # Finalize needs the repo root mounted because the merge step
+        # (git merge --ff-only into main) updates the main worktree's
+        # working tree, which lives at the repo root—not inside the
+        # plan worktree that bwrap mounts by default.
+        config_path = repo_root / ".weft" / "config.toml"
+        try:
+            sandbox_config = load_sandbox_config(config_path)
+        except SandboxConfigError as exc:
+            logger.error("Failed to load sandbox configuration: %s", exc)
+            return 1
+        repo_root_str = str(repo_root.resolve())
+        if repo_root_str not in [str(Path(p).resolve()) for p in sandbox_config.read_write_paths]:
+            sandbox_config.read_write_paths.append(repo_root_str)
+        logger.info("Sandbox: mounting repo root read-write for finalize merge step")
 
         logger.info("Starting %s session for finalization...", tool)
 
