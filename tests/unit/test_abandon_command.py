@@ -617,3 +617,56 @@ def test_cleanup_branch_force_deletes_unmerged(git_repo: GitRepo) -> None:
         text=True,
     )
     assert "test-plan" not in check.stdout
+
+
+# =============================================================================
+# Exploration Abandonment Tests
+# =============================================================================
+
+
+def test_abandon_exploration_only(git_repo: GitRepo, monkeypatch) -> None:
+    """Test abandon command for a pure exploration (no plan artifacts)."""
+    from weft.exploration_store import exploration_exists, save_exploration
+
+    # Setup: Create an exploration ref
+    save_exploration(git_repo.path, "my-exploration", "Some findings")
+    assert exploration_exists(git_repo.path, "my-exploration") is True
+
+    # Execute: Run abandon command with --yes
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
+        exit_code = run_abandon_command("my-exploration", skip_confirmation=True)
+
+    # Verify: Success
+    assert exit_code == 0
+
+    # Verify: Exploration ref deleted
+    assert exploration_exists(git_repo.path, "my-exploration") is False
+
+
+def test_abandon_exploration_shows_exploration_prompt(git_repo: GitRepo, monkeypatch, capsys) -> None:
+    """Test that abandoning a pure exploration shows exploration-specific prompt."""
+    from weft.exploration_store import save_exploration
+
+    # Setup: Create an exploration ref
+    save_exploration(git_repo.path, "my-exploration", "Some findings")
+
+    # Track prompts shown
+    prompts_shown = []
+
+    def mock_input(prompt):
+        prompts_shown.append(prompt)
+        return "y"
+
+    monkeypatch.setattr("builtins.input", mock_input)
+
+    # Execute: Run abandon command without --yes
+    with patch("weft.abandon_command.find_repo_root", return_value=git_repo.path):
+        exit_code = run_abandon_command("my-exploration", skip_confirmation=False)
+
+    # Verify: Success
+    assert exit_code == 0
+
+    # Verify: Exploration-specific prompt was shown
+    captured = capsys.readouterr()
+    assert "Exploration" in captured.out
+    assert "refs/weft/explorations/my-exploration" in captured.out

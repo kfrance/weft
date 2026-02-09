@@ -380,6 +380,22 @@ def _log_abandonment(repo_root: Path, plan_id: str, reason: str) -> None:
         logger.warning("Failed to log abandonment reason: %s", exc)
 
 
+def _show_exploration_confirmation_prompt(name: str) -> bool:
+    """Show confirmation prompt for abandoning an exploration.
+
+    Args:
+        name: Exploration name.
+
+    Returns:
+        True if user confirms, False otherwise.
+    """
+    print(f"\nExploration '{name}' will be abandoned:")
+    print(f"  - Exploration ref will be deleted (refs/weft/explorations/{name})")
+    print()
+    response = input("Continue? (y/n) ").strip().lower()
+    return response in ("y", "yes")
+
+
 def run_abandon_command(
     plan_path: Path | str,
     reason: str | None = None,
@@ -419,7 +435,17 @@ def run_abandon_command(
 
         logger.info("Plan ID: %s", plan_id)
 
-        # Detect existing artifacts
+        # Check if this is an exploration (before checking plan artifacts)
+        from .exploration_store import ExplorationStoreError, delete_exploration, exploration_exists
+
+        is_exploration = False
+        try:
+            is_exploration = exploration_exists(repo_root, plan_id)
+        except ExplorationStoreError:
+            # Name may not pass validation — not an exploration
+            pass
+
+        # Detect existing plan artifacts
         artifacts = _detect_plan_artifacts(repo_root, plan_id)
 
         # Check if there's anything to clean up
@@ -428,6 +454,7 @@ def run_abandon_command(
             artifacts.branch_exists,
             artifacts.plan_file_exists,
             artifacts.backup_ref_exists,
+            is_exploration,
         ])
 
         if not has_artifacts:
@@ -437,10 +464,22 @@ def run_abandon_command(
 
         # Show confirmation prompt (unless skipped)
         if not skip_confirmation:
-            if not _show_confirmation_prompt(plan_id, artifacts):
-                logger.info("Abandonment cancelled by user")
-                print("Abandonment cancelled.")
-                return 0
+            if is_exploration and not any([
+                artifacts.worktree_exists,
+                artifacts.branch_exists,
+                artifacts.plan_file_exists,
+                artifacts.backup_ref_exists,
+            ]):
+                # Pure exploration - show exploration-specific prompt
+                if not _show_exploration_confirmation_prompt(plan_id):
+                    logger.info("Abandonment cancelled by user")
+                    print("Abandonment cancelled.")
+                    return 0
+            else:
+                if not _show_confirmation_prompt(plan_id, artifacts):
+                    logger.info("Abandonment cancelled by user")
+                    print("Abandonment cancelled.")
+                    return 0
 
         # Perform cleanup operations (best-effort)
         any_failure = False
@@ -473,7 +512,17 @@ def run_abandon_command(
                 any_failure = True
                 print(f"Warning: {result.error_message}")
 
-        # 5. Log reason if provided
+        # 5. Delete exploration ref (no backup — explorations don't need recovery)
+        if is_exploration:
+            try:
+                delete_exploration(repo_root, plan_id)
+                logger.info("Deleted exploration ref: %s", plan_id)
+            except ExplorationStoreError as exc:
+                any_failure = True
+                logger.error("Failed to delete exploration ref: %s", exc)
+                print(f"Warning: Failed to delete exploration ref: {exc}")
+
+        # 6. Log reason if provided
         if reason:
             _log_abandonment(repo_root, plan_id, reason)
 
@@ -483,11 +532,15 @@ def run_abandon_command(
             print(f"\nPlan '{plan_id}' abandoned with some errors. See warnings above.")
             return 1
         else:
-            logger.info("Plan '%s' successfully abandoned", plan_id)
-            print(f"\nPlan '{plan_id}' successfully abandoned.")
-            if artifacts.backup_ref_exists:
-                print(f"Backup preserved at: refs/plan-abandoned/{plan_id}")
-                print(f"To recover: weft recover-plan --abandoned {plan_id}")
+            if is_exploration:
+                logger.info("Exploration '%s' successfully abandoned", plan_id)
+                print(f"\nExploration '{plan_id}' successfully abandoned.")
+            else:
+                logger.info("Plan '%s' successfully abandoned", plan_id)
+                print(f"\nPlan '{plan_id}' successfully abandoned.")
+                if artifacts.backup_ref_exists:
+                    print(f"Backup preserved at: refs/plan-abandoned/{plan_id}")
+                    print(f"To recover: weft recover-plan --abandoned {plan_id}")
             return 0
 
     except (RepoUtilsError, PlanValidationError, AbandonCommandError) as exc:

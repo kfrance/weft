@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 COMMAND_DEFAULTS = {
     "plan": "sonnet",
     "code": "sonnet",
+    "explore": "sonnet",
     "finalize": "haiku",
 }
 

@@ -1,7 +1,7 @@
 """Completer functions for argcomplete integration.
 
 This module provides completion functions for CLI arguments:
-- Plan files (both IDs and full paths)
+- Plan files and exploration names (IDs and full paths)
 - Tool names (dynamically from ExecutorRegistry)
 - Model names (dynamically from ClaudeCodeExecutor)
 """
@@ -16,7 +16,7 @@ from .cache import get_active_plans, get_all_plans
 logger = get_logger(__name__)
 
 
-def complete_plan_files(prefix: str, parsed_args, **kwargs) -> list[str]:
+def complete_plan_or_exploration(prefix: str, parsed_args, **kwargs) -> list[str]:
     """Complete plan file paths and plan IDs.
 
     Provides completions for:
@@ -73,10 +73,22 @@ def complete_plan_files(prefix: str, parsed_args, **kwargs) -> list[str]:
             if plan_id.startswith(prefix):
                 completions.append(plan_id)
 
+        # Add exploration names (bare names, no path completion needed)
+        try:
+            from ..exploration_store import list_explorations
+            from ..repo_utils import find_repo_root
+
+            repo_root = find_repo_root()
+            for name, _timestamp in list_explorations(repo_root):
+                if name.startswith(prefix) and name not in completions:
+                    completions.append(name)
+        except Exception:
+            pass  # Exploration listing is best-effort
+
         return completions
 
     except Exception as exc:
-        logger.debug("Error in complete_plan_files: %s", exc)
+        logger.debug("Error in complete_plan_or_exploration: %s", exc)
         return []
 
 

@@ -410,3 +410,38 @@ def test_created_at_invalid_format(git_repo):
 
     with pytest.raises(PlanValidationError, match="ISO 8601"):
         load_plan_metadata(plan_path)
+
+
+def test_exploration_source_present(git_repo):
+    """Test that exploration_source optional field is accepted and stored."""
+    plan_path = git_repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": git_repo.latest_commit(),
+            "evaluation_notes": [],
+            "plan_id": "plan-from-exploration",
+            "status": "draft",
+            "exploration_source": "cache-ttl-bug",
+        },
+    )
+
+    metadata = load_plan_metadata(plan_path)
+    assert metadata.exploration_source == "cache-ttl-bug"
+
+
+def test_exploration_source_absent(git_repo):
+    """Test that exploration_source defaults to None when not present."""
+    plan_path = git_repo.path / "plan.md"
+    write_plan(
+        plan_path,
+        {
+            "git_sha": git_repo.latest_commit(),
+            "evaluation_notes": [],
+            "plan_id": "plan-no-exploration",
+            "status": "draft",
+        },
+    )
+
+    metadata = load_plan_metadata(plan_path)
+    assert metadata.exploration_source is None

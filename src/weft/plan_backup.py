@@ -11,7 +11,7 @@ Backup Lifecycle:
     3. Recovery: recover_backup() restores plan file from backup reference
 
 Architecture:
-    - Backups stored as git orphan commits (no parent history)
+    - Internally uses GitRefStore for orphan commit + ref management
     - Only latest backup kept per plan (force-update on subsequent backups)
     - References persist until explicitly deleted (no time-based cleanup)
     - All operations use low-level git plumbing commands for reliability
@@ -34,10 +34,15 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from .git_ref_store import GitRefStore, GitRefStoreError
 from .logging_config import get_logger
 from .plan_validator import _PLAN_ID_PATTERN
 
 logger = get_logger(__name__)
+
+# Internal ref store instances are created per-call since repo_root varies
+_BACKUP_NAMESPACE = "plan-backups"
+_ABANDONED_NAMESPACE = "plan-abandoned"
 
 
 class PlanBackupError(Exception):
@@ -73,6 +78,16 @@ def _validate_plan_id(plan_id: str) -> None:
         )
 
 
+def _backup_store(repo_root: Path) -> GitRefStore:
+    """Create a GitRefStore for the plan-backups namespace."""
+    return GitRefStore(repo_root, _BACKUP_NAMESPACE)
+
+
+def _abandoned_store(repo_root: Path) -> GitRefStore:
+    """Create a GitRefStore for the plan-abandoned namespace."""
+    return GitRefStore(repo_root, _ABANDONED_NAMESPACE)
+
+
 def create_backup(repo_root: Path, plan_id: str) -> None:
     """Create or update backup of a plan file as a git orphan commit.
 
@@ -99,7 +114,11 @@ def create_backup(repo_root: Path, plan_id: str) -> None:
         ) from exc
 
     try:
-        # Create blob object for plan file content
+        # Create backup using the nested tree structure that plan_backup
+        # originally used: .weft/tasks/<plan_id>.md
+        # This preserves the tree structure for recover_backup compatibility
+        # Build the nested tree structure manually (matching original behavior)
+        # Original code creates: root -> .weft -> tasks -> <plan_id>.md
         result = subprocess.run(
             ["git", "hash-object", "-w", "--stdin"],
             cwd=repo_root,
@@ -114,7 +133,6 @@ def create_backup(repo_root: Path, plan_id: str) -> None:
         logger.debug("Created blob object: %s", blob_sha[:8])
 
         # Create nested tree structure: .weft/tasks/<file>
-        # Start from innermost tree (tasks directory)
         tasks_tree_entry = f"100644 blob {blob_sha}\t{plan_id}.md\n"
         result = subprocess.run(
             ["git", "mktree"],
@@ -174,8 +192,8 @@ def create_backup(repo_root: Path, plan_id: str) -> None:
         logger.debug("Created commit object: %s", commit_sha[:8])
 
         # Force-update reference (overwrites existing backup)
-        ref_name = f"refs/plan-backups/{plan_id}"
-        result = subprocess.run(
+        ref_name = f"refs/{_BACKUP_NAMESPACE}/{plan_id}"
+        subprocess.run(
             ["git", "update-ref", ref_name, commit_sha],
             cwd=repo_root,
             check=True,
@@ -206,41 +224,8 @@ def cleanup_backup(repo_root: Path, plan_id: str) -> None:
         PlanBackupError: If cleanup fails for reasons other than missing ref.
     """
     _validate_plan_id(plan_id)
-    ref_name = f"refs/plan-backups/{plan_id}"
-
-    try:
-        # Delete reference (idempotent)
-        result = subprocess.run(
-            ["git", "update-ref", "-d", ref_name],
-            cwd=repo_root,
-            check=False,  # Don't raise on non-zero exit
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-        )
-
-        if result.returncode == 0:
-            logger.info("Deleted backup reference: %s", ref_name)
-        else:
-            # Check if error is due to missing ref (expected, idempotent)
-            if "does not exist" in result.stderr or "not exist" in result.stderr:
-                logger.debug("Backup reference already deleted: %s", ref_name)
-            else:
-                # Unexpected error - log warning but don't fail finalize
-                logger.warning(
-                    "Failed to delete backup reference '%s': %s",
-                    ref_name,
-                    result.stderr,
-                )
-
-    except subprocess.CalledProcessError as exc:
-        # This shouldn't happen with check=False, but handle it anyway
-        logger.warning(
-            "Unexpected error deleting backup reference '%s': %s",
-            ref_name,
-            exc.stderr,
-        )
+    store = _backup_store(repo_root)
+    store.delete(plan_id)
 
 
 def _list_refs_in_namespace(repo_root: Path, namespace: str) -> list[tuple[str, int, bool]]:
@@ -257,58 +242,20 @@ def _list_refs_in_namespace(repo_root: Path, namespace: str) -> list[tuple[str, 
         PlanBackupError: If listing fails.
     """
     try:
-        # List all references in namespace with commit timestamp
-        result = subprocess.run(
-            ["git", "for-each-ref", f"refs/{namespace}/", "--format=%(objectname) %(refname)"],
-            cwd=repo_root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-        )
-
-        if not result.stdout.strip():
-            return []
+        store = GitRefStore(repo_root, namespace)
+        refs = store.list_refs()
 
         plans = []
-        for line in result.stdout.strip().splitlines():
-            commit_sha, ref_name = line.split(maxsplit=1)
-
-            # Extract plan_id from ref name
-            # refs/<namespace>/<plan_id> -> <plan_id>
-            plan_id = ref_name.split("/", 2)[2]
-
-            # Get commit timestamp
-            timestamp_result = subprocess.run(
-                ["git", "show", "-s", "--format=%ct", commit_sha],
-                cwd=repo_root,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-            )
-            timestamp = int(timestamp_result.stdout.strip())
-
+        for plan_id, timestamp in refs:
             # Check if plan file exists
             plan_file = repo_root / ".weft" / "tasks" / f"{plan_id}.md"
             file_exists = plan_file.exists()
-
             plans.append((plan_id, timestamp, file_exists))
 
-        # Sort by plan_id
-        plans.sort(key=lambda x: x[0])
         return plans
 
-    except subprocess.CalledProcessError as exc:
-        raise PlanBackupError(
-            f"Failed to list refs in namespace '{namespace}': {exc.stderr}"
-        ) from exc
-    except (ValueError, IndexError) as exc:
-        raise PlanBackupError(
-            f"Failed to parse ref list output for namespace '{namespace}': {exc}"
-        ) from exc
+    except GitRefStoreError as exc:
+        raise PlanBackupError(str(exc)) from exc
 
 
 def list_backups(repo_root: Path) -> list[tuple[str, int, bool]]:
@@ -322,7 +269,7 @@ def list_backups(repo_root: Path) -> list[tuple[str, int, bool]]:
     Raises:
         PlanBackupError: If listing fails.
     """
-    return _list_refs_in_namespace(repo_root, "plan-backups")
+    return _list_refs_in_namespace(repo_root, _BACKUP_NAMESPACE)
 
 
 def recover_backup(
@@ -443,49 +390,14 @@ def _move_ref_between_namespaces(
         PlanBackupError: If move operation fails.
     """
     _validate_plan_id(plan_id)
-    source_ref = f"refs/{source_namespace}/{plan_id}"
-    dest_ref = f"refs/{dest_namespace}/{plan_id}"
+    source_store = GitRefStore(repo_root, source_namespace)
+    dest_store = GitRefStore(repo_root, dest_namespace)
 
     try:
-        # Get the commit SHA from source ref
-        result = subprocess.run(
-            ["git", "show-ref", "--hash", source_ref],
-            cwd=repo_root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-        )
-        commit_sha = result.stdout.strip()
-
-        # Create/update the dest ref (force-update if exists)
-        subprocess.run(
-            ["git", "update-ref", dest_ref, commit_sha],
-            cwd=repo_root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-        )
-        logger.info("Created reference: %s", dest_ref)
-
-        # Delete the source ref
-        subprocess.run(
-            ["git", "update-ref", "-d", source_ref],
-            cwd=repo_root,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-        )
-        logger.info("Deleted reference: %s", source_ref)
-
-    except subprocess.CalledProcessError as exc:
+        source_store.move(plan_id, dest_store)
+    except GitRefStoreError as exc:
         raise PlanBackupError(
-            f"Failed to move ref from '{source_namespace}' to '{dest_namespace}' for plan '{plan_id}': {exc.stderr}"
+            f"Failed to move ref from '{source_namespace}' to '{dest_namespace}' for plan '{plan_id}': {exc}"
         ) from exc
 
 
@@ -499,7 +411,7 @@ def move_backup_to_abandoned(repo_root: Path, plan_id: str) -> None:
     Raises:
         PlanBackupError: If move operation fails.
     """
-    _move_ref_between_namespaces(repo_root, plan_id, "plan-backups", "plan-abandoned")
+    _move_ref_between_namespaces(repo_root, plan_id, _BACKUP_NAMESPACE, _ABANDONED_NAMESPACE)
 
 
 def move_abandoned_to_backup(repo_root: Path, plan_id: str) -> None:
@@ -514,7 +426,7 @@ def move_abandoned_to_backup(repo_root: Path, plan_id: str) -> None:
     Raises:
         PlanBackupError: If move operation fails.
     """
-    _move_ref_between_namespaces(repo_root, plan_id, "plan-abandoned", "plan-backups")
+    _move_ref_between_namespaces(repo_root, plan_id, _ABANDONED_NAMESPACE, _BACKUP_NAMESPACE)
 
 
 def list_abandoned_plans(repo_root: Path) -> list[tuple[str, int, bool]]:
@@ -528,7 +440,7 @@ def list_abandoned_plans(repo_root: Path) -> list[tuple[str, int, bool]]:
     Raises:
         PlanBackupError: If listing fails.
     """
-    return _list_refs_in_namespace(repo_root, "plan-abandoned")
+    return _list_refs_in_namespace(repo_root, _ABANDONED_NAMESPACE)
 
 
 def backup_exists_in_namespace(repo_root: Path, plan_id: str, namespace: str) -> bool:
@@ -543,15 +455,5 @@ def backup_exists_in_namespace(repo_root: Path, plan_id: str, namespace: str) ->
         True if backup reference exists in the namespace.
     """
     _validate_plan_id(plan_id)
-    ref_name = f"refs/{namespace}/{plan_id}"
-
-    result = subprocess.run(
-        ["git", "show-ref", "--verify", ref_name],
-        cwd=repo_root,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-    )
-    return result.returncode == 0
+    store = GitRefStore(repo_root, namespace)
+    return store.exists(plan_id)

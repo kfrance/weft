@@ -16,7 +16,7 @@ from .completion.completers import (
     complete_backup_plans,
     complete_eval_plans,
     complete_models,
-    complete_plan_files,
+    complete_plan_or_exploration,
     complete_tools,
 )
 from .completion_install import run_completion_install
@@ -59,7 +59,7 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Path to markdown file with plan idea (optional)",
     )
-    plan_path_arg.completer = complete_plan_files
+    plan_path_arg.completer = complete_plan_or_exploration
     plan_parser.add_argument(
         "--text",
         dest="text",
@@ -96,7 +96,7 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Path to plan file or plan ID",
     )
-    code_plan_path_arg.completer = complete_plan_files
+    code_plan_path_arg.completer = complete_plan_or_exploration
     code_parser.add_argument(
         "--text",
         dest="text",
@@ -150,7 +150,7 @@ def create_parser() -> argparse.ArgumentParser:
         "plan_path",
         help="Path to plan file or plan ID",
     )
-    finalize_plan_path_arg.completer = complete_plan_files
+    finalize_plan_path_arg.completer = complete_plan_or_exploration
     finalize_tool_arg = finalize_parser.add_argument(
         "--tool",
         dest="tool",
@@ -205,7 +205,7 @@ def create_parser() -> argparse.ArgumentParser:
         "plan_path",
         help="Path to plan file or plan ID",
     )
-    abandon_plan_path_arg.completer = complete_plan_files
+    abandon_plan_path_arg.completer = complete_plan_or_exploration
     abandon_parser.add_argument(
         "--reason",
         dest="reason",
@@ -271,7 +271,7 @@ def create_parser() -> argparse.ArgumentParser:
         "plan_id",
         help="Plan ID to run judges against",
     )
-    judge_plan_id_arg.completer = complete_plan_files
+    judge_plan_id_arg.completer = complete_plan_or_exploration
     judge_parser.add_argument(
         "--output",
         dest="output",
@@ -315,6 +315,37 @@ def create_parser() -> argparse.ArgumentParser:
         help="Delete and regenerate all trace summaries before training",
     )
 
+    # Explore command
+    explore_parser = subparsers.add_parser(
+        "explore",
+        help="Open-ended exploration session for investigating and brainstorming",
+    )
+    explore_parser.add_argument(
+        "--text",
+        dest="text",
+        help="Topic context for the exploration session",
+    )
+    explore_tool_arg = explore_parser.add_argument(
+        "--tool",
+        dest="tool",
+        default="claude-code",
+        help="Coding tool to use (default: claude-code)",
+    )
+    explore_tool_arg.completer = complete_tools
+    explore_model_arg = explore_parser.add_argument(
+        "--model",
+        dest="model",
+        default=None,
+        help="Model variant for Claude Code CLI (default: sonnet)",
+    )
+    explore_model_arg.completer = complete_models
+    explore_parser.add_argument(
+        "--no-hooks",
+        dest="no_hooks",
+        action="store_true",
+        help="Disable execution of configured hooks",
+    )
+
     # Status command
     status_parser = subparsers.add_parser(
         "status",
@@ -345,6 +376,47 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _try_resolve_exploration(name: str) -> str | None:
+    """Try to resolve a bare name as an exploration.
+
+    Args:
+        name: Bare name (no path separators) to look up.
+
+    Returns:
+        Exploration content string if found, None otherwise.
+    """
+    if "/" in str(name) or "\\" in str(name):
+        return None
+
+    from .exploration_resolver import ExplorationResolver
+    from .exploration_store import ExplorationStoreError
+    from .repo_utils import RepoUtilsError, find_repo_root as _find_repo_root
+
+    try:
+        repo_root = _find_repo_root()
+        return ExplorationResolver.resolve(name, repo_root)
+    except (ExplorationStoreError, RepoUtilsError) as exc:
+        logger.debug("Exploration resolution failed for '%s': %s", name, exc)
+        return None
+
+
+def _cleanup_exploration_ref(name: str) -> None:
+    """Delete an exploration ref after successful consumption.
+
+    Args:
+        name: Exploration name to clean up.
+    """
+    from .exploration_store import ExplorationStoreError, delete_exploration
+    from .repo_utils import RepoUtilsError, find_repo_root as _find_repo_root
+
+    try:
+        repo_root = _find_repo_root()
+        delete_exploration(repo_root, name)
+        logger.info("Cleaned up exploration ref: %s", name)
+    except (ExplorationStoreError, RepoUtilsError) as exc:
+        logger.warning("Failed to clean up exploration ref: %s", exc)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -392,17 +464,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .plan_command import run_plan_command
 
         # Resolve plan_path if provided (could be ID or path)
+        exploration_name_to_cleanup: str | None = None
         if args.plan_path:
             try:
                 plan_path = PlanResolver.resolve(args.plan_path)
             except FileNotFoundError:
-                # For plan command, if file doesn't exist yet, just pass through
-                # (user might be creating a new plan)
-                logger.info(
-                    "Plan file not found for '%s', treating as new plan creation",
-                    args.plan_path
-                )
-                plan_path = args.plan_path
+                # Check if this is an exploration name
+                exploration_content = _try_resolve_exploration(args.plan_path)
+
+                if exploration_content is not None:
+                    # Exploration found: use its content as text input
+                    logger.info("Resolved '%s' as exploration, using findings as plan input", args.plan_path)
+                    plan_path = None
+                    args.text = exploration_content
+                    exploration_name_to_cleanup = args.plan_path
+                else:
+                    # For plan command, if file doesn't exist yet, just pass through
+                    # (user might be creating a new plan)
+                    logger.info(
+                        "Plan file not found for '%s', treating as new plan creation",
+                        args.plan_path
+                    )
+                    plan_path = args.plan_path
         else:
             plan_path = None
         text_input = args.text
@@ -431,7 +514,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             logger.error("%s", exc)
             return 1
 
-        return run_plan_command(plan_path, text_input, tool, model=model, no_hooks=no_hooks)
+        exit_code = run_plan_command(plan_path, text_input, tool, model=model, no_hooks=no_hooks)
+
+        # Clean up exploration ref after successful plan command
+        if exit_code == 0 and exploration_name_to_cleanup is not None:
+            _cleanup_exploration_ref(exploration_name_to_cleanup)
+
+        return exit_code
 
     # Finalize command
     if args.command == "finalize":
@@ -545,6 +634,43 @@ def main(argv: Sequence[str] | None = None) -> int:
             regenerate_summaries=regenerate_summaries,
         )
 
+    # Explore command
+    if args.command == "explore":
+        # Lazy import to avoid loading heavy dependencies during tab completion
+        from .explore_command import run_explore_command
+
+        tool = args.tool
+        model = args.model
+        no_hooks = args.no_hooks
+
+        # Check if model was explicitly provided in command line
+        actual_argv = argv if argv is not None else sys.argv[1:]
+        model_explicitly_provided = "--model" in actual_argv
+
+        # Validate tool/model parameter compatibility
+        if tool == "droid" and model_explicitly_provided:
+            logger.error("The --model parameter cannot be used with --tool droid. "
+                        "Droid does not support model selection.")
+            return 1
+
+        # For droid, ignore the model parameter entirely
+        if tool == "droid":
+            model = None
+
+        # Validate other combinations
+        try:
+            validate_tool_model_compatibility(tool, model)
+        except ParameterValidationError as exc:
+            logger.error("%s", exc)
+            return 1
+
+        return run_explore_command(
+            text=args.text,
+            tool=tool,
+            model=model,
+            no_hooks=no_hooks,
+        )
+
     # Status command
     if args.command == "status":
         # Lazy import to avoid loading heavy dependencies during tab completion
@@ -573,6 +699,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
         # Handle --text flag: create quick-fix plan
+        exploration_name_to_cleanup: str | None = None
         if args.text is not None:
             from .quick_fix import QuickFixError, create_quick_fix_plan
 
@@ -587,8 +714,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             try:
                 plan_path = PlanResolver.resolve(args.plan_path)
             except FileNotFoundError as exc:
-                logger.error("%s", exc)
-                return 1
+                # Check if this is an exploration name
+                exploration_content = _try_resolve_exploration(args.plan_path)
+
+                if exploration_content is not None:
+                    # Exploration found: create quick-fix plan from content
+                    from .quick_fix import QuickFixError, create_quick_fix_plan
+                    logger.info("Resolved '%s' as exploration, creating quick-fix plan", args.plan_path)
+                    try:
+                        plan_path = create_quick_fix_plan(exploration_content, exploration_source=args.plan_path)
+                        logger.info("Created quick-fix plan from exploration: %s", plan_path)
+                        exploration_name_to_cleanup = args.plan_path
+                    except QuickFixError as qf_exc:
+                        logger.error("Failed to create quick-fix plan from exploration: %s", qf_exc)
+                        return 1
+                else:
+                    logger.error("%s", exc)
+                    return 1
 
         tool = args.tool
 
@@ -619,7 +761,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
         no_hooks = args.no_hooks
-        return run_code_command(plan_path, tool=tool, model=model, no_hooks=no_hooks)
+        exit_code = run_code_command(plan_path, tool=tool, model=model, no_hooks=no_hooks)
+
+        # Clean up exploration ref after successful code command
+        if exit_code == 0 and exploration_name_to_cleanup is not None:
+            _cleanup_exploration_ref(exploration_name_to_cleanup)
+
+        return exit_code
 
     # Should not reach here
     parser.print_help()

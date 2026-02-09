@@ -95,6 +95,7 @@ def test_code_command_text_multiline(monkeypatch, git_repo) -> None:
     "completion",
     "eval",
     "judge",
+    "explore",
     "status",
 ])
 def test_subcommand_help_no_import_errors(subcommand: str) -> None:
@@ -134,6 +135,7 @@ def test_all_subcommands_dispatch_without_import_errors(monkeypatch, tmp_path) -
     monkeypatch.setattr("weft.eval_command.run_eval_command", lambda *args, **kwargs: 0)
     monkeypatch.setattr("weft.judge_command.run_judge_command", lambda *args, **kwargs: 0)
     monkeypatch.setattr("weft.status_command.run_status_command", lambda *args, **kwargs: 0)
+    monkeypatch.setattr("weft.explore_command.run_explore_command", lambda *args, **kwargs: 0)
 
     # Test each subcommand with minimal valid arguments
     # These exercise the dispatch code paths where import errors would manifest
@@ -146,6 +148,7 @@ def test_all_subcommands_dispatch_without_import_errors(monkeypatch, tmp_path) -
         (["abandon", str(plan_file), "--yes"], "abandon"),
         (["eval", "test-plan"], "eval"),
         (["judge", "test-plan"], "judge"),
+        (["explore"], "explore"),
         (["status"], "status"),
     ]
 

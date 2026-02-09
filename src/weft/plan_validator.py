@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 _FRONT_MATTER_DELIM = "---"
 _REQUIRED_KEYS = {"git_sha", "plan_id", "status"}
-_OPTIONAL_KEYS = {"evaluation_notes", "linear_issue_id", "created_by", "created_at", "notes"}
+_OPTIONAL_KEYS = {"evaluation_notes", "linear_issue_id", "created_by", "created_at", "notes", "exploration_source"}
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 PLACEHOLDER_SHA = "0" * 40
 _PLAN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,100}$")
@@ -41,6 +41,7 @@ class PlanMetadata:
     created_by: str | None = None
     created_at: str | None = None
     notes: str | None = None
+    exploration_source: str | None = None
 
 
 def extract_front_matter(markdown: str) -> tuple[dict[str, Any], str]:
@@ -134,6 +135,7 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
     linear_issue_id_value = front_matter.get("linear_issue_id")
     created_by_value = front_matter.get("created_by")
     notes_value = front_matter.get("notes")
+    exploration_source_value = front_matter.get("exploration_source")
 
     try:
         repo_root = find_repo_root(path)
@@ -164,6 +166,7 @@ def load_plan_metadata(plan_path: Path | str) -> PlanMetadata:
         created_by=created_by_value,
         created_at=created_at_value,
         notes=notes_value,
+        exploration_source=exploration_source_value,
     )
 
 

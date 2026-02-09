@@ -11,7 +11,7 @@ from weft.completion.cache import _global_cache
 from weft.completion.completers import (
     complete_eval_plans,
     complete_models,
-    complete_plan_files,
+    complete_plan_or_exploration,
     complete_tools,
 )
 
@@ -99,7 +99,7 @@ def test_complete_models_error_handling():
     assert result == []
 
 
-def test_complete_plan_files_empty_cache(tmp_path, monkeypatch):
+def test_complete_plan_or_exploration_empty_cache(tmp_path, monkeypatch):
     """Test plan file completion with empty cache."""
     # Create real git repo with no plans
     import subprocess
@@ -109,12 +109,12 @@ def test_complete_plan_files_empty_cache(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    result = complete_plan_files("", Namespace())
+    result = complete_plan_or_exploration("", Namespace())
 
     assert result == []
 
 
-def test_complete_plan_files_with_plans(tmp_path, monkeypatch):
+def test_complete_plan_or_exploration_with_plans(tmp_path, monkeypatch):
     """Test plan file completion with active plans."""
     # Create real git repo
     import subprocess
@@ -128,13 +128,13 @@ def test_complete_plan_files_with_plans(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    result = complete_plan_files("", Namespace())
+    result = complete_plan_or_exploration("", Namespace())
 
     assert "fix-bug" in result
     assert "add-feature" in result
 
 
-def test_complete_plan_files_filters_by_prefix(tmp_path, monkeypatch):
+def test_complete_plan_or_exploration_filters_by_prefix(tmp_path, monkeypatch):
     """Test plan file completion filters by prefix."""
     # Create real git repo
     import subprocess
@@ -148,13 +148,13 @@ def test_complete_plan_files_filters_by_prefix(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    result = complete_plan_files("fix", Namespace())
+    result = complete_plan_or_exploration("fix", Namespace())
 
     assert "fix-bug" in result
     assert "add-feature" not in result
 
 
-def test_complete_plan_files_with_path_prefix(tmp_path, monkeypatch):
+def test_complete_plan_or_exploration_with_path_prefix(tmp_path, monkeypatch):
     """Test plan file completion with path prefix."""
     # Create real git repo
     import subprocess
@@ -167,22 +167,22 @@ def test_complete_plan_files_with_path_prefix(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    result = complete_plan_files(".weft/tasks/fix", Namespace())
+    result = complete_plan_or_exploration(".weft/tasks/fix", Namespace())
 
     # Should include full path completions
     assert any(".weft/tasks/fix-bug.md" in item for item in result)
 
 
-def test_complete_plan_files_error_handling():
+def test_complete_plan_or_exploration_error_handling():
     """Test plan file completion handles errors gracefully."""
     with patch("weft.completion.completers.get_active_plans") as mock:
         mock.side_effect = Exception("Test error")
-        result = complete_plan_files("", Namespace())
+        result = complete_plan_or_exploration("", Namespace())
 
     assert result == []
 
 
-def test_complete_plan_files_excludes_done_plans(tmp_path, monkeypatch):
+def test_complete_plan_or_exploration_excludes_done_plans(tmp_path, monkeypatch):
     """Test plan file completion excludes done plans."""
     # Create real git repo
     import subprocess
@@ -196,13 +196,13 @@ def test_complete_plan_files_excludes_done_plans(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    result = complete_plan_files("", Namespace())
+    result = complete_plan_or_exploration("", Namespace())
 
     assert "active" in result
     assert "done" not in result
 
 
-def test_complete_plan_files_includes_implemented_plans(tmp_path, monkeypatch):
+def test_complete_plan_or_exploration_includes_implemented_plans(tmp_path, monkeypatch):
     """Test plan file completion includes implemented plans."""
     # Create real git repo
     import subprocess
@@ -217,7 +217,7 @@ def test_complete_plan_files_includes_implemented_plans(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    result = complete_plan_files("", Namespace())
+    result = complete_plan_or_exploration("", Namespace())
 
     # Should include draft and implemented but not done
     assert "draft" in result

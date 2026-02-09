@@ -175,4 +175,35 @@ def run_status_command(
     table = _format_table(plans, repo_root)
     print(table)
 
+    # Show explorations section (if any exist)
+    try:
+        from .exploration_store import ExplorationStoreError, list_explorations
+
+        explorations = list_explorations(repo_root)
+        if explorations:
+            print()
+            print(_format_explorations_table(explorations))
+    except ExplorationStoreError as exc:
+        logger.warning("Failed to list explorations: %s", exc)
+
     return 0
+
+
+def _format_explorations_table(explorations: list[tuple[str, int]]) -> str:
+    """Format explorations data as table using tabulate.
+
+    Args:
+        explorations: List of (name, timestamp) tuples.
+
+    Returns:
+        Formatted table string with "Explorations" header.
+    """
+    headers = ["Exploration", "Created"]
+    rows = []
+    for name, timestamp in explorations:
+        rows.append([
+            name,
+            _format_relative_time(timestamp),
+        ])
+
+    return tabulate(rows, headers=headers, tablefmt="simple")

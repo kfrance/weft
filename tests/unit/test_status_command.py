@@ -801,3 +801,53 @@ def test_run_status_command_not_in_repo(capsys, caplog) -> None:
 
     # Verify: Error logged
     assert "Failed to find repository root" in caplog.text
+
+
+# =============================================================================
+# Exploration Display Tests
+# =============================================================================
+
+
+def test_run_status_command_shows_explorations(git_repo: GitRepo, capsys) -> None:
+    """Test status command shows explorations section when explorations exist."""
+    from weft.exploration_store import save_exploration
+
+    # Setup: Create tasks directory and an exploration
+    tasks_dir = git_repo.path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+    save_exploration(git_repo.path, "cache-ttl-bug", "Findings about cache TTL")
+
+    # Execute
+    with patch("weft.status_command.find_repo_root", return_value=git_repo.path):
+        exit_code = run_status_command()
+
+    # Verify: Success
+    assert exit_code == 0
+
+    # Verify: Exploration shown in output
+    captured = capsys.readouterr()
+    assert "Exploration" in captured.out
+    assert "cache-ttl-bug" in captured.out
+
+
+def test_run_status_command_no_explorations(git_repo: GitRepo, capsys) -> None:
+    """Test status command omits explorations section when none exist."""
+    # Setup: Create tasks directory but no explorations
+    tasks_dir = git_repo.path / ".weft" / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    # Execute
+    with patch("weft.status_command.find_repo_root", return_value=git_repo.path):
+        exit_code = run_status_command()
+
+    # Verify: Success
+    assert exit_code == 0
+
+    # Verify: No exploration section in output (only plans table headers)
+    captured = capsys.readouterr()
+    assert "Plan ID" in captured.out
+    # "Exploration" column header should NOT appear when no explorations exist
+    # Split output into lines and check no line starts an exploration table
+    lines = captured.out.strip().split("\n")
+    exploration_header_found = any("Exploration" in line and "Created" in line for line in lines)
+    assert not exploration_header_found, "Exploration table should not appear when no explorations exist"

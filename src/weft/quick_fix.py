@@ -148,11 +148,12 @@ def generate_quick_fix_id(tasks_dir: Path, repo_root: Path | None = None) -> str
         raise QuickFixError(f"Failed to generate quick-fix ID: {exc}") from exc
 
 
-def create_quick_fix_plan(text: str) -> Path:
+def create_quick_fix_plan(text: str, exploration_source: str | None = None) -> Path:
     """Create a minimal plan file for a quick fix.
 
     Args:
         text: User-provided description of the fix.
+        exploration_source: Optional exploration name that sourced this plan.
 
     Returns:
         Path to the created plan file.
@@ -202,11 +203,12 @@ def create_quick_fix_plan(text: str) -> Path:
 
     # Create YAML front matter
     # Note: git_sha must be quoted to ensure YAML treats it as a string, not an integer
+    exploration_line = f"\nexploration_source: {exploration_source}" if exploration_source else ""
     front_matter = f"""---
 plan_id: {plan_id}
 git_sha: "{PLACEHOLDER_SHA}"
 status: draft
-evaluation_notes: []
+evaluation_notes: []{exploration_line}
 ---
 
 {text}
